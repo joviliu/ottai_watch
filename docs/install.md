@@ -36,6 +36,7 @@ python3 tools/open_installer.py --serial SERIAL --rpk releases/0.1.4/glucose-wat
 - APK / RPK 包名与签名必须匹配，见 signing.md。
 - Mi Fitness 页面复用旧任务时可能不展示 Debug；辅助脚本使用 NEW_TASK + CLEAR_TASK。
 - 部分 Mi Fitness 控件忽略 ADB 零时长 tap；可用同坐标 150 ms swipe 模拟短按。每次先读新 UI 层级，键盘会移动输入框。
+- 多显示/多输入环境中必须指定目标显示：`adb shell input touchscreen -d 0 swipe X Y X Y 150`。本次实机上不指定 `-d 0` 曾出现命令成功但主屏无变化；先读取显示与焦点再操作。
 - 手机安全锁屏只能由用户解锁，不要关闭锁屏来方便自动化。
 - 手表打开时看到旧数值，数秒后变化属于缓存后同步；观察 `sourceAt`，不要只比较数字。
 - 不要为了后台刷新声明无关音频或定位权限。
