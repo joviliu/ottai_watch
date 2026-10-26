@@ -10,7 +10,7 @@
 - 当前 macOS 的既有工具链完整构建 Android APK 通过；标准 SDK 布局做了单元验证，未在另一台新机器完整安装 SDK 重建。
 - `aiot-toolkit@2.0.5` 构建手表 release 0.1.5 / versionCode 6 通过。
 - 0.1.5 只变更手表图标与版本；手机 APK 继续 0.1.4。数据帧处理和省电策略未变更。
-- 15:01 通过 Mi Fitness 安装 0.1.5 收到 `handleInstallResultPacket code:0` 与本项目包名；图标实际列表观感仍需用户目视确认。
+- 15:01 通过 Mi Fitness 安装 0.1.5 收到 `handleInstallResultPacket code:0` 与本项目包名；用户随后目视确认图标已经变化、符合预期。
 - 图标 192×192，背景圆半径从 83 增至 92，亮蓝 `#246BFD`、白色折线；SVG 原稿与标准库生成器均在仓库。
 - 首次推送 `f3bf821` 的 [GitHub Actions 源码测试](https://github.com/joviliu/ottai_watch/actions/runs/40283043575) 已通过（Ubuntu / JDK 17 / Node 22）。
 
