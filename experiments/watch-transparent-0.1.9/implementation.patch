@@ -83,7 +83,7 @@ index 7bab4c7..4c33a0c 100644
 @@ -22,44 +24,64 @@ import faceExport from '../../common/face-export'
  import app from '@system.app'
  import model from '../../common/model'
- 
+
 +const UI_DELAY_MS = 2000
 +const SYNC_UI_TIMEOUT_MS = 3000
 +
