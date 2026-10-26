@@ -1,0 +1,213 @@
+diff --git a/watch/package-lock.json b/watch/package-lock.json
+index d696faa..94cdc54 100644
+--- a/watch/package-lock.json
++++ b/watch/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "glucose-watch6",
+-  "version": "0.1.8",
++  "version": "0.1.9",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "glucose-watch6",
+-      "version": "0.1.8",
++      "version": "0.1.9",
+       "devDependencies": {
+         "aiot-toolkit": "2.0.5"
+       }
+diff --git a/watch/package.json b/watch/package.json
+index 5d68dbb..39d894d 100644
+--- a/watch/package.json
++++ b/watch/package.json
+@@ -1,11 +1,11 @@
+ {
+   "name": "glucose-watch6",
+-  "version": "0.1.8",
++  "version": "0.1.9",
+   "private": true,
+   "scripts": {
+     "build": "aiot build",
+     "release": "aiot release",
+-    "test": "node test/model.test.cjs && node test/interconnect.test.cjs && node test/face-export.test.cjs && node test/sync-return.test.cjs"
++    "test": "node test/model.test.cjs && node test/interconnect.test.cjs && node test/face-export.test.cjs && node test/sync-return.test.cjs && node test/startup-ui.test.cjs"
+   },
+   "devDependencies": {
+     "aiot-toolkit": "2.0.5"
+diff --git a/watch/src/manifest.json b/watch/src/manifest.json
+index 84c7b3f..d096a29 100644
+--- a/watch/src/manifest.json
++++ b/watch/src/manifest.json
+@@ -1,8 +1,8 @@
+ {
+   "package": "com.example.glucosewatch6",
+   "name": "血糖镜像",
+-  "versionName": "0.1.8",
+-  "versionCode": 9,
++  "versionName": "0.1.9",
++  "versionCode": 10,
+   "minPlatformVersion": 1100,
+   "icon": "/common/icon.png",
+   "deviceTypeList": [
+@@ -26,6 +26,9 @@
+     "logLevel": "log",
+     "designWidth": 216
+   },
++  "display": {
++    "backgroundColor": "#00000000"
++  },
+   "router": {
+     "entry": "pages/index",
+     "pages": {
+diff --git a/watch/src/pages/index/index.ux b/watch/src/pages/index/index.ux
+index 7bab4c7..4c33a0c 100644
+--- a/watch/src/pages/index/index.ux
++++ b/watch/src/pages/index/index.ux
+@@ -1,5 +1,6 @@
+ <template>
+-  <div class="page">
++  <div class="shell">
++  <div class="page" if="{{uiVisible}}">
+     <text class="title">欧态 · 血糖镜像</text>
+     <div class="reading"><text class="value">{{value}}</text><text class="arrow">{{trend}}</text></div>
+     <text class="unit">mmol/L</text>
+@@ -13,6 +14,7 @@
+     <text class="times">{{times}}</text>
+     <text class="status" onclick="requestLatest">{{status}}</text>
+   </div>
++  </div>
+ </template>
+ <script>
+ import interconnect from '@system.interconnect'
+@@ -22,44 +24,64 @@ import faceExport from '../../common/face-export'
+ import app from '@system.app'
+ import model from '../../common/model'
+ 
++const UI_DELAY_MS = 2000
++const SYNC_UI_TIMEOUT_MS = 3000
++
+ export default {
+   private: {
+-    value:'--',trend:'',source:'等待欧态数据',age:'尚无读数',ageColor:'#a8a8a8',
++    uiVisible:false,value:'--',trend:'',source:'等待欧态数据',age:'尚无读数',ageColor:'#a8a8a8',
+     chartVisible:false,chartOptions:{},chartData:[],range:'',times:'',historyStatus:'等待真实历史数据',status:'点击连接手机'
+   },
+   onInit() {
+     this.frame = null
++    this.pageActive = true
++    this.destroyed = false
++    try {
++      const info = app.getInfo()
++      console.info('GlucoseWatch6 launch source type: ' + (info && info.source ? info.source.type : 'unknown'))
++    } catch (e) {}
+     this.connect = interconnect.instance()
+     this.publishFrame = faceExport.publisher(file,(frame) => {
++      if (this.destroyed) return
+       this.connect.send({data:{type:'face_export',sourceAt:frame.sourceAt,frameKey:faceExport.key(frame)},fail:() => {}})
+-      if (this.syncReturnPending) {
++      if (this.pageActive && this.syncReturnPending && this.frame && faceExport.key(this.frame) === faceExport.key(frame)) {
++        clearTimeout(this.syncUiTimer); this.syncUiTimer = null
+         this.exitTimer = setTimeout(() => {
+-          if (this.syncReturnPending && this.frame && faceExport.key(this.frame) === faceExport.key(frame)) {
+-            this.syncReturnPending = false; app.terminate()
++          if (this.pageActive && this.syncReturnPending && this.frame && faceExport.key(this.frame) === faceExport.key(frame)) {
++            this.syncReturnPending = false
++            clearTimeout(this.uiTimer); app.terminate()
+           }
+         },400)
+       }
+-    },(code) => { this.status = '表盘文件写入失败 ' + code })
++    },(code) => { if (!this.destroyed) { this.status = '表盘文件写入失败 ' + code; this.showMain() } })
+     this.connect.onmessage = (event) => {
++      if (this.destroyed) return
+       try {
+         const frame = model.parseFrame(event.data, Date.now())
+         if (this.frame && frame.sourceAt < this.frame.sourceAt) return
+         clearTimeout(this.exitTimer)
+-        if (frame.watchfaceSync === true) this.syncReturnPending = true
++        if (this.pageActive && frame.watchfaceSync === true) this.syncReturnPending = true
++        if (this.syncReturnPending && !this.uiVisible && !this.syncUiTimer) {
++          clearTimeout(this.uiTimer)
++          this.syncUiTimer = setTimeout(() => {
++            this.status = '表盘同步等待较久 · 点击重试'; this.showMain()
++          },SYNC_UI_TIMEOUT_MS)
++        }
+         this.accept(frame)
++        this.status = '已收到手机数据 · 点击刷新'
+         this.publishFrame(frame)
+         storage.set({key:'frame',value:JSON.stringify(frame),fail:() => { this.status = '缓存失败，请保持手机连接' }})
+-        setTimeout(() => {
++        clearTimeout(this.ackTimer)
++        this.ackTimer = setTimeout(() => {
+           this.connect.send({data:{type:'ack',sourceAt:frame.sourceAt},fail:() => { this.status = '显示已更新，回执发送失败' }})
+         }, 150)
+-        this.status = '已收到手机数据 · 点击刷新'
+       } catch (e) { this.status = '数据校验失败，保留最后读数' }
+     }
+     this.connect.onopen = () => { this.status = '手机已连接'; this.requestLatest() }
+     this.connect.onclose = () => { this.status = '手机已断开 · 显示缓存' }
+     this.connect.onerror = (e) => { this.status = '手机通道异常 ' + e.code }
+     storage.get({key:'frame',success:(raw) => {
+-      if (!raw) return
++      if (!raw || this.destroyed) return
+       try {
+         const frame = model.parseFrame(raw, Date.now())
+         if (!this.frame || frame.sourceAt > this.frame.sourceAt) this.accept(frame)
+@@ -67,13 +89,28 @@ export default {
+     }})
+   },
+   onShow() {
++    this.pageActive = true
++    clearTimeout(this.uiTimer); clearInterval(this.timer)
++    // shortcut: delayed content cannot suppress a firmware-owned launch animation.
++    if (!this.uiVisible && !this.syncReturnPending) this.uiTimer = setTimeout(() => this.showMain(),UI_DELAY_MS)
+     this.status = this.frame ? '正在同步 · 保留上次读数' : '正在连接手机'
+     this.updateAge()
++    if (this.frame && !this.chartVisible) this.accept(this.frame)
+     this.timer = setInterval(() => this.updateAge(), 60000)
+     this.requestLatest()
+   },
+-  onHide() { clearInterval(this.timer); this.timer = null; clearTimeout(this.exitTimer); this.syncReturnPending = false },
+-  onDestroy() { clearInterval(this.timer); clearTimeout(this.chartTimer); clearTimeout(this.exitTimer) },
++  onHide() {
++    this.pageActive = false; this.syncReturnPending = false
++    clearInterval(this.timer); this.timer = null
++    clearTimeout(this.exitTimer); clearTimeout(this.chartTimer); clearTimeout(this.ackTimer)
++    clearTimeout(this.uiTimer); clearTimeout(this.syncUiTimer); this.syncUiTimer = null
++  },
++  onDestroy() { this.destroyed = true; this.onHide() },
++  showMain() {
++    if (!this.pageActive || this.destroyed) return
++    clearTimeout(this.uiTimer); clearTimeout(this.syncUiTimer); this.syncUiTimer = null
++    this.uiVisible = true
++  },
+   requestLatest() {
+     this.connect.send({data:{type:'request_latest'},fail:(data,code) => { this.status = '等待手机连接 ' + code }})
+   },
+@@ -102,6 +139,7 @@ export default {
+ }
+ </script>
+ <style>
++.shell { width:216px; height:257px; background-color:#00000000; }
+ .page { width:216px; height:257px; background-color:#090e13; flex-direction:column; align-items:center; padding-top:14px; }
+ .title { color:#b8c4cd; font-size:12px; height:20px; text-align:center; }
+ .reading { height:59px; flex-direction:row; align-items:center; justify-content:center; }
+diff --git a/watch/test/interconnect.test.cjs b/watch/test/interconnect.test.cjs
+index da3146f..7385762 100644
+--- a/watch/test/interconnect.test.cjs
++++ b/watch/test/interconnect.test.cjs
+@@ -46,7 +46,6 @@ assert.equal(intervals.at(-1).ms,60000)
+ const requests = sent.length
+ for (let i=0;i<3;i++) intervals.at(-1).fn()
+ assert.equal(sent.length,requests,'age updates must not poll the phone for glucose')
+-page.onHide(); page.onDestroy()
+ assert.equal(terminated,0,'manual viewing must never auto-exit')
+ connection.onmessage({data:JSON.stringify({...frame,watchfaceSync:true})})
+ while(timers.length) timers.shift()()
+@@ -55,4 +54,5 @@ sandbox.file.writeText=options => options.fail({},300)
+ connection.onmessage({data:JSON.stringify({...frame,value:7.6,history:[{time:at,value:7.6}],watchfaceSync:true})})
+ while(timers.length) timers.shift()()
+ assert.equal(terminated,1,'failed export must not claim success and exit')
++page.onHide(); page.onDestroy()
+ console.log('watch interconnect: object payload, timestamps, ACK, cache retention and no glucose polling passed')

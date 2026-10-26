@@ -7,13 +7,15 @@
 | 项目 | 状态 |
 | --- | --- |
 | Android 通知监听与蓝牙桥接 | 0.1.11 / code 12，增加通知后的短时 CPU 投递窗口、按读数身份的唤起冷却与监听恢复 |
-| Vela 手表应用 | 0.1.8 / code 9，数值、趋势、曲线及双槽表盘文件导出 |
+| Vela 手表应用 | 0.1.10 / code 11 已恢复原逻辑，自动写入与返回已确认；回退后新自然周期未验 |
 | 自定义血糖表盘 | 已安装并由用户确认正常绘制、自动返回及显示新读数；连续更新证据见 [验证记录](docs/validation.md) |
 | 更新策略 | Ottai 新通知触发；表盘自动同步开启时，8 秒未收到文件导出确认才短暂唤起手表应用，写入后自动返回 |
 | 缓存 | 进入时保留上次数值和测量时间，随后同步；断连不把旧数据伪装成新数据 |
 | 上滑「小部件」 | 尚未找到可确认用于 Watch 6 第三方应用的公开接口 |
 
 当前实机组合：Xiaomi 15 / Android 16；Redmi Watch 6（M2523W1，固件 3.100.043，432×514）；Ottai `com.ottai.tag` 1.63.0；Mi Fitness mod `com.xiaomi.wearable` 3.33.6i m0tral v141。兼容性结论仅覆盖这套组合。
+
+[手表 0.1.9 试验](releases/watch-0.1.9/README.md) 未通过验收，不推荐安装：手动先黑屏后正常显示，透明未透出原表盘；两轮自动唤起未收到文件回执，失败原因未定位。已覆盖安装 [0.1.10 恢复包](releases/watch-0.1.10/README.md)，重建手机 SDK 连接后，两次旧测量恢复/状态更正均自动导出，用户确认已返回正常表盘且原始时间匹配。上游原始测量时间暂未推进，不能计作回退后的新自然周期；原后台三周期证据仍属于 0.1.8 RPK。试验代码归档与平台限制见 [减少闪现调研](docs/silent-sync-research.md)。
 
 Ottai 约每 5 分钟更新一次。程序不轮询传感器、不提高 Ottai 刷新频率。当前固件未验证可靠的手表常驻后台接收，因此表盘采用上述短暂唤起后返回的方式，无需手动打开应用。0.1.11 每次未送达读数的发送尝试最多申请 20 秒 partial CPU wake lock，匹配文件回执后提前释放，保障关屏后的 8 秒回退；它不能代替 HyperOS 的后台冻结豁免。新安装时手机「表盘自动同步」默认关闭，使用表盘需要开启。表盘在创建、亮屏和恢复时读取文件，可见期间每 15 秒检查小文件，息屏暂停；长期耗电尚未测量。后台设置和验收边界见 [HyperOS 后台排查](docs/background-running.md)。
 
@@ -30,7 +32,7 @@ git clone git@github.com:joviliu/ottai_watch.git
 cd ottai_watch
 ```
 
-**直接安装**：手机使用 [releases/0.1.11](releases/0.1.11)，表盘使用 [releases/0.1.10](releases/0.1.10) 的 BIN，搭配 [0.1.8 RPK](releases/0.1.8/glucose-watch6-0.1.8.rpk)，先核对各目录的 `SHA256SUMS`；参照 [安装与排查](docs/install.md) 和 [表盘工程](watchface/README.md)。0.1.11 只升级手机端投递保障，已有 RPK 和表盘无需重装。安装包不包含运行时健康数据和账号。表盘目前通过 [本地 SPP 开发安装器](tools/spp-installer/README.md) 上传，需要自己设备的合法配对凭据；Mi Fitness 的开发表盘授权接口在本次实测返回 HTTP 404。旧版本保留用于历史追溯。
+**直接安装**：手机使用 [releases/0.1.11](releases/0.1.11)，表盘使用 [releases/0.1.10](releases/0.1.10) 的 BIN；手表恢复包为 [RPK 0.1.10](releases/watch-0.1.10/README.md)。先核对各目录的 `SHA256SUMS`，参照 [安装与排查](docs/install.md) 和 [表盘工程](watchface/README.md)。手机 0.1.11 本身无需重装表盘；已装试验 RPK 的设备应使用恢复包，已有稳定 RPK 0.1.8 无需因手机升级而替换。安装包不包含运行时健康数据和账号。表盘目前通过 [本地 SPP 开发安装器](tools/spp-installer/README.md) 上传，需要自己设备的合法配对凭据；Mi Fitness 的开发表盘授权接口在本次实测返回 HTTP 404。旧版本保留用于历史追溯。
 
 **继续开发**：需要 Python 3、Node.js ≥18、JDK ≥17、Android SDK Platform 35 / Build Tools 35.0.0、OpenSSL。先运行不依赖 Android SDK 的测试：
 
