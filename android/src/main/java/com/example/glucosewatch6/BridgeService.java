@@ -24,7 +24,11 @@ public final class BridgeService extends Service {
     private boolean listening, registering, querying, openRequested, permissionRequested;
     private long queryStarted;
     private long lastFaceWakeAt;
+    private String lastFaceWakeKey;
     private String faceSyncKey;
+    private PowerManager.WakeLock deliveryWakeLock;
+    private String deliveryWakeKey;
+    private long deliveryWakeStarted;
     private final Runnable wakeFace = this::wakeFaceForSync;
     private final Runnable retry = new Runnable() {
         @Override public void run() {
@@ -58,7 +62,10 @@ public final class BridgeService extends Service {
 
     static void updated(Context context) {
         BridgeService service = running;
-        if (service != null) service.handler.post(service::sendLatest);
+        if (service != null) {
+            service.holdDelivery();
+            service.handler.post(service::sendLatest);
+        } else start(context, false);
     }
 
     @Override public void onCreate() {
@@ -69,6 +76,8 @@ public final class BridgeService extends Service {
         startForeground(1, new Notification.Builder(this, "bridge").setSmallIcon(R.drawable.ic_stat_glucose)
             .setContentTitle("血糖镜像正在连接手表").setContentText("直接同步欧态的血糖值、趋势和更新时间")
             .setContentIntent(content).setOngoing(true).build());
+        deliveryWakeLock = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "GlucoseWatch6:delivery");
+        deliveryWakeLock.setReferenceCounted(false);
         running = this;
         nodes = Wearable.getNodeApi(this);
         messages = Wearable.getMessageApi(this);
@@ -78,6 +87,7 @@ public final class BridgeService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        holdDelivery();
         if (!faceModeEnabled()) { faceSyncKey=null; handler.removeCallbacks(wakeFace); }
         if (intent != null) permissionRequested = false;
         if (intent != null && intent.getBooleanExtra("open", false)) {
@@ -153,6 +163,7 @@ public final class BridgeService extends Service {
             listening = status.isSuccess();
             ReadingStore.status(this, listening ? "手表通道已连接，等待表端回执" : "注册手表通道失败，SDK：" + status.getCode());
             if (listening) {
+                holdDelivery();
                 nodes.subscribe(device, DataItem.ITEM_CONNECTION, (command, item, result) -> handler.post(() -> {
                     if (result.getConnectedStatus() == 1) sendLatest();
                     else ReadingStore.status(this, "手表蓝牙已断开，保留最后真实读数");
@@ -181,6 +192,7 @@ public final class BridgeService extends Service {
                 if (!current.isEmpty() && message.optString("frameKey").equals(faceKey(new JSONObject(current)))) {
                     getSharedPreferences(ReadingStore.PREFS,0).edit().putString("faceExportKey",message.getString("frameKey")).apply();
                     handler.removeCallbacks(wakeFace); faceSyncKey=null;
+                    releaseDelivery(message.getString("frameKey"), "export");
                     android.util.Log.i("GlucoseWatch6", "FACE_EXPORT sourceAt=" + sourceAt + " observedAt=" + System.currentTimeMillis());
                 }
             }
@@ -222,6 +234,34 @@ public final class BridgeService extends Service {
 
     private boolean faceModeEnabled() { return getSharedPreferences(ReadingStore.PREFS,0).getBoolean("faceMode",false); }
 
+    private void holdDelivery() {
+        try {
+            String raw=ReadingStore.frame(this);
+            if (raw.isEmpty()) return;
+            JSONObject frame=new JSONObject(raw);
+            long sourceAt=frame.getLong("sourceAt"), now=System.currentTimeMillis();
+            if (sourceAt<=0 || sourceAt>now+90000 || now-sourceAt>=600000) return;
+            String key=faceKey(frame);
+            if (key.equals(getSharedPreferences(ReadingStore.PREFS,0).getString("faceExportKey",""))) return;
+            if (deliveryWakeLock.isHeld() && key.equals(deliveryWakeKey)) return;
+            deliveryWakeKey=key; deliveryWakeStarted=SystemClock.elapsedRealtime();
+            // Handler's 8-second fallback must run even after the display sleeps.
+            deliveryWakeLock.acquire(20000);
+            android.util.Log.i("GlucoseWatch6","CPU_WINDOW_BEGIN sourceAt="+sourceAt+" maxMs=20000");
+        } catch (Exception error) {
+            android.util.Log.w("GlucoseWatch6","CPU delivery window unavailable: "+error.getClass().getSimpleName());
+        }
+    }
+
+    private void releaseDelivery(String key, String reason) {
+        if (key!=null && !key.equals(deliveryWakeKey)) return;
+        if (deliveryWakeLock!=null && deliveryWakeLock.isHeld()) {
+            deliveryWakeLock.release();
+            android.util.Log.i("GlucoseWatch6","CPU_WINDOW_END reason="+reason+" heldMs="+(SystemClock.elapsedRealtime()-deliveryWakeStarted));
+        }
+        deliveryWakeKey=null;
+    }
+
     private void wakeFaceForSync() {
         if (!faceModeEnabled() || !listening || device==null) return;
         try {
@@ -230,10 +270,11 @@ public final class BridgeService extends Service {
             String key=faceKey(current);
             long now=System.currentTimeMillis();
             String exported=getSharedPreferences(ReadingStore.PREFS,0).getString("faceExportKey","");
-            if (!FaceSyncPolicy.shouldWake(sourceAt,key,exported,now,lastFaceWakeAt)) return;
-            lastFaceWakeAt=now; faceSyncKey=key;
+            if (!FaceSyncPolicy.shouldWake(sourceAt,key,exported,now,lastFaceWakeAt,lastFaceWakeKey)) return;
+            lastFaceWakeAt=now; lastFaceWakeKey=key; faceSyncKey=key;
             android.util.Log.i("GlucoseWatch6","FACE_WAKE sourceAt="+sourceAt+" observedAt="+now);
             nodes.launchWearApp(device,getPackageName(),status -> handler.post(() -> {
+                if (!key.equals(faceSyncKey)) return;
                 if (status.isSuccess()) handler.postDelayed(this::sendLatest,1200);
                 else { faceSyncKey=null; ReadingStore.status(this,"表盘同步唤起失败，SDK："+status.getCode()); }
             }));
@@ -245,6 +286,7 @@ public final class BridgeService extends Service {
 
     @Override public void onDestroy() {
         running = null;
+        releaseDelivery(null, "service_stop");
         handler.removeCallbacksAndMessages(null);
         client.onServiceConnectionListener.remove(connection);
         if (listening && device != null) {

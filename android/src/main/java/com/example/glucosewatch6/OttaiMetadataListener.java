@@ -6,8 +6,15 @@ import android.service.notification.StatusBarNotification;
 
 public final class OttaiMetadataListener extends NotificationListenerService {
     @Override public void onListenerConnected() {
+        android.util.Log.i("GlucoseWatch6", "LISTENER_CONNECTED");
         StatusBarNotification[] active = getActiveNotifications();
         if (active != null) for (StatusBarNotification notification : active) onNotificationPosted(notification);
+    }
+
+    @Override public void onListenerDisconnected() {
+        android.util.Log.i("GlucoseWatch6", "LISTENER_DISCONNECTED; requesting rebind");
+        try { requestRebind(new android.content.ComponentName(this, OttaiMetadataListener.class)); }
+        catch (RuntimeException error) { android.util.Log.w("GlucoseWatch6", "Listener rebind unavailable: "+error.getClass().getSimpleName()); }
     }
 
     @Override public void onNotificationPosted(StatusBarNotification sbn) {

@@ -6,7 +6,7 @@
 
 | 项目 | 状态 |
 | --- | --- |
-| Android 通知监听与蓝牙桥接 | 0.1.10 / code 11，通知与应用图标资源为蓝底白折线，另有透明白色通知小图标 |
+| Android 通知监听与蓝牙桥接 | 0.1.11 / code 12，增加通知后的短时 CPU 投递窗口、按读数身份的唤起冷却与监听恢复 |
 | Vela 手表应用 | 0.1.8 / code 9，数值、趋势、曲线及双槽表盘文件导出 |
 | 自定义血糖表盘 | 已安装并由用户确认正常绘制、自动返回及显示新读数；连续更新证据见 [验证记录](docs/validation.md) |
 | 更新策略 | Ottai 新通知触发；表盘自动同步开启时，8 秒未收到文件导出确认才短暂唤起手表应用，写入后自动返回 |
@@ -15,7 +15,7 @@
 
 当前实机组合：Xiaomi 15 / Android 16；Redmi Watch 6（M2523W1，固件 3.100.043，432×514）；Ottai `com.ottai.tag` 1.63.0；Mi Fitness mod `com.xiaomi.wearable` 3.33.6i m0tral v141。兼容性结论仅覆盖这套组合。
 
-Ottai 约每 5 分钟更新一次。程序不轮询传感器、不提高 Ottai 刷新频率。当前固件未验证可靠的常驻后台接收，因此表盘采用上述短暂唤起后返回的方式，无需手动打开应用。新安装时手机「表盘自动同步」默认关闭，使用表盘需要开启。表盘在创建、亮屏和恢复时读取文件，可见期间每 15 秒检查小文件，息屏暂停；长期耗电尚未测量。
+Ottai 约每 5 分钟更新一次。程序不轮询传感器、不提高 Ottai 刷新频率。当前固件未验证可靠的手表常驻后台接收，因此表盘采用上述短暂唤起后返回的方式，无需手动打开应用。0.1.11 每次未送达读数的发送尝试最多申请 20 秒 partial CPU wake lock，匹配文件回执后提前释放，保障关屏后的 8 秒回退；它不能代替 HyperOS 的后台冻结豁免。新安装时手机「表盘自动同步」默认关闭，使用表盘需要开启。表盘在创建、亮屏和恢复时读取文件，可见期间每 15 秒检查小文件，息屏暂停；长期耗电尚未测量。后台设置和验收边界见 [HyperOS 后台排查](docs/background-running.md)。
 
 ![白色小时、橙色分钟与紫色血糖布局；包含合成示例，并非手表截图](watchface/preview-example.png)
 
@@ -30,7 +30,7 @@ git clone git@github.com:joviliu/ottai_watch.git
 cd ottai_watch
 ```
 
-**直接安装**：使用 [releases/0.1.10](releases/0.1.10) 的手机 APK 与新版表盘 BIN，搭配 [0.1.8 RPK](releases/0.1.8/glucose-watch6-0.1.8.rpk)，先核对各目录的 `SHA256SUMS`；参照 [安装与排查](docs/install.md) 和 [表盘工程](watchface/README.md)。0.1.10 只调整 UI，手表应用和同步协议保持 0.1.8。安装包不包含运行时健康数据和账号。表盘目前通过 [本地 SPP 开发安装器](tools/spp-installer/README.md) 上传，需要自己设备的合法配对凭据；Mi Fitness 的开发表盘授权接口在本次实测返回 HTTP 404。旧版本保留用于历史追溯。
+**直接安装**：手机使用 [releases/0.1.11](releases/0.1.11)，表盘使用 [releases/0.1.10](releases/0.1.10) 的 BIN，搭配 [0.1.8 RPK](releases/0.1.8/glucose-watch6-0.1.8.rpk)，先核对各目录的 `SHA256SUMS`；参照 [安装与排查](docs/install.md) 和 [表盘工程](watchface/README.md)。0.1.11 只升级手机端投递保障，已有 RPK 和表盘无需重装。安装包不包含运行时健康数据和账号。表盘目前通过 [本地 SPP 开发安装器](tools/spp-installer/README.md) 上传，需要自己设备的合法配对凭据；Mi Fitness 的开发表盘授权接口在本次实测返回 HTTP 404。旧版本保留用于历史追溯。
 
 **继续开发**：需要 Python 3、Node.js ≥18、JDK ≥17、Android SDK Platform 35 / Build Tools 35.0.0、OpenSSL。先运行不依赖 Android SDK 的测试：
 
