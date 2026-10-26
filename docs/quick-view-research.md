@@ -12,7 +12,7 @@
 
 [0.1.9 试验](../releases/watch-0.1.9/README.md) 虽已构建、通过桌面检查并安装 code 0，仍未通过实机验收，不推荐使用。手动启动先黑屏再显示，透明未透出表盘；自动自然周期手机收到新帧并唤起、SDK accepted，却无文件导出回执，用户未见更新。镜像未冻结，具体失败原因尚未定位，不把门控直接写成已确认根因。
 
-恢复包为 [RPK 0.1.10 / code 11](../releases/watch-0.1.10/README.md)，源码已恢复原 0.1.8 逻辑，仅递增版本供覆盖安装，已收到安装 code 0，两次旧测量自动写入已确认，回退后表盘原始时间和正常返回已由用户确认；新测量周期尚未验证。手机 0.1.11 / 表盘 0.1.10 不变；旧三周期属于原 RPK 0.1.8，不算恢复包验收。试验保存在 [implementation.patch](../experiments/watch-transparent-0.1.9/implementation.patch)，API 与视觉边界见 [减少界面闪现调研](silent-sync-research.md)。
+恢复包为 [RPK 0.1.10 / code 11](../releases/watch-0.1.10/README.md)，源码已恢复原 0.1.8 逻辑，仅递增版本供覆盖安装，已收到安装 code 0，两次旧测量自动写入已确认，恢复旧测量时的表盘原始时间和正常返回已由用户确认；随后两个原始时间推进的读数均已自动导出并收到 ACK，本两条未额外取得屏显目视。手机 0.1.11 / 表盘 0.1.10 不变；旧三周期属于原 RPK 0.1.8，不算恢复包验收。试验保存在 [implementation.patch](../experiments/watch-transparent-0.1.9/implementation.patch)，API 与视觉边界见 [减少界面闪现调研](silent-sync-research.md)。
 
 ## 上滑小部件
 
