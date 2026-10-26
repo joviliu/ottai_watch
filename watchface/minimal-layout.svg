@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="432" height="514" viewBox="0 0 432 514" role="img" aria-label="血糖表盘布局草图，所有数值为合成示例">
+  <rect width="432" height="514" rx="62" fill="#050609"/>
+  <g font-family="sans-serif" text-anchor="middle">
+    <text x="216" y="61" fill="#9ca8b4" font-size="22">10 / 26　MON</text>
+    <text x="216" y="185" fill="#f5f7fa" font-size="111" font-weight="700" letter-spacing="-4">14:28</text>
+    <path d="M48 222 H384" stroke="#252c33"/>
+    <text x="168" y="340" fill="#70dfc3" font-size="108" font-weight="700">6.8</text>
+    <path d="M306 324 L350 280 M321 280 H350 V309" fill="none" stroke="#70dfc3" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="216" y="388" fill="#a9b6c4" font-size="24">mmol/L · 14:25</text>
+    <text x="216" y="470" fill="#737f8b" font-size="17">布局草图 · 合成示例</text>
+  </g>
+</svg>

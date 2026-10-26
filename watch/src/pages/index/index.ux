@@ -1,0 +1,103 @@
+<template>
+  <div class="page">
+    <text class="title">欧态 · 血糖镜像</text>
+    <div class="reading"><text class="value">{{value}}</text><text class="arrow">{{trend}}</text></div>
+    <text class="unit">mmol/L</text>
+    <text class="source">{{source}}</text>
+    <text class="age" style="color:{{ageColor}}">{{age}}</text>
+    <div class="chart-area">
+      <text class="range" if="{{chartVisible}}">{{range}}</text>
+      <chart class="graph" if="{{chartVisible}}" type="line" options="{{chartOptions}}" datasets="{{chartData}}"></chart>
+      <text class="waiting" if="{{!chartVisible}}">{{historyStatus}}</text>
+    </div>
+    <text class="times">{{times}}</text>
+    <text class="status" onclick="requestLatest">{{status}}</text>
+  </div>
+</template>
+<script>
+import interconnect from '@system.interconnect'
+import storage from '@system.storage'
+import model from '../../common/model'
+
+export default {
+  private: {
+    value:'--',trend:'',source:'等待欧态数据',age:'尚无读数',ageColor:'#a8a8a8',
+    chartVisible:false,chartOptions:{},chartData:[],range:'',times:'',historyStatus:'等待真实历史数据',status:'点击连接手机'
+  },
+  onInit() {
+    this.frame = null
+    this.connect = interconnect.instance()
+    this.connect.onmessage = (event) => {
+      try {
+        const frame = model.parseFrame(event.data, Date.now())
+        if (this.frame && frame.sourceAt < this.frame.sourceAt) return
+        this.accept(frame)
+        storage.set({key:'frame',value:JSON.stringify(frame),fail:() => { this.status = '缓存失败，请保持手机连接' }})
+        setTimeout(() => {
+          this.connect.send({data:{type:'ack',sourceAt:frame.sourceAt},fail:() => { this.status = '显示已更新，回执发送失败' }})
+        }, 150)
+        this.status = '已收到手机数据 · 点击刷新'
+      } catch (e) { this.status = '数据校验失败，保留最后读数' }
+    }
+    this.connect.onopen = () => { this.status = '手机已连接'; this.requestLatest() }
+    this.connect.onclose = () => { this.status = '手机已断开 · 显示缓存' }
+    this.connect.onerror = (e) => { this.status = '手机通道异常 ' + e.code }
+    storage.get({key:'frame',success:(raw) => {
+      if (!raw) return
+      try {
+        const frame = model.parseFrame(raw, Date.now())
+        if (!this.frame || frame.sourceAt > this.frame.sourceAt) this.accept(frame)
+      } catch (e) { this.status = '缓存无效，等待手机数据' }
+    }})
+  },
+  onShow() {
+    this.status = this.frame ? '正在同步 · 保留上次读数' : '正在连接手机'
+    this.updateAge()
+    this.timer = setInterval(() => this.updateAge(), 60000)
+    this.requestLatest()
+  },
+  onHide() { clearInterval(this.timer); this.timer = null },
+  onDestroy() { clearInterval(this.timer); clearTimeout(this.chartTimer) },
+  requestLatest() {
+    this.connect.send({data:{type:'request_latest'},fail:(data,code) => { this.status = '等待手机连接 ' + code }})
+  },
+  accept(frame) {
+    this.frame = frame
+    this.value = frame.value.toFixed(1)
+    this.trend = frame.trend
+    this.source = '欧态更新 ' + model.clock(frame.sourceAt)
+    this.updateAge()
+    const graph = model.chart(frame)
+    this.chartVisible = false
+    clearTimeout(this.chartTimer)
+    this.chartOptions = graph.options
+    this.chartData = graph.data
+    this.range = graph.range
+    this.times = graph.count > 1 ? graph.times + ' · ' + graph.count + '条' : ''
+    this.historyStatus = '正在积累趋势历史（' + graph.count + '条）'
+    this.chartTimer = setTimeout(() => { this.chartVisible = graph.count > 1 }, 50)
+  },
+  updateAge() {
+    if (!this.frame) return
+    const age = Math.max(0, Math.floor((Date.now() - this.frame.sourceAt) / 60000))
+    this.age = age + ' 分钟前' + (age >= 10 ? ' · 旧数据' : '')
+    this.ageColor = age >= 10 ? '#ffbc73' : '#70dfc3'
+  }
+}
+</script>
+<style>
+.page { width:216px; height:257px; background-color:#090e13; flex-direction:column; align-items:center; padding-top:14px; }
+.title { color:#b8c4cd; font-size:12px; height:20px; text-align:center; }
+.reading { height:59px; flex-direction:row; align-items:center; justify-content:center; }
+.value { color:#ffffff; font-size:49px; font-weight:bold; }
+.arrow { color:#70dfc3; font-size:31px; margin-left:7px; }
+.unit { color:#b8c4cd; font-size:12px; height:17px; text-align:center; }
+.source { color:#d9e2e8; font-size:12px; height:18px; text-align:center; }
+.age { font-size:12px; height:19px; text-align:center; }
+.chart-area { width:180px; height:69px; flex-direction:column; align-items:center; }
+.range { color:#8497a5; font-size:10px; height:14px; }
+.graph { width:176px; height:54px; }
+.waiting { color:#8497a5; font-size:11px; text-align:center; margin-top:22px; }
+.times { color:#8497a5; font-size:10px; height:16px; }
+.status { color:#a7bdce; font-size:10px; height:23px; width:196px; text-align:center; lines:1; text-overflow:ellipsis; }
+</style>

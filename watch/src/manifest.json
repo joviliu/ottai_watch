@@ -1,0 +1,31 @@
+{
+  "package": "com.example.glucosewatch6",
+  "name": "血糖镜像",
+  "versionName": "0.1.5",
+  "versionCode": 6,
+  "minPlatformVersion": 1100,
+  "icon": "/common/icon.png",
+  "deviceTypeList": [
+    "watch"
+  ],
+  "features": [
+    {
+      "name": "system.interconnect"
+    },
+    {
+      "name": "system.storage"
+    }
+  ],
+  "config": {
+    "logLevel": "log",
+    "designWidth": 216
+  },
+  "router": {
+    "entry": "pages/index",
+    "pages": {
+      "pages/index": {
+        "component": "index"
+      }
+    }
+  }
+}
