@@ -1,10 +1,10 @@
 # 临时 SPP 表盘安装器
 
-仅用于开发验证本项目的 Redmi Watch 6 表盘。它直接使用已配对设备的正常 SPP 认证和表盘上传协议，不调用 Mi Fitness 的云表盘授权接口。不需要解绑或重新配对。本项目 BIN 已在当前设备完成上传，用户确认修正 Lua 入口后正常绘制；配套镜像的两轮自动更新与正常返回已完成基本验收。
+仅用于开发验证本项目的 Redmi Watch 6 表盘。它直接使用已配对设备的正常 SPP 认证和表盘上传协议，不调用 Mi Fitness 的云表盘授权接口。不需要解绑或重新配对。此前单款表盘已完成上传、正常绘制及配套镜像的两轮基本更新验收；本轮只覆盖当前 ID `8670260101` 的 Ottai Ultra，用户已确认最终布局及显示正常，不发布或安装第二款。
 
 ## 已签名安装包
 
-可直接使用 [ottai-watchface-installer-0.1.3.apk](../../releases/0.1.8/ottai-watchface-installer-0.1.3.apk)（versionCode 4），先按照 [0.1.8 发布说明](../../releases/0.1.8/README.md)核对 SHA-256。APK 不含配对凭据，也不预装任何健康数据。安装完成后卸载临时安装器，它不参与日常更新。
+使用 [ottai-watchface-installer-0.1.4.apk](../../releases/0.1.10/ottai-watchface-installer-0.1.4.apk)（versionCode 5），先按照 [0.1.10 发布说明](../../releases/0.1.10/README.md)核对 SHA-256。0.1.4 的白名单允许当前 ID 与一个未来预留 ID；本轮仅使用 `8670260101`。APK 不含配对凭据，也不预装任何健康数据。安装完成后卸载临时安装器，它不参与日常更新。
 
 ## 源码构建
 
@@ -24,7 +24,7 @@ python3 tools/spp-installer/build.py --face watchface/build/ottai-minimal-watch6
 独立包名 `com.example.ottaiwatchfaceinstaller`，debuggable 仅便于开发时通过 `run-as` 放入私有文件。Activity 受系统 `DUMP` 权限保护，只通过 ADB 启动，不提供普通应用可触发的公开安装入口。
 
 - 应用私有 `files/auth.json`：字段 `bluetoothMac`、`authKey`。密钥必须来自当前已配对的自己的设备，不能使用其他项目的默认值。
-- 应用私有 `files/watchface.bin`：本项目 BIN；严格要求 ID `8670260101` 与 432×514 预览尺寸。
+- 应用私有 `files/watchface.bin`：本轮 Ottai Ultra BIN，ID `8670260101`、432×514。白名单另允许未来预留 ID `8670260102`，本轮不发布、不安装；其他 ID 一律拒绝。
 - 不要把凭据放在此源码目录、APK资源、命令行、终端输出或Git中。
 
 安装 APK 后，Python 示例用 stdin 向应用私有文件写入，凭据不经过命令行或标准输出：
@@ -56,7 +56,7 @@ subprocess.run(['adb','shell','run-as',pkg,'chmod','600','files/auth.json','file
 2. 安装 APK，并授予蓝牙权限：
 
 ```sh
-adb install -r releases/0.1.8/ottai-watchface-installer-0.1.3.apk
+adb install -r releases/0.1.10/ottai-watchface-installer-0.1.4.apk
 adb shell pm grant com.example.ottaiwatchfaceinstaller android.permission.BLUETOOTH_CONNECT
 adb shell pm grant com.example.ottaiwatchfaceinstaller android.permission.BLUETOOTH_SCAN
 ```
@@ -82,7 +82,9 @@ adb shell am start -S -n com.example.ottaiwatchfaceinstaller/.MainActivity --es 
 adb shell am start -S -n com.example.ottaiwatchfaceinstaller/.MainActivity --es mode replace
 ```
 
-`replace` 只能处理固定本项目 ID `8670260101`。安装器先查询表盘列表；若找到该 ID，则只删除此项目表盘，再进行一次独立列表查询，确认该 ID 已不存在后才重装。若查询失败或删除未确认则停止；不会遍历删除其他表盘。没有本项目旧版本时直接安装。保留其他可用表盘作为回退。
+`replace` 仅允许项目白名单 `8670260101` 和预留的 `8670260102`，目标从当前 BIN 解析，不能传入任意删除 ID。先查询列表，若找到当前目标，只删除该目标，再独立查询确认已不存在后重装；查询失败或删除未确认则停止，不删除其他 ID。
+
+本轮发布的 Ottai Ultra 固定为 `8670260101`，按用户要求覆盖旧样式；不安装 `8670260102`。未来不同风格可使用独立 ID 并存，继续共用镜像 RPK 和数据文件；这只是扩展方式，不是本轮已安装第二款。
 
 本环境中直接再次启动同一个 Activity 曾复用旧 Intent，导致新的 mode 没有执行，因此采用 `am start -S` 启动新实例。`-S` 会先停止已有安装器进程；**上一轮尚未 `DISCONNECTED` 时不可使用**，否则会打断正在进行的认证或传输。判断时看本轮最新日志，不把历史操作的 `DISCONNECTED` 当作当前操作已经结束。
 
@@ -96,10 +98,10 @@ adb uninstall com.example.ottaiwatchfaceinstaller
 
 ## 安装后的恢复检查
 
-- 恢复 Mi Fitness 与镜像原先的启用/运行状态。本轮恢复为 `default`；新环境依照开始前记录，不擅自改变用户原设置。
-- 若曾用 `disable-user`，核对系统“通知使用权/通知访问”：恢复此前已授权的镜像 `OttaiMetadataListener` 和 Mi Fitness `NotifySyncService`，不额外授权其他监听服务。它们的通知访问可能已被系统清除，不能仅检查蓝牙连接。
+- 恢复 Mi Fitness 与镜像原先的启用/运行状态。本轮恢复为 `default`；正常重启后仍须实际查询核对，不能仅信 `pm default-state` 成功输出。本轮曾在重启后再次看到 `disabled-user`，原因未确定，随后已再次恢复。新环境依照开始前记录，不擅自改变用户原设置。
+- 若曾用 `disable-user`，核对系统“通知使用权/通知访问”：恢复此前已授权的镜像 `OttaiMetadataListener` 和 Mi Fitness `NotifySyncService`，不额外授权其他监听服务。它们的通知访问可能已被系统清除；正常重启后再次核对授权与监听绑定，不能仅检查蓝牙连接。
 - 启动并重连 Mi Fitness 与镜像。镜像手机 `MainActivity` 会发起 `NotificationListenerService.requestRebind`，用于恢复已获授权的监听绑定，不能代替被撤销的通知授权。
-- 对照最新 Ottai 通知核对镜像接收的原始测量时间、数值和趋势，再观察表盘；停留在旧缓存或仅看到连接成功不算恢复完成。不要公开原始通知、医疗时间线或设备标识。
+- 对照最新自然 Ottai 通知核对镜像接收的原始测量时间、数值和趋势，再观察表盘；恢复缓存通知的回执不当作自然新周期或用于计算延迟。停留在旧缓存或仅看到连接成功不算恢复完成。不要公开原始通知、医疗时间线或设备标识。
 - 如需“表盘自动同步”，在手机明确开启。保持手表在表盘、不手动打开镜像，检查后续至少两个自然更新周期；文件导出回执和 ACK 不能代替表盘目视确认。
 
 ## 当前验证状态
@@ -107,9 +109,10 @@ adb uninstall com.example.ottaiwatchfaceinstaller
 | 阶段 | 状态 |
 | --- | --- |
 | 本地正常 SPP 认证 | 已在当前设备收到 `AUTH_OK` 并完成 `DISCONNECTED` |
-| 本项目 BIN 安装 | `replace` 已收到 `UPLOAD 100%`、`INSTALL_OK`，并完成 `DISCONNECTED` |
+| 基线 BIN 安装 | 曾收到 `UPLOAD 100%`、`INSTALL_OK`，并完成 `DISCONNECTED` |
+| 安装器 0.1.4 | 已实现当前/预留 ID 白名单及只替换 BIN 目标；本轮仅覆盖 `8670260101`，上传及用户最终目视已通过 |
 | 表盘渲染 | 修正打包器 Lua anchor 入口后，用户确认正常绘制 |
-| 安装器清理 | 已卸载成功；手机保持锁屏，镜像与 Mi Fitness 原通知访问保留 |
-| 自动同步 | 用户确认自动返回点阵表盘并显示当前读数；手机锁屏后连续两轮自然更新完成导出及 ACK，用户已确认最新屏显与正常返回，基本验收通过。此能力来自镜像应用的短暂唤起策略，非安装器或常驻后台 |
+| 本轮安装器清理 | 0.1.4 已卸载成功，手机端私有凭据清除；已恢复镜像/Mi Fitness 默认启用状态与原通知监听 |
+| 自动同步 | 用户确认自动返回点阵表盘并显示当前读数；手机锁屏后连续两轮自然更新完成导出及 ACK，用户已确认最新屏显与正常返回，基本验收通过；0.1.10 重启恢复后又一轮自然通知约 9.8 秒完成导出及 ACK。此能力来自镜像应用的短暂唤起策略，非安装器或常驻后台 |
 
 此组件源码独立采用 AGPL-3.0，协议来源及依赖见 NOTICE.md。没有联网权限、广泛存储权限或固件更新功能。

@@ -1,10 +1,13 @@
 package com.example.ottaiwatchfaceinstaller;
 import com.example.redmiwatch6installer.xiaomi.WatchfaceParser;
+import com.example.redmiwatch6installer.xiaomi.Proto;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Collections;
 
 public final class InstallGuardTest {
     private static void reject(Runnable action) {try{action.run();throw new AssertionError("must reject");}catch(IllegalArgumentException expected){}}
@@ -16,13 +19,32 @@ public final class InstallGuardTest {
         reject(()->InstallGuard.face(true,"wrong",432,514));
         reject(()->InstallGuard.deletionTarget("wrong"));
         reject(()->InstallGuard.deletionTarget(null));
-        if (!"8670260101".equals(InstallGuard.deletionTarget("8670260101"))) throw new AssertionError("only project deletion ID");
-        reject(()->InstallGuard.face(true,"8670260101",212,520));
+        reject(()->InstallGuard.deletionTarget("8670260103"));
+        reject(()->InstallGuard.face(true,"8670260103",432,514));
+        for (String id : new String[]{"8670260101", "8670260102"}) {
+            InstallGuard.face(true,id,432,514);
+            if (!id.equals(InstallGuard.deletionTarget(id))) throw new AssertionError("replacement must preserve BIN target");
+            reject(()->InstallGuard.face(true,id,212,520));
+            reject(()->InstallGuard.face(false,id,432,514));
+        }
+        Proto.FaceInfo compact=new Proto.FaceInfo();compact.id="8670260101";
+        Proto.FaceInfo ultra=new Proto.FaceInfo();ultra.id="8670260102";
+        Proto.FaceInfo other=new Proto.FaceInfo();other.id="other";
+        if (!InstallGuard.containsFace(Arrays.asList(compact,ultra,other),compact.id)
+                || !InstallGuard.containsFace(Arrays.asList(compact,ultra,other),ultra.id)) throw new AssertionError("find each project target");
+        if (InstallGuard.containsFace(Arrays.asList(ultra,other,null),compact.id)
+                || InstallGuard.containsFace(Arrays.asList(compact,other,null),ultra.id)) throw new AssertionError("other variant must not match replacement target");
+        reject(()->InstallGuard.containsFace(Collections.singletonList(other),other.id));
+        try {InstallGuard.containsFace(null,compact.id);throw new AssertionError("missing confirmation list must stop replacement");}
+        catch (IllegalStateException expected) {}
         byte[] data=new byte[256];data[0]=0x5a;data[1]=(byte)0xa5;
         System.arraycopy("8670260101".getBytes(StandardCharsets.US_ASCII),0,data,40,10);
         System.arraycopy("Ottai Minimal".getBytes(StandardCharsets.US_ASCII),0,data,104,13);
         ByteBuffer b=ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);b.putInt(32,160);b.putShort(164,(short)432);b.putShort(166,(short)514);
         WatchfaceParser face=WatchfaceParser.parse(data);
+        InstallGuard.face(face.valid&&face.compatibleEnoughToInstall(),face.id,face.previewWidth,face.previewHeight);
+        System.arraycopy("8670260102".getBytes(StandardCharsets.US_ASCII),0,data,40,10);
+        face=WatchfaceParser.parse(data);
         InstallGuard.face(face.valid&&face.compatibleEnoughToInstall(),face.id,face.previewWidth,face.previewHeight);
         if(WatchfaceParser.parse(new byte[20]).valid)throw new AssertionError("short input");
         if(args.length==1) {

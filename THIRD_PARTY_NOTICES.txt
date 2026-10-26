@@ -45,5 +45,8 @@ watchface/fonts/BarlowCondensed-Light.ttf:
   Origin: https://github.com/google/fonts/tree/main/ofl/barlowcondensed
   Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
   License: SIL Open Font License 1.1; full text in watchface/fonts/OFL.txt.
-  Used as the outline for original circular-dot clock-number assets. Other on-device labels use
-  the device's existing MiSans font; that font is not redistributed here.
+  Used only for desktop preview text and the unknown-trend question-mark asset.
+  Clock numerals use original 6x14 dot patterns; glucose uses
+  sparse 5x7 dot patterns. Neither derives its outlines from this font. Other
+  on-device labels use the device's existing MiSans font; that font is not
+  redistributed here.

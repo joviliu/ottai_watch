@@ -66,7 +66,7 @@ public final class BridgeService extends Service {
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.createNotificationChannel(new NotificationChannel("bridge", "手表血糖连接", NotificationManager.IMPORTANCE_LOW));
         PendingIntent content = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
-        startForeground(1, new Notification.Builder(this, "bridge").setSmallIcon(android.R.drawable.ic_menu_info_details)
+        startForeground(1, new Notification.Builder(this, "bridge").setSmallIcon(R.drawable.ic_stat_glucose)
             .setContentTitle("血糖镜像正在连接手表").setContentText("直接同步欧态的血糖值、趋势和更新时间")
             .setContentIntent(content).setOngoing(true).build());
         running = this;

@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.glucosewatch6" android:versionCode="9" android:versionName="0.1.8">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.glucosewatch6" android:versionCode="11" android:versionName="0.1.10">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
@@ -9,7 +9,7 @@
         <package android:name="com.mi.health" />
         <package android:name="com.xiaomi.wearable" />
     </queries>
-    <application android:label="血糖镜像" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:supportsRtl="true">
+    <application android:label="血糖镜像" android:icon="@mipmap/ottai_app_icon" android:roundIcon="@mipmap/ottai_app_icon" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:supportsRtl="true">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

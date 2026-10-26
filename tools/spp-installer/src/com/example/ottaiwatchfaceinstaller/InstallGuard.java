@@ -1,8 +1,13 @@
 package com.example.ottaiwatchfaceinstaller;
 
+import com.example.redmiwatch6installer.xiaomi.Proto;
+import java.util.List;
+
 public final class InstallGuard {
     private InstallGuard() {}
-    public static final String PROJECT_FACE_ID = "8670260101";
+    private static boolean projectFace(String id) {
+        return "8670260101".equals(id) || "8670260102".equals(id);
+    }
     public static boolean mode(String mode) {
         return "auth".equals(mode) || "list".equals(mode) || "install".equals(mode) || "replace".equals(mode);
     }
@@ -11,12 +16,18 @@ public final class InstallGuard {
         if (key == null || !key.matches("(?i)[0-9a-f]{32}")) throw new IllegalArgumentException("Invalid auth key format");
     }
     public static void face(boolean valid, String id, int width, int height) {
-        if (!valid || !PROJECT_FACE_ID.equals(id) || width != 432 || height != 514)
-            throw new IllegalArgumentException("Only this project's 432x514 Ottai watchface is allowed");
+        if (!valid || !projectFace(id) || width != 432 || height != 514)
+            throw new IllegalArgumentException("Only this project's 432x514 Ottai watchfaces are allowed");
     }
     public static String deletionTarget(String id) {
-        if (!PROJECT_FACE_ID.equals(id)) throw new IllegalArgumentException("Only the project face can be replaced");
-        return PROJECT_FACE_ID;
+        if (!projectFace(id)) throw new IllegalArgumentException("Only a project face can be replaced");
+        return id;
+    }
+    public static boolean containsFace(List<Proto.FaceInfo> faces, String target) {
+        deletionTarget(target);
+        if (faces == null) throw new IllegalStateException("Face list unavailable");
+        for (Proto.FaceInfo face : faces) if (face != null && target.equals(face.id)) return true;
+        return false;
     }
     public static String safeProgress(String message) {
         if (message == null) return null;

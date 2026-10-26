@@ -108,11 +108,11 @@ public final class MainActivity extends Activity {
             else if(face!=null){
                 if("replace".equals(mode)) {
                     String target=InstallGuard.deletionTarget(face.id);
-                    boolean found=hasProjectFace(receiver[0].faceList());checkCancelled();
+                    boolean found=InstallGuard.containsFace(receiver[0].faceList(),target);checkCancelled();
                     if(found) {
                         line("REPLACE_DELETE_PROJECT");receiver[0].deleteFace(target);checkCancelled();
                         // Upstream deleteFace masks a refresh failure; require an independent successful query.
-                        if(hasProjectFace(receiver[0].faceList()))throw new IllegalStateException("Project face deletion not confirmed");
+                        if(InstallGuard.containsFace(receiver[0].faceList(),target))throw new IllegalStateException("Project face deletion not confirmed");
                         checkCancelled();line("REPLACE_DELETE_CONFIRMED");
                     }
                 }
@@ -123,11 +123,6 @@ public final class MainActivity extends Activity {
         } finally {
             if(local!=null)local.close();connection=null;busy=false;line("DISCONNECTED");
         }
-    }
-    private static boolean hasProjectFace(java.util.List<Proto.FaceInfo> faces) {
-        if(faces==null)throw new IllegalStateException("Face list unavailable");
-        for(Proto.FaceInfo face:faces)if(face!=null&&InstallGuard.PROJECT_FACE_ID.equals(face.id))return true;
-        return false;
     }
     private void checkCancelled() throws InterruptedException {if(cancelled||destroyed||Thread.currentThread().isInterrupted())throw new InterruptedException("Cancelled");}
     private void line(String text) {

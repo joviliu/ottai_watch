@@ -13,6 +13,10 @@ env = {key:os.environ[key] for key in ('JDK','ANDROID_JAR','FRAMEWORK_RES','AIDL
 java = pathlib.Path(env['JDK']) / 'bin/java'
 javac = pathlib.Path(env['JDK']) / 'bin/javac'
 sources = root/'android/src/main/java'
+unsigned = build/'unsigned.apk'
+resources = build/'resources.zip'
+run(env['AAPT2'],'compile','--dir',root/'android/src/main/res','-o',resources)
+run(env['AAPT2'],'link','-I',env['FRAMEWORK_RES'],'--manifest',root/'android/src/main/AndroidManifest.xml',resources,'--java',build/'generated','-o',unsigned)
 run(javac,'-d',build/'test',sources/'com/example/glucosewatch6/Reading.java',root/'android/test/ReadingTest.java')
 run(java,'-cp',build/'test','com.example.glucosewatch6.ReadingTest')
 sdk = root/'android/vendor/sdk/main'
@@ -27,10 +31,6 @@ with zipfile.ZipFile(classes,'w',zipfile.ZIP_DEFLATED) as archive:
     for path in (build/'classes').rglob('*.class'):
         archive.write(path,path.relative_to(build/'classes'))
 run(java,'-cp',env['D8_JAR'],'com.android.tools.r8.D8','--lib',env['ANDROID_JAR'],'--min-api','26','--output',build/'dex',classes)
-unsigned = build/'unsigned.apk'
-resources = build/'resources.zip'
-run(env['AAPT2'],'compile','--dir',root/'android/src/main/res','-o',resources)
-run(env['AAPT2'],'link','-I',env['FRAMEWORK_RES'],'--manifest',root/'android/src/main/AndroidManifest.xml',resources,'-o',unsigned)
 with zipfile.ZipFile(unsigned,'a',zipfile.ZIP_DEFLATED) as archive:
     archive.write(build/'dex/classes.dex','classes.dex')
 manifest = ET.parse(root/'android/src/main/AndroidManifest.xml').getroot()

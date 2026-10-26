@@ -1,6 +1,7 @@
 local lvgl=require('lvgl')
 local dataman=require('dataman')
 local frameModel=require('frame')
+local layout=require('layout')
 local root=lvgl.Object(nil,{w=lvgl.HOR_RES(),h=lvgl.VER_RES(),bg_color=0,bg_opa=lvgl.OPA(100),border_width=0,pad_all=0})
 root:clear_flag(lvgl.FLAG.SCROLLABLE)
 root:add_flag(lvgl.FLAG.EVENT_BUBBLE)
@@ -17,11 +18,29 @@ local function label(text,x,y,w,h,size,color)
 end
 local date=label('',30,16,372,36,24,0xb9c2c8)
 local digits={}
-for i,x in ipairs({14,110,234,330}) do digits[i]=image('clock-0',x,65,88,234) end
-image('colon',204,65,24,234)
-local glucose=label('--',50,330,238,88,76,0xff9e32)
-local trend=image('trend-unknown',268,346,54,54)
-local source=label('WAITING',48,418,336,30,20,0x8b9ba4)
+for i,x in ipairs(layout.clockX) do
+    digits[i]=image('clock-'..(i<=2 and 'hour-' or 'minute-')..'0',x,layout.clockY,layout.clockW,layout.clockH)
+end
+local glucose={}
+for i=1,4 do glucose[i]=image('value-normal-fresh-dash',0,layout.valueY,40,56) end
+local function showValue(text,stale,band)
+    local width=0
+    for i=1,#text do width=width+(text:sub(i,i)=='.' and 12 or 40) end
+    local x=math.floor((432-width-4*(#text-1))/2)
+    for i,obj in ipairs(glucose) do
+        if i<=#text then
+            local char=text:sub(i,i)
+            local name=char=='.' and 'dot' or char=='-' and 'dash' or char
+            local w=char=='.' and 12 or 40
+            obj:clear_flag(lvgl.FLAG.HIDDEN)
+            obj:set{src=SCRIPT_PATH..'/value-'..band..'-'..(stale and 'old-' or 'fresh-')..name..'.png',x=x,w=w}
+            x=x+w+4
+        else obj:add_flag(lvgl.FLAG.HIDDEN) end
+    end
+end
+showValue('--',false,'normal')
+local trend=image('trend-normal-fresh-unknown',341,layout.trendY,54,54)
+local source=label('--:--',14,layout.sourceY,100,68,28,0xe9f2f8)
 image('battery',60,466,34,24)
 local battery=label('--%',100,459,96,40,28,0xc4d0d8)
 local heartIcon=image('heart',230,464,30,28)
@@ -38,21 +57,27 @@ local function render()
     local now=os.time()
     local clock=os.date('%H%M',now)
     if clock~=lastClock then
-        for i=1,4 do digits[i]:set{src=SCRIPT_PATH..'/clock-'..clock:sub(i,i)..'.png'} end
+        for i=1,4 do digits[i]:set{src=SCRIPT_PATH..'/clock-'..(i<=2 and 'hour-' or 'minute-')..clock:sub(i,i)..'.png'} end
         lastClock=clock
     end
     local day=os.date('%a %d %b',now):upper()
     if day~=lastDate then date:set{text=day};lastDate=day end
     current=frameModel.latest(read,now*1000,current)
     if current then
-        local value=string.format('%.1f',current.value)
-        if value~=lastValue then glucose:set{text=value};lastValue=value end
-        if current.trend~=lastTrend then trend:set{src=SCRIPT_PATH..'/trend-'..current.trend..'.png'};lastTrend=current.trend end
         local stale=now*1000-current.sourceAt>=600000
-        local stamp=os.date('%H:%M',math.floor(current.sourceAt/1000))..(stale and '  OLD' or '')
+        local value=string.format('%.1f',current.value)
+        local shown=tonumber(value)
+        local band
+        if shown>=3.9 and shown<=7.8 then band='normal'
+        elseif shown>7.8 and shown<=12.0 then band='high'
+        else band='alert' end
+        local valueKey=value..tostring(stale)
+        if valueKey~=lastValue then showValue(value,stale,band);lastValue=valueKey end
+        local trendKey=band..'-'..(stale and 'old-' or 'fresh-')..current.trend
+        if trendKey~=lastTrend then trend:set{src=SCRIPT_PATH..'/trend-'..trendKey..'.png'};lastTrend=trendKey end
+        local stamp=os.date('%H:%M',math.floor(current.sourceAt/1000))..(stale and '\nOLD' or '')
         if stamp~=lastSource then
-            source:set{text=stamp,text_color=stale and 0xffbc73 or 0x8b9ba4}
-            glucose:set{text_color=stale and 0xb99d7e or 0xff9e32}
+            source:set{text=stamp,text_color=stale and 0xffbc73 or 0xe9f2f8}
             lastSource=stamp
         end
     end
