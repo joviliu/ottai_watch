@@ -23,6 +23,9 @@ public final class BridgeService extends Service {
     private String device;
     private boolean listening, registering, querying, openRequested, permissionRequested;
     private long queryStarted;
+    private long lastFaceWakeAt;
+    private String faceSyncKey;
+    private final Runnable wakeFace = this::wakeFaceForSync;
     private final Runnable retry = new Runnable() {
         @Override public void run() {
             if (!listening) discover();
@@ -75,8 +78,11 @@ public final class BridgeService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        if (!faceModeEnabled()) { faceSyncKey=null; handler.removeCallbacks(wakeFace); }
         if (intent != null) permissionRequested = false;
-        if (intent != null && intent.getBooleanExtra("open", false)) openRequested = true;
+        if (intent != null && intent.getBooleanExtra("open", false)) {
+            openRequested = true; faceSyncKey = null; handler.removeCallbacks(wakeFace);
+        }
         if (listening) {
             if (openRequested) openWatch(); else sendLatest();
         } else discover();
@@ -169,6 +175,15 @@ public final class BridgeService extends Service {
                     ReadingStore.ack(this, message.getLong("sourceAt"));
                 }
             }
+            else if ("face_export".equals(message.optString("type"))) {
+                long sourceAt=message.optLong("sourceAt");
+                String current=ReadingStore.frame(this);
+                if (!current.isEmpty() && message.optString("frameKey").equals(faceKey(new JSONObject(current)))) {
+                    getSharedPreferences(ReadingStore.PREFS,0).edit().putString("faceExportKey",message.getString("frameKey")).apply();
+                    handler.removeCallbacks(wakeFace); faceSyncKey=null;
+                    android.util.Log.i("GlucoseWatch6", "FACE_EXPORT sourceAt=" + sourceAt + " observedAt=" + System.currentTimeMillis());
+                }
+            }
         } catch (Exception e) { ReadingStore.status(this, "表端消息格式无效"); }
     }
 
@@ -185,10 +200,47 @@ public final class BridgeService extends Service {
         if (!listening || device == null) return;
         String frame = ReadingStore.frame(this);
         if (frame.isEmpty()) { ReadingStore.status(this, "通道已连接，等待欧态真实通知"); return; }
+        boolean sync = false;
+        try {
+            String key=faceKey(new JSONObject(frame));
+            sync=key.equals(faceSyncKey);
+            if (!sync) faceSyncKey=null;
+        } catch (Exception e) { return; }
+        if (sync) {
+            try { frame = new JSONObject(frame).put("watchfaceSync",true).toString(); }
+            catch (Exception e) { return; }
+        }
         messages.sendMessage(device, frame.getBytes(StandardCharsets.UTF_8), status -> {
             if (!status.isSuccess()) ReadingStore.status(this, "发送失败，SDK：" + status.getCode());
             else android.util.Log.i("GlucoseWatch6", "SDK accepted frame; awaiting watch ACK");
         });
+        if (!sync && faceModeEnabled()) {
+            handler.removeCallbacks(wakeFace);
+            handler.postDelayed(wakeFace,8000);
+        }
+    }
+
+    private boolean faceModeEnabled() { return getSharedPreferences(ReadingStore.PREFS,0).getBoolean("faceMode",false); }
+
+    private void wakeFaceForSync() {
+        if (!faceModeEnabled() || !listening || device==null) return;
+        try {
+            JSONObject current=new JSONObject(ReadingStore.frame(this));
+            long sourceAt=current.getLong("sourceAt");
+            String key=faceKey(current);
+            long now=System.currentTimeMillis();
+            String exported=getSharedPreferences(ReadingStore.PREFS,0).getString("faceExportKey","");
+            if (!FaceSyncPolicy.shouldWake(sourceAt,key,exported,now,lastFaceWakeAt)) return;
+            lastFaceWakeAt=now; faceSyncKey=key;
+            android.util.Log.i("GlucoseWatch6","FACE_WAKE sourceAt="+sourceAt+" observedAt="+now);
+            nodes.launchWearApp(device,getPackageName(),status -> handler.post(() -> {
+                if (status.isSuccess()) handler.postDelayed(this::sendLatest,1200);
+                else { faceSyncKey=null; ReadingStore.status(this,"表盘同步唤起失败，SDK："+status.getCode()); }
+            }));
+        } catch (Exception e) { ReadingStore.status(this,"表盘同步数据无效"); }
+    }
+    private static String faceKey(JSONObject frame) throws org.json.JSONException {
+        return FaceSyncPolicy.key(frame.getLong("sourceAt"),frame.getDouble("value"),frame.getString("trend"));
     }
 
     @Override public void onDestroy() {

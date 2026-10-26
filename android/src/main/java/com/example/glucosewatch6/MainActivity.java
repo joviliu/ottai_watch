@@ -23,6 +23,7 @@ public final class MainActivity extends Activity {
     };
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        android.service.notification.NotificationListenerService.requestRebind(new android.content.ComponentName(this,OttaiMetadataListener.class));
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         int pad = (int)(24 * getResources().getDisplayMetrics().density);
@@ -33,6 +34,14 @@ public final class MainActivity extends Activity {
         button(box, "启动 / 重新连接", () -> BridgeService.start(this, false));
         button(box, "打开手表应用", () -> BridgeService.start(this, true));
         button(box, "允许读取欧态通知", () -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+        Switch faceMode = new Switch(this);
+        faceMode.setText("表盘自动同步\n新读数到达且后台未送达时，短暂打开同步并自动返回");
+        faceMode.setChecked(getSharedPreferences(ReadingStore.PREFS,0).getBoolean("faceMode",false));
+        faceMode.setOnCheckedChangeListener((button,enabled) -> {
+            getSharedPreferences(ReadingStore.PREFS,0).edit().putBoolean("faceMode",enabled).apply();
+            BridgeService.start(this,false);
+        });
+        box.addView(faceMode);
         TextView note = new TextView(this);
         note.setText("来源：欧态通知\n无数据时显示 --；超过 10 分钟标记为旧数据。");
         box.addView(note);

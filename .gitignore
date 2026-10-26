@@ -9,6 +9,7 @@ watch/node_modules
 watch/build/
 watch/dist/
 android/build/
+watchface/build/
 __pycache__/
 *.pyc
 .DS_Store
@@ -19,4 +20,5 @@ __pycache__/
 *.bin
 !releases/**/*.apk
 !releases/**/*.rpk
+!releases/**/*.bin
 !watchface/assets/*.bin

@@ -17,6 +17,9 @@
 <script>
 import interconnect from '@system.interconnect'
 import storage from '@system.storage'
+import file from '@system.file'
+import faceExport from '../../common/face-export'
+import app from '@system.app'
 import model from '../../common/model'
 
 export default {
@@ -27,11 +30,24 @@ export default {
   onInit() {
     this.frame = null
     this.connect = interconnect.instance()
+    this.publishFrame = faceExport.publisher(file,(frame) => {
+      this.connect.send({data:{type:'face_export',sourceAt:frame.sourceAt,frameKey:faceExport.key(frame)},fail:() => {}})
+      if (this.syncReturnPending) {
+        this.exitTimer = setTimeout(() => {
+          if (this.syncReturnPending && this.frame && faceExport.key(this.frame) === faceExport.key(frame)) {
+            this.syncReturnPending = false; app.terminate()
+          }
+        },400)
+      }
+    },(code) => { this.status = '表盘文件写入失败 ' + code })
     this.connect.onmessage = (event) => {
       try {
         const frame = model.parseFrame(event.data, Date.now())
         if (this.frame && frame.sourceAt < this.frame.sourceAt) return
+        clearTimeout(this.exitTimer)
+        if (frame.watchfaceSync === true) this.syncReturnPending = true
         this.accept(frame)
+        this.publishFrame(frame)
         storage.set({key:'frame',value:JSON.stringify(frame),fail:() => { this.status = '缓存失败，请保持手机连接' }})
         setTimeout(() => {
           this.connect.send({data:{type:'ack',sourceAt:frame.sourceAt},fail:() => { this.status = '显示已更新，回执发送失败' }})
@@ -56,8 +72,8 @@ export default {
     this.timer = setInterval(() => this.updateAge(), 60000)
     this.requestLatest()
   },
-  onHide() { clearInterval(this.timer); this.timer = null },
-  onDestroy() { clearInterval(this.timer); clearTimeout(this.chartTimer) },
+  onHide() { clearInterval(this.timer); this.timer = null; clearTimeout(this.exitTimer); this.syncReturnPending = false },
+  onDestroy() { clearInterval(this.timer); clearTimeout(this.chartTimer); clearTimeout(this.exitTimer) },
   requestLatest() {
     this.connect.send({data:{type:'request_latest'},fail:(data,code) => { this.status = '等待手机连接 ' + code }})
   },

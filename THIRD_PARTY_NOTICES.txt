@@ -29,3 +29,21 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+watchface/vendor/facebin.py:
+  Origin: https://github.com/AIR-pixel/miband11-watchface-maker
+  Source path: watchface-tool/watchface_tool/facebin.py
+  Source commit: 3af1bb2292cdf5298830a8fcaac817ae631ab003
+  Copyright (c) 2026 air
+  License: MIT; full text in watchface/vendor/LICENSE.facebin.
+  Local changes: 432x514 preview dimensions; unpack index pointer from header;
+  correct the preview-header unpacking layout; clarify that the Lua anchor
+  resource index must point to the main script. The builder selects this index
+  explicitly by filename.
+
+watchface/fonts/BarlowCondensed-Light.ttf:
+  Origin: https://github.com/google/fonts/tree/main/ofl/barlowcondensed
+  Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
+  License: SIL Open Font License 1.1; full text in watchface/fonts/OFL.txt.
+  Used as the outline for original circular-dot clock-number assets. Other on-device labels use
+  the device's existing MiSans font; that font is not redistributed here.

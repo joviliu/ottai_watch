@@ -5,7 +5,7 @@
 ## 结论
 
 1. **上滑小部件是系统功能，但当前未找到可确认接入的第三方注册/数据提供接口。** 不把本应用普通页面声明成一个「小部件」后就声称已经支持。
-2. **自定义表盘有真实 Watch 6 的 Lua 源码和构建工具参考，值得继续走。** 但 UI 能绘制不等于能得到本应用的最新血糖。数据共享与隐藏应用的送达机制是实施前必须解决的缺口。
+2. **自定义表盘已安装并正常绘制。** 原创 Lua UI、文件校验读取和 macOS 纯代码构建已完成；Mi Fitness 开发入口仍受授权 HTTP 404 阻塞，本次改用独立 SPP 安装。用户已确认自动同步后返回点阵表盘并显示读数；手机锁屏后连续两轮自然更新都有文件导出与 ACK，用户已确认最新一轮屏显及正常返回，开发版基本验收通过。
 3. 当前可立即采用的官方选项是调整「设置 → 桌面表盘 → 返回表盘」时间，使打开血糖应用后更容易再次查看。这不会把它变成系统卡片，也不能据此保证后台持续更新。
 
 ## 上滑小部件
@@ -35,30 +35,35 @@
 | --- | --- | --- |
 | [maga32/RedmiWatch6-watchface-calendar](https://github.com/maga32/RedmiWatch6-watchface-calendar) | 提供 `calendarWatch.fprj`、`app/lua/main.lua` 和 1.1 `.bin` 发布包；工程 `DeviceType=465`，432×514，Shape 34 加载 Lua | 直接针对 Watch 6 的 UI/打包参考；不复制其未声明授权的素材和代码 |
 | [m0tral/MiWatchLuaWatchfaces](https://github.com/m0tral/MiWatchLuaWatchfaces) | Lua/LVGL、`dataman` 时间订阅、MiSans 字体、`io.open` 等实例；主要是其他设备 | 参考运行方式；不能把其他型号上的路径/生命周期视为 Watch 6 已验证 |
-| [m0tral/EasyFace](https://github.com/m0tral/EasyFace) | 作者当前 README 明确列出 Redmi Watch 6；安装为 Windows MSI + VC++ x86 运行库 + 编译器更新 | 有工具链路线；当前 macOS 没有现成可运行的此套 Windows 编译环境 |
+| [m0tral/EasyFace](https://github.com/m0tral/EasyFace) | 作者当前 README 明确列出 Redmi Watch 6；其工具链为 Windows MSI + VC++ x86 运行库 + 编译器更新 | 可作为参考；本项目现已采用下述纯代码构建，不依赖该 Windows 环境 |
 | [miguelavh/Watchdrip-Xiaomi](https://github.com/miguelavh/Watchdrip-Xiaomi) | README 主要覆盖 Band 8 Pro/9/10 与 Watch 4 | 不能作为 Watch 6 无需适配的证明 |
 | [Watchdrip 作者说明](https://bigdigital.home.blog/2024/11/28/xiaomi-89-support/) | 既有桥接应用 + 专用表盘路线 | 可继续寻找作者表盘的数据读取实现，而非只照搬旧尺寸表盘 |
-| [calinhoria/watchface-installer](https://github.com/calinhoria/watchface-installer) | 有 Watch 6 SPP 安装协议和预览解析的源码；AGPL-3.0 | 可能解决最终 `.bin` 安装，不解决实时数据；不使用其内嵌默认配对密钥或 APK |
+| [calinhoria/watchface-installer](https://github.com/calinhoria/watchface-installer) | 有 Watch 6 SPP 安装协议和预览解析的源码；AGPL-3.0 | 本次已用于最终 `.bin` 的 SPP 安装，不单独解决动态数据；不使用其内嵌默认配对密钥或 APK |
 
 核查的版本：`maga32` commit `6e8a21ebbe9740ba233eec3a859b657e41e595fd`；`MiWatchLuaWatchfaces` commit `5af6e14ea92830a394c88dc04f76ceef697a6ded`。
 
-## 真正缺少的链路
+## 本轮开发发现与剩余缺口
 
-1. 当前 Vela 使用 `system.storage` 保存帧。旧 WatchDrip 快应用会用 `system.file.writeText` 写 `internal://files/info.json`，但其对应 Lua 读取端源码/物理路径还未证实。
-2. [官方文件组织](https://iot.mi.com/vela/quickapp/zh/features/data/file.html) 定义的是应用文件 URI；没有给出跨应用/跨表盘共享保证。不能凭猜测硬编码路径或借用别的应用包名。
-3. [官方后台运行](https://iot.mi.com/vela/quickapp/zh/guide/framework/other/background-running.html) 只列出特定后台接口。即使 Lua 可以读到缓存，镜像 RPK 隐藏后是否每 5 分钟收到手机新帧，仍须实机验证。不用静音音频、持续定位等方式保活。
+已找到 [WatchDrip 作者的 Lua 表盘源码](https://github.com/miguelavh/LUA_Watchdrip_Watchface_graph_Xiaomi_band9/blob/59297c999c3f5591c6a9c6d095d7e80c883990f2/app/lua/main.lua)，其中从 `/data/quickapp/files/<package>/info.json` 读取快应用导出数据。这补上了读取端的参考，但不证明 Watch 6 当前固件的映射和权限。开源 [Vela 路径实现](https://github.com/open-vela/frameworks_runtimes_feature/blob/e20440fe7d970609bd3f02e9335b1a85e4fcb148/modules/app_path.cpp) 也说明 URI 映射是运行时细节，不能把一个型号上的路径视为跨固件保证。
 
-可行性验证应先做两个很小的实验：
+本项目现在保留 `system.storage` 作为应用缓存，另通过 `system.file` 导出带校验的双槽记录；Lua 只尝试本包目录中的三个候选映射。格式见 [protocol.md](protocol.md)。打开镜像应用时已经收到文件 API 写入成功回执；现在表盘已安装并正常绘制，用户已确认表盘显示导出读数及原始时间，后续仍须以自然更新时的测量时间、数值和趋势核对动态链路，不能用单一写入回执替代。
 
-- **文件实验**：单独 RPK 写固定合成标记，独立 Lua 表盘读取同一标记；成功后再接入现有合法帧，保留原始时间，不允许旧值被标成刚更新。
-- **后台实验**：保持该表盘为前台，主镜像 RPK 隐藏，观察至少两个 Ottai 通知周期的 sourceAt 与回执/文件变化。若失败，必须换正式数据通道，不能把「抬腕看到缓存」算成功。
+被动后台实验已观察两个真实通知周期：手机收到并发送新帧，隐藏的表端应用没有对应 ACK 或文件导出回执。由此不能把文件存在或 SDK success 当成持续更新保证。原 WatchDrip Android 方案本身也使用先启动表端应用再发送的路线，不能据其文件读取代码推断应用常驻后台。
 
-在这两项完成之前，不发布声称实时血糖功能的可安装表盘，也不重复上传静态 `.bin` 来模拟 5 分钟更新。
+0.1.8 备用方式先正常发送，8 秒未确认才短暂唤起同步页；写入成功后自动返回，手机开关新安装默认关闭。完整读数身份与串行发布避免同时间更正被旧确认覆盖。当前设备已启用并观察到一次自动唤起后的 `FACE_EXPORT` 与 ACK，无需用户手动打开表端；用户已确认自动返回点阵表盘后的读数、水平趋势及时间正常。手机锁屏后连续两轮自然更新的通知接收到 ACK 分别约 9.8 秒和 9.7 秒，源测量时间相隔 5 分钟且数值变化，用户确认最新屏显与正常返回，未报告明显闪屏或卡住；该耗时不是表盘显示延迟。它不等于应用始终隐藏，也不证明长期可靠更新。斜向趋势尚只有映射测试，对其他手表页面的影响、断连恢复、长期稳定性、AOD 与耗电仍需继续验收。
 
-## 极简大数字布局草图
+## 构建与安装路线
 
-[布局 SVG](../watchface/minimal-layout.svg) 是原创布局草图，合成示例、非设备截图、非可安装表盘；尚未取得原厂「极简风大数字」可编辑工程，因此没有声称对原包完成改造。
+新增参考 [AIR-pixel/miband11-watchface-maker](https://github.com/AIR-pixel/miband11-watchface-maker)，commit `3af1bb2292cdf5298830a8fcaac817ae631ab003`，提供 MIT 许可的纯代码 `.face` 格式实现。本项目适配 432×514 预览和解包头部后可直接在 macOS 构建 BIN 与开发安装 ZIP，打包往返和 Lua 桌面测试已通过。不能把原项目其他设备的实测结论迁移为 Watch 6 已验证。
 
-建议在 432×514 黑色底上保留大时钟，下方显示 `6.8 ↗` 和 `mmol/L · 14:25`，不画曲线。趋势缺失显示 `?`；旧数据继续显示其原始时间，并在过期时降低亮度/加文字提示。亮屏恢复和真实新数据才重绘，不启用每秒刷新。最终布局可在看到原厂当前布局后精确对齐，素材不直接复制到公开仓库。
+Mi Fitness `FaceDesignerFragment` 能解压本项目 ZIP，但当前 mod 的强制签名授权 `designer_license` 请求仍为 HTTP 404。本次独立 SPP 安装器使用本机合法配对密钥，已完成认证、100% 上传和断开，用户确认修正入口后正常绘制；未解除配对，也不使用任何参考项目默认密钥。
 
-验收条件：正确安装独立 ID 表盘；数值/方向/测量时间来自真实帧；至少两次 5 分钟周期成功；断连可识别旧数据；休眠恢复正常；未破坏长按换表盘；连续运行和耗电实测后再称为可用。
+实测黑屏原因是打包器所谓 `sentinel` 字段实际为 Lua anchor 资源索引，默认 `n-1` 在本工程指向趋势 PNG。构建现按文件名确定 `lua/main.lua` 并往返断言；这与授权服务、字体或血糖通知无关。临时暂停应用后的恢复还需核对原有通知访问及最新 Ottai 到达，不能只恢复蓝牙。
+
+## 当前布局
+
+最初的 [布局 SVG](../watchface/minimal-layout.svg) 保留作为历史草图。当前实现见 [表盘工程](../watchface/README.md)：原创细长大时钟约占上方三分之二，紧凑日期，下方血糖和方向箭头，无单位、无曲线，保留测量时间，再加电量和心率图标文本。
+
+时钟以 OFL 许可的 Barlow Condensed Light 为轮廓生成白色完整圆点，数字 PNG 与控件同尺寸 88×234，橙色用于冒号、血糖及趋势；其他文本使用设备 MiSans。构建产生的 `preview-example.png` 含合成示例，不是实机截图。没有取得原厂“极简风大数字”可编辑工程，也没有直接分发原厂素材。
+
+当前设备已完成独立 ID 安装、两轮无需手动打开的自然更新，以及用户最新屏显和正常返回确认。新环境仍需复验；断连、旧数据标记、休眠恢复、长按换表盘、其他页面行为、长期稳定性、AOD 和耗电尚未完整验收。详见 [验证记录](validation.md)。

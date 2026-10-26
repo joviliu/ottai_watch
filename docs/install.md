@@ -8,9 +8,11 @@ Mi Fitness 是当前蓝牙和 RPK 安装通道，不能直接删掉。原国行�
 
 ## 手机
 
+当前配套 APK/RPK 为 0.1.8 / versionCode 9，预编译文件、表盘和校验和见 [0.1.8 发布目录](../releases/0.1.8/README.md)。先在该目录核对 `SHA256SUMS`，再安装：
+
 ```sh
 adb devices
-adb -s SERIAL install -r releases/0.1.4/glucose-watch6-0.1.4.apk
+adb -s SERIAL install -r releases/0.1.8/glucose-watch6-0.1.8.apk
 adb -s SERIAL shell am start -n com.example.glucosewatch6/.MainActivity
 ```
 
@@ -24,7 +26,7 @@ adb -s SERIAL shell am start -n com.example.glucosewatch6/.MainActivity
 
 ```sh
 . .toolchain/android.env
-python3 tools/open_installer.py --serial SERIAL --rpk releases/0.1.4/glucose-watch6-0.1.4.rpk
+python3 tools/open_installer.py --serial SERIAL --rpk releases/0.1.8/glucose-watch6-0.1.8.rpk
 ```
 
 该脚本把 RPK 推到手机 Download，打开 Mi Fitness 的内部安装页；仍需在手机选择包名、文件并确认安装。它清理该应用的 UI 返回栈，不清除应用数据，不等于安装已成功。此入口依赖当前 mod 内部类，其他版本可能不兼容。
@@ -40,3 +42,22 @@ python3 tools/open_installer.py --serial SERIAL --rpk releases/0.1.4/glucose-wat
 - 手机安全锁屏只能由用户解锁，不要关闭锁屏来方便自动化。
 - 手表打开时看到旧数值，数秒后变化属于缓存后同步；观察 `sourceAt`，不要只比较数字。
 - 不要为了后台刷新声明无关音频或定位权限。
+
+## Lua 表盘开发安装
+
+构建步骤见 [watchface/README.md](../watchface/README.md)。本地成功生成 BIN 和开发安装 ZIP 后，可使用：
+
+```sh
+. .toolchain/android.env
+python3 tools/open_installer.py --serial SERIAL --watchface watchface/build/ottai-minimal-watch6.zip
+```
+
+此命令推送 ZIP 并打开 `FaceDesignerFragment`。当前 mod 已完成解压和工程文件检查，但其强制签名授权 `designer_license` 请求返回 HTTP 404，此入口未完成安装。不要把解压成功等同安装成功；保留原表盘作为回退。若继续使用此入口，需要解决正常的开发授权或服务兼容问题；不要强制修改不可点击的签名选项。
+
+本次已通过[临时本地 SPP 安装器](../tools/spp-installer/README.md)完成认证、100% 上传及断开，修正 Lua 入口后用户确认表盘正常绘制。它需要用户自己手表的有效配对密钥；不能使用参考项目预填的默认密钥，任何密钥均不提交 Git、不写入公开日志。无需重置或解除现有配对。升级用 `replace` 只删除固定本项目 ID，并确认删除后重装，不影响其他表盘。再次执行 `am start -S` 前须等上一轮 `DISCONNECTED`。
+
+开发版 0.1.8 需同时构建匹配签名的 APK 和 RPK；“表盘自动同步”新安装默认关闭。当前设备已开启，并观察到一轮后台 8 秒未确认后自动唤起、文件导出和 ACK，无需用户手动打开表端。用户已确认自动返回点阵表盘及读数显示，手机锁屏后连续两轮自然更新均已完成导出与 ACK；用户确认最新一轮数值、水平趋势、原始时间显示正确且正常返回，未报告明显闪屏或卡住，开发版基本验收通过，详见[验证记录](validation.md)。该策略必要时短暂唤起同步页后返回，不是常驻后台能力。
+
+安装器运行前暂停应用时，优先避免改变其启用状态。实测 `disable-user` 可清除两应用原通知访问；若使用过，结束后必须恢复原运行状态，恢复此前已授权的镜像通知监听与 Mi Fitness `NotifySyncService`，重连后核对最新 Ottai 数据确实已进入镜像。手机镜像启动时会请求重新绑定监听，但不会自动授予被撤销的通知访问。详细恢复步骤见安装器 README。
+
+本轮验证结束后已卸载临时 SPP 安装器，手机仍锁屏，两应用原通知访问已核对保留。安装器不参与日常数据更新，新环境完成安装后同样可卸载以删除其私有凭据。

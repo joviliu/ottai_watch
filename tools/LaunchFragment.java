@@ -11,7 +11,7 @@ public class LaunchFragment {
             dalvik.system.PathClassLoader loader = new dalvik.system.PathClassLoader(args[0], ClassLoader.getSystemClassLoader());
             Class<?> builderClass = loader.loadClass("com.xiaomi.fitness.baseui.common.FragmentParams$b");
             Object builder = builderClass.getDeclaredConstructor().newInstance();
-            Class<?> fragment = loader.loadClass("com.xiaomi.xms.wearable.ui.debug.ThirdAppDebugFragment");
+            Class<?> fragment = loader.loadClass(args.length > 1 ? args[1] : "com.xiaomi.xms.wearable.ui.debug.ThirdAppDebugFragment");
             Method setter = null, build = null;
             for (Method method : builderClass.getDeclaredMethods()) {
                 if (method.getParameterTypes().length == 1 && method.getParameterTypes()[0] == Class.class) setter = method;

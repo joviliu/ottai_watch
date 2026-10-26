@@ -2,7 +2,7 @@
 
 Android APK 与手表 RPK 必须使用相同包名 `com.example.glucosewatch6`、相同证书，否则互联通道不可用。
 
-已安装 0.1.4 的证书公开部分在 `signing/installed-certificate.pem`：
+最初安装 0.1.4 的证书公开部分在 `signing/installed-certificate.pem`：
 
 ```
 SHA-1   479a7dff09ae386146088e1fc78eeb1295b75c0e
