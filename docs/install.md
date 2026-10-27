@@ -2,11 +2,13 @@
 
 ## 依赖
 
-手机保留 Ottai、「血糖镜像」和当前可用的 Mi Fitness mod。当前桥接方案不需要 xDrip 或手机 WatchDrip；实机上这两个旧应用已停用并保留数据。手表旧 WatchDrip 快应用也不参与本方案。
+当前手机保留 Ottai、「血糖镜像」和国行官方小米运动健康 `com.mi.health` 3.59.2。当前桥接方案不需要 xDrip 或手机 WatchDrip；实机上这两个旧应用已停用并保留数据。手表旧 WatchDrip 快应用也不参与本方案。
 
-Mi Fitness 是当前蓝牙和 RPK 安装通道，不能直接删掉。原国行「小米运动健康」与本次 mod 曾发生 Android 共享权限冲突，原版已在用户同意且先同步数据后替换。回退原版需先同步并重新处理登录/绑定，仓库不分发任何第三方 APK。
+小米运动健康是当前蓝牙通道。本轮用户确认健康数据同步后，已备份校验修改版安装包、暂停镜像、卸载 `com.xiaomi.wearable` 并安装官方 3.59.2；官方恢复连接设备，未解绑或重置，未重装已存 RPK/表盘。两包曾有共享权限冲突，不假定可共存；第三方安装包和私密备份不在仓库分发。
 
-原版 3.59.2 已查到兼容的 SDK 服务及从表端重建应用指纹登记机制，现客户端也已优先支持国行包名；这不等于实机换版已验证。详见 [原版兼容性核对](official-mifit-compatibility.md)。日常运行与开发包安装入口应分开判断，当前已验证环境仍是修改版。
+官方的 `BLUETOOTH_CONNECT`、`BLUETOOTH_SCAN`、`POST_NOTIFICATIONS` 已授予；官方 `com.mi.health/com.xiaomi.fitness.notify.NotifySyncService` 与原镜像通知访问授权均保留，官方 listener 另有系统实际绑定证据。镜像已绑定官方 `WearableXmsService`。**本组合已通过官方日常同步验收**：两个测试起点之后的源测量时间严格相差 5 分钟，两条通知均晚于测试起点，每条只有一个元数据事件，无更正/重发混淆，自动完整身份导出约 9.90／9.75 秒、ACK 约 9.95／9.80 秒。两应用每 45 秒采样均为 FGS/Dozing/非充电、两项派生豁免保持，无新增冻结或 SDK/采样连接错误；用户未手动打开两端镜像，仅抬腕确认最后原始时间匹配、正常停留表盘。
+
+本轮没有改镜像源码。官方客户端下的新装及未来 RPK 升级侧载入口仍未验证；也未做换版后再次重启或多日验证，不能沿用换版前的重启结论。详见 [官方兼容性及实测结果](official-mifit-compatibility.md)。日常通信与开发包安装入口分开验收。
 
 ## 手机
 
@@ -24,16 +26,16 @@ adb -s SERIAL shell am start -n com.example.glucosewatch6/.MainActivity
 
 0.1.9 手动打开先黑屏、再显示主 UI，透明窗口未透出表盘；两轮自然自动周期中手机收到新数据并 `FACE_WAKE`、SDK accepted，但没有文件导出回执，用户确认未看到更新。镜像未被厂商冻结，具体失败原因尚未定位；已撤回试验，恢复包 0.1.10 已取得覆盖安装 code 0；重建 SDK 连接后两次旧测量自动写入已确认，恢复旧测量时的表盘原始时间和正常返回已由用户确认；随后两个原始时间推进的读数均已自动导出并收到 ACK，本两条未额外取得屏显目视，不将“发送文件成功”当作恢复已完成。原 RPK 0.1.8 三周期证据不能替代恢复包验证。详见 [减少界面闪现调研](silent-sync-research.md)。
 
-先确认 Mi Fitness 已连接手表。若其调试入口可直接使用，进入「我 → 关于 → Debug → Third-Party Apps」，包名填 `com.example.glucosewatch6`，Install third app 选择 RPK。
+本次官方客户端沿用手表上已装 RPK，无需重装。以下调试安装步骤属于此前验证的修改版，不代表官方客户端有相同入口；新环境的官方 RPK 安装入口仍须单独验证。历史修改版可进入「我 → 关于 → Debug → Third-Party Apps」，包名填 `com.example.glucosewatch6`，Install third app 选择 RPK。
 
-本次 mod 的入口不容易通过普通菜单打开，可使用已有的辅助脚本：
+历史修改版的入口不容易通过普通菜单打开，可使用下面的辅助脚本；它不适用于当前官方客户端：
 
 ```sh
 . .toolchain/android.env
 python3 tools/open_installer.py --serial SERIAL --rpk releases/watch-0.1.10/glucose-watch6-0.1.10.rpk
 ```
 
-该脚本把 RPK 推到手机 Download，打开 Mi Fitness 的内部安装页；仍需在手机选择包名、文件并确认安装。它清理该应用的 UI 返回栈，不清除应用数据，不等于安装已成功。此入口依赖当前 mod 内部类，其他版本可能不兼容。
+该脚本把 RPK 推到手机 Download，打开 Mi Fitness 的内部安装页；仍需在手机选择包名、文件并确认安装。它清理该应用的 UI 返回栈，不清除应用数据，不等于安装已成功。此入口依赖该修改版内部类，官方版本未验，不应直接套用。
 
 安装后查看 Mi Fitness `handleInstallResult` 的包名、版本号和成功码；再在手表打开「血糖镜像」，核对数值、趋势和测量时间。`发送文件成功` 不足以证明安装成功。
 
