@@ -2,6 +2,22 @@ local lvgl=require('lvgl')
 local dataman=require('dataman')
 local frameModel=require('frame')
 local layout=require('layout')
+local clockPalettes=require('clock-palettes')
+local function clockPalette(now)
+    local hour=tonumber(os.date('%H',now))
+    -- Anchor to civil dates so daylight-saving changes cannot shift the 06:00 boundary.
+    local dayTime=hour<6 and now-43200 or now
+    local year=tonumber(os.date('%Y',dayTime))-1
+    local day=365*year+math.floor(year/4)-math.floor(year/100)+math.floor(year/400)+tonumber(os.date('%j',dayTime))-1
+    local phase=hour<6 and 2 or math.floor((hour-6)/8)
+    local slot=day*3+phase
+    -- Alternating disjoint groups avoid adjacent repeats without storing prior choices.
+    local parity=slot%2
+    local count=math.floor((#clockPalettes+1-parity)/2)
+    local state=slot%2147483646+1
+    for _=1,3 do state=(state*48271)%2147483647 end
+    return clockPalettes[(state%count)*2+parity+1].name
+end
 local root=lvgl.Object(nil,{w=lvgl.HOR_RES(),h=lvgl.VER_RES(),bg_color=0,bg_opa=lvgl.OPA(100),border_width=0,pad_all=0})
 root:clear_flag(lvgl.FLAG.SCROLLABLE)
 root:add_flag(lvgl.FLAG.EVENT_BUBBLE)
@@ -18,8 +34,9 @@ local function label(text,x,y,w,h,size,color)
 end
 local date=label('',30,16,372,36,24,0xb9c2c8)
 local digits={}
+local initialPalette=clockPalette(os.time())
 for i,x in ipairs(layout.clockX) do
-    digits[i]=image('clock-'..(i<=2 and 'hour-' or 'minute-')..'0',x,layout.clockY,layout.clockW,layout.clockH)
+    digits[i]=image('clock-'..initialPalette..'-'..(i<=2 and 'hour-' or 'minute-')..'0',x,layout.clockY,layout.clockW,layout.clockH)
 end
 local glucose={}
 for i=1,4 do glucose[i]=image('value-normal-fresh-dash',0,layout.valueY,40,56) end
@@ -56,9 +73,11 @@ local function render()
     if not visible or not screenOn then return end
     local now=os.time()
     local clock=os.date('%H%M',now)
-    if clock~=lastClock then
-        for i=1,4 do digits[i]:set{src=SCRIPT_PATH..'/clock-'..(i<=2 and 'hour-' or 'minute-')..clock:sub(i,i)..'.png'} end
-        lastClock=clock
+    local palette=clockPalette(now)
+    local clockKey=palette..clock
+    if clockKey~=lastClock then
+        for i=1,4 do digits[i]:set{src=SCRIPT_PATH..'/clock-'..palette..'-'..(i<=2 and 'hour-' or 'minute-')..clock:sub(i,i)..'.png'} end
+        lastClock=clockKey
     end
     local day=os.date('%a %d %b',now):upper()
     if day~=lastDate then date:set{text=day};lastDate=day end

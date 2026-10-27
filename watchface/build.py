@@ -1,6 +1,6 @@
 """Build an original 432x514 Lua watchface. Requires Pillow; no vendor compiler."""
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageColor
 from vendor import facebin
 import hashlib
 import json
@@ -16,6 +16,32 @@ VALUE_COLORS = {
     'alert': {'fresh': '#ff453a', 'old': '#9b625e'},
 }
 CLOCK_ORANGE = '#ff682b'
+CLOCK_PALETTES = [
+    {'name': 'classic', 'hour': '#F5F5F5', 'minute': '#FF682B'},
+    {'name': 'rose_cream', 'hour': '#FAE8E0', 'minute': '#EF7C8E'},
+    {'name': 'pixel_citrus', 'hour': '#41A6F6', 'minute': '#EF7D57'},
+    {'name': 'silver_blush', 'hour': '#B9B7BD', 'minute': '#E7D2CC'},
+    {'name': 'neon_pop', 'hour': '#2FF3E0', 'minute': '#FA26A0'},
+    {'name': 'ivory_sage', 'hour': '#FEFAE0', 'minute': '#CCD5AE'},
+    {'name': 'icy_orchid', 'hour': '#C8F4F9', 'minute': '#C26DBC'},
+    {'name': 'mint_candy', 'hour': '#B4F8C8', 'minute': '#FFAEBC'},
+    {'name': 'twilight_berry', 'hour': '#249FDE', 'minute': '#BC4A9B'},
+    {'name': 'teal_mauve', 'hour': '#85D2D0', 'minute': '#887BB0'},
+    {'name': 'amber_red', 'hour': '#FDB750', 'minute': '#FC2E20'},
+    {'name': 'cotton_rose', 'hour': '#EFEBE0', 'minute': '#FB6B90'},
+]
+
+
+def clock_palette_source():
+    return 'return {' + ','.join(
+        '{name=' + json.dumps(p['name']) + '}'
+        for p in CLOCK_PALETTES) + '}\n'
+
+
+def contrast_on_black(color):
+    rgb=[value/255 for value in ImageColor.getrgb(color)]
+    linear=[value/12.92 if value<=0.04045 else ((value+0.055)/1.055)**2.4 for value in rgb]
+    return (sum(value*weight for value,weight in zip(linear,[0.2126,0.7152,0.0722]))+0.05)/0.05
 
 
 def glyph(char, width=96, height=160, color=WHITE, blood=False, clock_rows=10):
@@ -86,8 +112,24 @@ def build():
     dest=ROOT/'build'; assets=dest/'app/lua'
     if dest.exists(): shutil.rmtree(dest)
     assets.mkdir(parents=True)
-    for part,color in [('hour',WHITE),('minute',CLOCK_ORANGE)]:
-        for char in '0123456789': glyph(char,layout['clockW'],layout['clockH'],color,clock_rows=layout['clockRows']).save(assets/f'clock-{part}-{char}.png')
+    assert len(CLOCK_PALETTES) >= 2 and len({p['name'] for p in CLOCK_PALETTES}) == len(CLOCK_PALETTES)
+    for palette in CLOCK_PALETTES:
+        for part in ['hour', 'minute']:
+            assert contrast_on_black(palette[part]) >= 4.5
+            for char in '0123456789':
+                glyph(char,layout['clockW'],layout['clockH'],palette[part],clock_rows=layout['clockRows']).save(
+                    assets/f'clock-{palette["name"]}-{part}-{char}.png')
+    (assets/'clock-palettes.lua').write_text(clock_palette_source())
+    assert len(list(assets.glob('clock-*.png'))) == 20*len(CLOCK_PALETTES)
+    for char in '0123456789':
+        baseline=Image.open(assets/f'clock-{CLOCK_PALETTES[0]["name"]}-hour-{char}.png').getchannel('A').tobytes()
+        for palette in CLOCK_PALETTES:
+            for part in ['hour', 'minute']:
+                with Image.open(assets/f'clock-{palette["name"]}-{part}-{char}.png') as image:
+                    assert image.size == (layout['clockW'],layout['clockH'])
+                    assert image.getchannel('A').tobytes() == baseline
+                    expected=ImageColor.getrgb(palette[part])+(255,)
+                    assert any(pixel == expected for _,pixel in image.getcolors(image.width*image.height))
     for band,states in VALUE_COLORS.items():
         for state,color in states.items():
             for char in list('0123456789')+['dot','dash']:
@@ -126,6 +168,21 @@ def build():
     preview.alpha_composite(battery,(60,466));d.text((110,456),'82%',font=font(36),fill='#c4d0d8')
     preview.alpha_composite(heart,(230,464));d.text((280,456),'72',font=font(36),fill='#c4d0d8')
     preview.save(dest/'preview-example.png')
+    columns=min(4,len(CLOCK_PALETTES));rows=(len(CLOCK_PALETTES)+columns-1)//columns
+    palettes_preview=Image.new('RGB',(432*columns,576*rows),'black')
+    for i,palette in enumerate(CLOCK_PALETTES):
+        sample=preview.copy()
+        ImageDraw.Draw(sample).rectangle((0,layout['clockY'],431,layout['clockY']+layout['clockH']-1),fill='black')
+        for j,(char,x) in enumerate(zip('1705',layout['clockX'])):
+            sample.alpha_composite(glyph(char,layout['clockW'],layout['clockH'],palette['hour' if j<2 else 'minute'],
+                                         clock_rows=layout['clockRows']),(x,layout['clockY']))
+        x,y=(i%columns)*432,(i//columns)*576
+        palettes_preview.paste(sample,(x,y))
+        ImageDraw.Draw(palettes_preview).text((x+216,y+518),palette['name'].replace('_',' ').title(),
+            anchor='mt',font=font(24),fill=WHITE)
+        ImageDraw.Draw(palettes_preview).text((x+216,y+546),palette['hour']+' / '+palette['minute'],
+            anchor='mt',font=font(20),fill='#b9c2c8')
+    palettes_preview.save(dest/'preview-clock-palettes.png')
     colors_preview=Image.new('RGB',(432*3,514),'black')
     for i,(text,band) in enumerate([('6.8','normal'),('9.0','high'),('13.0','alert')]):
         sample=preview.copy()
