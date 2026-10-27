@@ -15,7 +15,7 @@
 
 当前实机组合：Xiaomi 15 / Android 16；Redmi Watch 6（M2523W1，固件 3.100.043，432×514）；Ottai `com.ottai.tag` 1.63.0；Mi Fitness mod `com.xiaomi.wearable` 3.33.6i m0tral v141。兼容性结论仅覆盖这套组合。
 
-新增 [0.1.12 时钟随机双色](releases/0.1.12/README.md)：已完成构建、测试和独立审查，实机安装待 USB 连接恢复。每天当地时间 06／14／22 点，从 12 组经设计来源与黑底可读性筛选的方案中稳定伪随机选取整对；同段重载不变、相邻段不重复。手机和 RPK 不升级，血糖三色、布局、字号及黑底保持原样。当前设备表盘仍为 0.1.10。
+当前表盘为 [0.1.12 时钟随机双色](releases/0.1.12/README.md)，已通过本地 SPP 覆盖安装，用户确认显示正常、息屏再抬腕颜色一致。每天当地时间 06／14／22 点，从 12 组经设计来源与黑底可读性筛选的方案中稳定伪随机选取整对；同段重载不变、相邻段不重复。手机和 RPK 不升级，血糖三色、布局、字号及黑底保持原样；真实跨时段目视尚未等待，边界逻辑已通过桌面测试。
 
 [手表 0.1.9 试验](releases/watch-0.1.9/README.md) 未通过验收，不推荐安装：手动先黑屏后正常显示，透明未透出原表盘；两轮自动唤起未收到文件回执，失败原因未定位。已覆盖安装 [0.1.10 恢复包](releases/watch-0.1.10/README.md)，重建手机 SDK 连接后，两次旧测量恢复/状态更正均自动导出，用户确认已返回正常表盘且原始时间匹配。随后两个原始时间推进的读数也自动导出/回执，通知进入镜像后约 9.7 秒；首条较晚进入源通知，不能据此称两个严格正常周期，后两条未另取屏显确认。用户决定先保留短暂 UI 闪现，不继续优化。原后台三周期证据仍属于 0.1.8 RPK。试验代码归档与平台限制见 [减少闪现调研](docs/silent-sync-research.md)。
 
@@ -34,7 +34,7 @@ git clone git@github.com:joviliu/ottai_watch.git
 cd ottai_watch
 ```
 
-**直接安装**：手机使用 [releases/0.1.11](releases/0.1.11)，表盘使用 [releases/0.1.10](releases/0.1.10) 的 BIN；手表恢复包为 [RPK 0.1.10](releases/watch-0.1.10/README.md)。先核对各目录的 `SHA256SUMS`，参照 [安装与排查](docs/install.md) 和 [表盘工程](watchface/README.md)。手机 0.1.11 本身无需重装表盘；已装试验 RPK 的设备应使用恢复包，已有稳定 RPK 0.1.8 无需因手机升级而替换。安装包不包含运行时健康数据和账号。表盘目前通过 [本地 SPP 开发安装器](tools/spp-installer/README.md) 上传，需要自己设备的合法配对凭据；Mi Fitness 的开发表盘授权接口在本次实测返回 HTTP 404。旧版本保留用于历史追溯。
+**直接安装**：手机使用 [releases/0.1.11](releases/0.1.11)，表盘使用 [releases/0.1.12](releases/0.1.12) 的 BIN；手表恢复包为 [RPK 0.1.10](releases/watch-0.1.10/README.md)。先核对各目录的 `SHA256SUMS`，参照 [安装与排查](docs/install.md) 和 [表盘工程](watchface/README.md)。手机 0.1.11 本身无需重装表盘；已装试验 RPK 的设备应使用恢复包，已有稳定 RPK 0.1.8 无需因手机升级而替换。安装包不包含运行时健康数据和账号。表盘目前通过 [本地 SPP 开发安装器](tools/spp-installer/README.md) 上传，需要自己设备的合法配对凭据；Mi Fitness 的开发表盘授权接口在本次实测返回 HTTP 404。旧版本保留用于历史追溯。
 
 **继续开发**：需要 Python 3、Node.js ≥18、JDK ≥17、Android SDK Platform 35 / Build Tools 35.0.0、OpenSSL。先运行不依赖 Android SDK 的测试：
 
