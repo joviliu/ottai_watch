@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 from datetime import datetime
 from PIL import Image
+from collections import Counter
 from build import load_layout, CLOCK_PALETTES, contrast_on_black
 from ui_harness import create_ui
 from vendor import facebin
@@ -25,6 +26,8 @@ for variant in ['ultra','signal','meridian']:
         lua.globals().timer['cb']()
         for widget in lua.globals().widgets.values():
             p=widget['props'];src=p['src']
+            if p['x'] is not None:
+                assert p['x']>=0 and p['y']>=0 and p['x']+p['w']<=432 and p['y']+p['h']<=514,(variant,src,'bounds')
             if src:
                 file=assets/Path(src).name
                 assert file.is_file(),(variant,src)
@@ -47,6 +50,21 @@ for variant in ['ultra','signal','meridian']:
                 # Ignore the faint Lanczos halo; the visible strokes must retain padding.
                 left,top,right,bottom=image.getchannel('A').point(lambda alpha:255 if alpha>=32 else 0).getbbox()
                 assert 0<left<right<image.width and 0<top<bottom<image.height,('clipped glyph',file)
+        if variant=='signal':
+            assert len(list(assets.glob('clock-*.png')))==32*20
+            for palette in CLOCK_PALETTES:
+                for part in ['hour','minute']:
+                    with Image.open(assets/f'clock-{palette["name"]}-{part}-8.png') as image:
+                        pixel=Counter(p for p in zip(*(b.tobytes() for b in image.split())) if p[3]==255).most_common(1)[0][0]
+                        assert '#%02X%02X%02X'%pixel[:3]==palette[part]
+        if variant=='meridian':
+            assert not list(assets.glob('hand-*.png')) and not (assets/'complications.png').exists()
+            assert not list(assets.glob('value-*.png')) and not (assets/'heart.png').exists()
+            for band in ['normal','high','alert']:
+                for state in ['fresh','old']:
+                    with Image.open(assets/f'trend-{band}-{state}-flat.png') as image:
+                        pixel=Counter(p for p in zip(*(b.tobytes() for b in image.split())) if p[3]==255).most_common(1)[0][0]
+                        assert '#%02X%02X%02X'%pixel[:3]==layout['invalidColor' if state=='old' else band+'Color']
     print(variant,manifest['files'],'resources;',manifest['bytes'],'bytes; runtime resources/entry/geometry passed')
 assert len(ids)==3
 assert len(CLOCK_PALETTES)==32

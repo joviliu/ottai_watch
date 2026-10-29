@@ -4,70 +4,71 @@
     "faceId": "8670260102",
     "title": "Ottai Signal",
     "style": "solid",
-    "clockW": 82,
-    "clockH": 118,
+    "clockW": 90,
+    "clockH": 252,
     "clockX": [
-      28,
-      110,
-      240,
-      322
+      12,
+      112,
+      232,
+      332
     ],
-    "clockY": 91,
-    "valueW": 42,
-    "valueH": 60,
-    "valueDotW": 12,
-    "valueCenter": 174,
-    "valueY": 343,
-    "trendX": 328,
-    "trendY": 348,
+    "clockY": 62,
+    "valueW": 26,
+    "valueH": 34,
+    "valueDotW": 8,
+    "valueCenter": 244,
+    "valueY": 399,
+    "trendX": 348,
+    "trendY": 402,
     "dateBox": [
       30,
-      52,
+      16,
       372,
       28,
       22
     ],
     "sourceBox": [
       276,
-      448,
+      460,
       124,
-      56,
+      48,
       24
     ],
     "batteryIcon": [
       46,
-      239,
+      340,
       34,
       24
     ],
     "batteryBox": [
       90,
-      230,
+      332,
       100,
       40,
       28
     ],
     "heartIcon": [
       250,
-      239,
+      339,
       30,
       28
     ],
     "heartBox": [
       288,
-      230,
+      332,
       100,
       40,
       28
     ],
-    "normalColor": "#B8A8D9"
+    "normalColor": "#B8A8D9",
+    "trendSize": 28
   },
   "meridian": {
     "faceId": "8670260103",
     "title": "Ottai Meridian",
     "style": "analog",
-    "valueY": 298,
-    "trendY": 300,
+    "valueY": 464,
+    "trendY": 464,
     "dateBox": [
       30,
       10,
@@ -76,11 +77,11 @@
       22
     ],
     "sourceBox": [
-      144,
-      358,
-      144,
-      48,
-      22
+      246,
+      337,
+      90,
+      46,
+      20
     ],
     "dialBox": [
       12,
@@ -88,10 +89,25 @@
       408,
       408
     ],
-    "valueW": 40,
-    "valueH": 56,
-    "valueCenter": 184,
-    "trendX": 275,
-    "normalColor": "#B8A8D9"
+    "valueW": 20,
+    "valueH": 28,
+    "valueCenter": 320,
+    "trendX": 232,
+    "normalColor": "#A6C7AE",
+    "valueDotW": 6,
+    "trendSize": 28,
+    "hideSource": true,
+    "hideHeart": true,
+    "invalidColor": "#87939C",
+    "cartoonTrend": true,
+    "valueBox": [
+      265,
+      459,
+      106,
+      40,
+      28
+    ],
+    "highColor": "#DFCD98",
+    "alertColor": "#DCA2A2"
   }
 }

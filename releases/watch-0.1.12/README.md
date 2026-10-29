@@ -4,6 +4,6 @@
 
 不改通知、同步唤起/退出、缓存、文件发布/身份回执或手机 APK。沿用原签名，可直接覆盖，无需删除手表应用。内部 0.1.11 参考序列候选已依用户意见被本版替代。
 
-模型/回归测试和 release 构建通过；修改版运动健康已回报本版安装 code 0。细线目视和最终自然后台周期仍待完成，当前状态见 [交接记录](../../docs/HANDOFF.md)。
+模型/回归测试和 release 构建通过；修改版运动健康已回报本版安装 code 0。细线已经用户确认正常；已配合 APK 0.1.11、0.1.15 Meridian 和修改版运动健康完成非充电锁屏两轮新测量导出/ACK。新表盘单独验收，当前状态见 [交接记录](../../docs/HANDOFF.md)。
 
 依据 [Vela chart](https://iot.mi.com/vela/quickapp/en/components/basic/chart.html) 的坐标范围及 [stack](https://iot.mi.com/vela/quickapp/en/components/container/stack.html) 叠层行为。先核对 SHA256SUMS，安装方法见 [安装文档](../../docs/install.md)。

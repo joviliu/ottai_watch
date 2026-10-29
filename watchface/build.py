@@ -1,6 +1,7 @@
 """Build an original 432x514 Lua watchface. Requires Pillow; no vendor compiler."""
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont, ImageColor
+from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageFilter
+from functools import lru_cache
 from vendor import facebin
 import hashlib
 import json
@@ -78,14 +79,18 @@ def glyph(char, width=96, height=160, color=WHITE, blood=False, clock_rows=10):
     return dots.resize((width,height),Image.Resampling.LANCZOS)
 
 
-def arrow(kind,color=GLUCOSE_COLOR):
+def arrow(kind,color=GLUCOSE_COLOR,filled=False):
     image=Image.new('RGBA',(54,54)); draw=ImageDraw.Draw(image)
     if kind=='unknown':
         draw.text((17,7),'?',font=ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-Light.ttf'),38),fill=color)
     else:
         base=Image.new('RGBA',(54,54)); d=ImageDraw.Draw(base)
-        d.line([(10,27),(44,27)],fill=color,width=5)
-        d.line([(32,15),(44,27),(32,39)],fill=color,width=5)
+        if filled:
+            d.polygon([(11,21),(31,21),(31,12),(46,27),(31,42),(31,33),(11,33)],fill=color)
+            d.ellipse((6,21,18,33),fill=color)
+        else:
+            d.line([(10,27),(44,27)],fill=color,width=5)
+            d.line([(32,15),(44,27),(32,39)],fill=color,width=5)
         angles={'flat':0,'up_right':45,'up':90,'up_fast':90,'down_right':-45,'down':-90,'down_fast':-90}
         image=base.rotate(angles[kind],resample=Image.Resampling.BICUBIC)
         if kind.endswith('fast'):
@@ -100,44 +105,55 @@ def load_layout(variant='ultra'):
     return layout
 
 
-def segment_glyph(char,width,height,color):
-    scale=4;pad=3;stroke=min(width*.10,height*.065);gap=max(.9,stroke*.18)
-    image=Image.new('RGBA',(width*scale,height*scale));draw=ImageDraw.Draw(image)
-    left=pad+stroke/2;right=width-pad-stroke/2
-    top=pad+stroke/2;middle=height/2;bottom=height-pad-stroke/2
-    def polygon(points):draw.polygon([(x*scale,y*scale) for x,y in points],fill=color)
-    def horizontal(y):
-        polygon([(left,y),(left+stroke/2,y-stroke/2),(right-stroke/2,y-stroke/2),
-                 (right,y),(right-stroke/2,y+stroke/2),(left+stroke/2,y+stroke/2)])
-    def vertical(x,y1,y2):
-        polygon([(x,y1),(x+stroke/2,y1+stroke/2),(x+stroke/2,y2-stroke/2),
-                 (x,y2),(x-stroke/2,y2-stroke/2),(x-stroke/2,y1+stroke/2)])
-    patterns={'0':'abcdef','1':'bc','2':'abdeg','3':'abcdg','4':'bcfg',
-              '5':'acdfg','6':'acdefg','7':'abc','8':'abcdefg','9':'abcdfg','dash':'g'}
-    if char=='dot':
-        radius=min(width*.22,height*.05);x=width/2;y=height-pad-radius
-        draw.ellipse(((x-radius)*scale,(y-radius)*scale,(x+radius)*scale,(y+radius)*scale),fill=color)
-    else:
-        for segment in patterns[char]:
-            if segment in 'adg':horizontal({'a':top,'d':bottom,'g':middle}[segment])
-            else:
-                upper=segment in 'bf'
-                vertical(right if segment in 'bc' else left,
-                         (top if upper else middle)+stroke/2+gap,
-                         (middle if upper else bottom)-stroke/2-gap)
-    return image.resize((width,height),Image.Resampling.LANCZOS)
+def colored_alpha(image,color):
+    result=Image.new('RGBA',image.size,color)
+    result.putalpha(image.getchannel('A'))
+    return result
+
+
+@lru_cache(maxsize=32)
+def jersey_mask(char,width,height,outlined):
+    scale=4;pad=7 if outlined else 3
+    font=ImageFont.truetype(str(ROOT/'fonts/Graduate-Regular.ttf'),1024)
+    top=font.getbbox('0123456789')[1];bottom=font.getbbox('0123456789')[3]
+    widest=max(font.getbbox(c)[2]-font.getbbox(c)[0] for c in '0123456789')
+    bbox=font.getbbox(char)
+    natural=Image.new('L',(widest,bottom-top))
+    ImageDraw.Draw(natural).text(((widest-bbox[2]+bbox[0])/2-bbox[0],-top),char,font=font,fill=255)
+    result=Image.new('L',(width*scale,height*scale))
+    result.paste(natural.resize(((width-pad*2)*scale,(height-pad*2)*scale),Image.Resampling.LANCZOS),(pad*scale,pad*scale))
+    return result,result.filter(ImageFilter.MaxFilter(25)) if outlined else None,result.filter(ImageFilter.MaxFilter(13)) if outlined else None
+
+
+def jersey_glyph(char,width,height,color,outline=None):
+    scale=4
+    if char in ('dot','dash'):
+        image=Image.new('RGBA',(width*scale,height*scale));draw=ImageDraw.Draw(image)
+        if char=='dot':
+            radius=min(width*.22,height*.05);x=width/2;y=height-3-radius
+            draw.ellipse(((x-radius)*scale,(y-radius)*scale,(x+radius)*scale,(y+radius)*scale),fill=color)
+        else:draw.rounded_rectangle((3*scale,(height/2-1)*scale,(width-3)*scale,(height/2+1)*scale),radius=scale,fill=color)
+        return colored_alpha(image.resize((width,height),Image.Resampling.LANCZOS),color)
+    mask,outer,separator=jersey_mask(char,width,height,outline is not None)
+    image=Image.new('RGBA',mask.size)
+    if outline:
+        image.paste(outline,(0,0,*mask.size),outer)
+        image.paste('black',(0,0,*mask.size),separator)
+    image.paste(color,(0,0,*mask.size),mask)
+    image=image.resize((width,height),Image.Resampling.LANCZOS)
+    return image if outline else colored_alpha(image,color)
 
 
 def hand_image(index,count,length,width,color,size):
     import math
     scale=3;center=size/2
     angle=index*2*math.pi/count
-    forward=(math.sin(angle),-math.cos(angle));side=(math.cos(angle),math.sin(angle))
-    points=[]
-    for distance,lateral in [(-17,-width/2),(length-10,-width/2),(length,0),(length-10,width/2),(-17,width/2)]:
-        points.append(((center+distance*forward[0]+lateral*side[0])*scale,(center+distance*forward[1]+lateral*side[1])*scale))
     image=Image.new('RGBA',(size*scale,size*scale));d=ImageDraw.Draw(image)
-    d.polygon(points,fill=color);d.ellipse(((center-6)*scale,(center-6)*scale,(center+6)*scale,(center+6)*scale),fill=color)
+    step=max(1,width//3)
+    for i in range(math.ceil((length+12)/step)+1):
+        distance=-12+min(i*step,length+12)
+        x=round(center+math.sin(angle)*distance-width/2);y=round(center-math.cos(angle)*distance-width/2)
+        d.ellipse((x*scale,y*scale,(x+width)*scale,(y+width)*scale),fill=color)
     return image.resize((size,size),Image.Resampling.LANCZOS)
 
 
@@ -146,13 +162,13 @@ def background(layout):
     image=Image.new('RGBA',(432,514),'black');d=ImageDraw.Draw(image)
     font=lambda size:ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-SemiBold.ttf'),size)
     if layout['style']=='solid':
-        d.text((28,16),'OTTAI',font=font(19),fill='#76ABAE')
-        d.text((404,16),'SIGNAL',anchor='rt',font=font(19),fill='#718089')
-        for y in (128,168):d.rounded_rectangle((212,y,220,y+9),radius=3,fill='#76ABAE')
-        d.line((28,282,404,282),fill='#29343C',width=1)
-        d.rounded_rectangle((22,292,410,435),radius=24,fill='#101C24',outline='#26363F',width=1)
-        d.text((42,302),'GLUCOSE',font=font(18),fill=DATE_COLOR)
-        d.text((30,454),'LAST UPDATE',font=font(21),fill=DATE_COLOR)
+        for fraction in (.35,.65):
+            y=round(layout['clockY']+layout['clockH']*fraction)
+            d.rounded_rectangle((212,y,220,y+9),radius=3,fill=DATE_COLOR)
+        d.line((28,381,404,381),fill='#29343C',width=1)
+        d.rounded_rectangle((22,392,410,440),radius=14,fill='#101C24',outline='#26363F',width=1)
+        d.text((40,404),'GLUCOSE',font=font(18),fill=DATE_COLOR)
+        d.text((30,464),'LAST UPDATE',font=font(21),fill=DATE_COLOR)
     elif layout['style']=='analog':
         x,y,size,_=layout['dialBox'];cx,cy=x+size/2,y+size/2
         radius=size/2-3
@@ -161,24 +177,13 @@ def background(layout):
             a=i*math.pi/30;outer=radius-8;inner=outer-(16 if i%5==0 else 6)
             d.line((cx+math.sin(a)*inner,cy-math.cos(a)*inner,cx+math.sin(a)*outer,cy-math.cos(a)*outer),fill='#B3C0C0' if i%5==0 else '#46575B',width=3 if i%5==0 else 1)
         inset=radius-34
-        for text,x,y in [('12',cx,cy-inset),('3',cx+inset,cy),('9',cx-inset,cy)]:
+        for text,x,y in [('12',cx,cy-inset),('3',cx+inset,cy),('6',cx,cy+inset),('9',cx-inset,cy)]:
             d.text((x,y),text,anchor='mm',font=font(26),fill='#DCD7C9')
     return image
 
 
-def complications(layout):
-    image=Image.new('RGBA',(432,514))
-    ImageDraw.Draw(image).rounded_rectangle((88,288,344,410),radius=20,fill='#0A1217',outline='#26363F',width=1)
-    return image
-
-
-def tinted(image,color):
-    result=Image.new('RGBA',image.size,color)
-    result.putalpha(image.getchannel('A'))
-    return result
-
-
 def preview(layout,assets,text='6.8',band='normal',state='fresh',palette=None,placeholders=False):
+    if placeholders and layout.get('invalidColor'):state='old'
     image=background(layout);d=ImageDraw.Draw(image)
     font=lambda size:ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-Light.ttf'),size)
     def label(text,box,color):
@@ -188,23 +193,27 @@ def preview(layout,assets,text='6.8',band='normal',state='fresh',palette=None,pl
     colors=palette or CLOCK_PALETTES[0]
     if layout['style']=='analog':
         x,y,size,_=layout['dialBox']
-        image.alpha_composite(hand_image(10*60+9,720,112,11,colors['hour'],size),(x,y))
+        image.alpha_composite(hand_image(10*60+9,720,112,10,colors['hour'],size),(x,y))
         image.alpha_composite(hand_image(9,60,174,6,colors['minute'],size),(x,y))
-        image.alpha_composite(complications(layout))
+        ImageDraw.Draw(image).ellipse((210,y+size/2-6,222,y+size/2+6),fill=colors['minute'])
     else:
         for i,(char,x) in enumerate(zip('1009',layout['clockX'])):
-            part='hour' if i<2 else 'minute';name=colors['name'] if layout['style']=='dots' else 'signal'
+            part='hour' if i<2 else 'minute';name=colors['name']
             img=Image.open(assets/f'clock-{name}-{part}-{char}.png')
-            image.alpha_composite(img if layout['style']=='dots' else tinted(img,colors[part]),(x,layout['clockY']))
+            image.alpha_composite(img,(x,layout['clockY']))
     text='--' if placeholders else text
-    widths=[layout['valueDotW'] if c=='.' else layout['valueW'] for c in text]
-    x=int(layout['valueCenter']-(sum(widths)+4*(len(widths)-1))/2)
-    for char,width in zip(text,widths):
-        name='dot' if char=='.' else 'dash' if char=='-' else char
-        image.alpha_composite(Image.open(assets/f'value-{band}-{state}-{name}.png'),(x,layout['valueY']));x+=width+4
+    if layout.get('valueBox'):
+        label(text,layout['valueBox'],'#87939C' if state=='old' else '#C4D0D8')
+    else:
+        widths=[layout['valueDotW'] if c=='.' else layout['valueW'] for c in text]
+        x=int(layout['valueCenter']-(sum(widths)+4*(len(widths)-1))/2)
+        for char,width in zip(text,widths):
+            name='dot' if char=='.' else 'dash' if char=='-' else char
+            image.alpha_composite(Image.open(assets/f'value-{band}-{state}-{name}.png'),(x,layout['valueY']));x+=width+4
     image.alpha_composite(Image.open(assets/f'trend-{band}-{state}-{"unknown" if placeholders else "up_right"}.png'),(layout['trendX'],layout['trendY']))
-    label('--:--' if placeholders else '10:04'+('\nOLD' if state=='old' else ''),layout['sourceBox'],DATE_COLOR)
+    if not layout.get('hideSource'):label('--:--' if placeholders else '10:04'+('\nOLD' if state=='old' else ''),layout['sourceBox'],DATE_COLOR)
     for key,name,text in [('battery','battery','--%' if placeholders else '82%'),('heart','heart','--' if placeholders else '72')]:
+        if key=='heart' and layout.get('hideHeart'):continue
         x,y,w,h=layout[key+'Icon'];image.alpha_composite(Image.open(assets/f'{name}.png'),(x,y))
         label(text,layout[key+'Box'],'#C4D0D8')
     return image
@@ -216,32 +225,35 @@ def build_face(variant='ultra'):
     if dest.exists():shutil.rmtree(dest)
     assets=dest/'app/lua';assets.mkdir(parents=True)
     assert len(CLOCK_PALETTES)>=2 and len({p['name'] for p in CLOCK_PALETTES})==len(CLOCK_PALETTES)
-    colors=CLOCK_PALETTES if layout['style']=='dots' else [{'name':'signal','hour':'#EEEEEE','minute':'#76ABAE'}]
-    if layout['style']=='analog':
-        for part,count,length,width,color in [('hour',720,112,11,'#F0D9B4'),('minute',60,174,6,'#8DBDB3')]:
-            for index in range(count):hand_image(index,count,length,width,color,layout['dialBox'][2]).save(assets/f'hand-{part}-{index}.png')
-        complications(layout).save(assets/'complications.png')
-    else:
+    colors=CLOCK_PALETTES
+    if layout['style']!='analog':
         for palette in colors:
             for part in ['hour','minute']:
                 assert contrast_on_black(palette[part])>=4.5
                 for char in '0123456789':
-                    img=glyph(char,layout['clockW'],layout['clockH'],palette[part],clock_rows=layout['clockRows']) if layout['style']=='dots' else segment_glyph(char,layout['clockW'],layout['clockH'],palette[part])
+                    img=glyph(char,layout['clockW'],layout['clockH'],palette[part],clock_rows=layout['clockRows']) if layout['style']=='dots' else jersey_glyph(char,layout['clockW'],layout['clockH'],palette[part],palette['minute' if part=='hour' else 'hour'])
                     img.save(assets/f'clock-{palette["name"]}-{part}-{char}.png')
         assert len(list(assets.glob('clock-*.png')))==20*len(colors)
     (assets/'clock-palettes.lua').write_text(clock_palette_source())
     for band,states in VALUE_COLORS.items():
         for state,color in states.items():
-            if band=='normal' and state=='fresh':color=layout.get('normalColor',color)
+            if state=='fresh':color=layout.get(band+'Color',color)
+            if state=='old':color=layout.get('invalidColor',color)
             for char in list('0123456789')+['dot','dash']:
+                if layout.get('valueBox'):continue
                 w=layout['valueDotW'] if char=='dot' else layout['valueW']
-                img=glyph(char,w,layout['valueH'],color,blood=True) if layout['style']=='dots' else segment_glyph(char,w,layout['valueH'],color)
+                img=glyph(char,w,layout['valueH'],color,blood=True) if layout['style']=='dots' else jersey_glyph(char,w,layout['valueH'],color)
                 img.save(assets/f'value-{band}-{state}-{char}.png')
-            for kind in ['unknown','up','up_right','flat','down_right','down','up_fast','down_fast']:arrow(kind,color).save(assets/f'trend-{band}-{state}-{kind}.png')
+            size=layout.get('trendSize',54)
+            for kind in ['unknown','up','up_right','flat','down_right','down','up_fast','down_fast']:
+                img=arrow(kind,color,layout.get('cartoonTrend',False)).resize((size,size),Image.Resampling.LANCZOS)
+                if layout['style']!='dots':img=colored_alpha(img,color)
+                img.save(assets/f'trend-{band}-{state}-{kind}.png')
     battery=Image.new('RGBA',(34,24));d=ImageDraw.Draw(battery)
     d.rounded_rectangle((1,3,28,21),radius=3,outline=WHITE,width=2);d.rectangle((29,9,32,15),fill=WHITE);d.rectangle((5,7,21,17),fill=WHITE);battery.save(assets/'battery.png')
     heart=Image.new('RGBA',(30,28));d=ImageDraw.Draw(heart)
-    d.ellipse((2,3,15,16),fill='#f07d9a');d.ellipse((14,3,27,16),fill='#f07d9a');d.polygon([(2,11),(27,11),(15,26)],fill='#f07d9a');heart.save(assets/'heart.png')
+    d.ellipse((2,3,15,16),fill='#f07d9a');d.ellipse((14,3,27,16),fill='#f07d9a');d.polygon([(2,11),(27,11),(15,26)],fill='#f07d9a')
+    if not layout.get('hideHeart'):heart.save(assets/'heart.png')
     if layout['style']!='dots':background(layout).save(assets/'background.png')
     for file in (ROOT/'src').glob('*.lua'):shutil.copy2(file,assets/file.name)
     def lua_value(value):

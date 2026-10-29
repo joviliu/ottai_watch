@@ -56,3 +56,11 @@ watchface/fonts/BarlowCondensed-SemiBold.ttf:
   Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
   License: SIL Open Font License 1.1; full text in watchface/fonts/OFL.txt.
   Used for dial labels and static preview headings; seven-segment numerals use original geometric patterns.
+
+watchface/fonts/Graduate-Regular.ttf:
+  Origin: https://github.com/google/fonts/tree/c1eda9233c33ad7775b27efd794f931095cf6133/ofl/graduate
+  Copyright 2012 The Graduate Project Authors (https://github.com/etunni/graduate)
+  Reserved Font Name: Graduate
+  License: SIL Open Font License 1.1; full text in watchface/fonts/OFL-Graduate.txt.
+  Original unmodified TTF, SHA256 971222b309851d86f2513f89b510dc52d52ef7798b5f43af2c6f58d43df568e5.
+  Used at build time for Signal varsity numerals; two-color outlines are bitmap artwork.

@@ -11,7 +11,10 @@ io.open=function(path,mode)
 end
 local function object(props)
  local obj={props=props,events={},flags={},updates=0}
- function obj:set(values)self.updates=self.updates+1;for k,v in pairs(values)do self.props[k]=v end end
+ function obj:set(values)
+  if values.img_recolor then error('Watch 6 image recolor is unavailable') end
+  self.updates=self.updates+1;for k,v in pairs(values)do self.props[k]=v end
+ end
  function obj:add_flag(flag)self.flags[flag]=true end
  function obj:clear_flag(flag)self.flags[flag]=nil end
  function obj:onevent(event,fn)self.events[event]=fn end

@@ -1,6 +1,6 @@
 # Ottai → Redmi Watch 6 血糖镜像
 
-2026-10-29：[0.1.14 三款表盘](releases/0.1.14/README.md) 已上传并由用户逐款确认显示。[0.1.15](releases/0.1.15/README.md) 继续优化 Signal 电子数字、Meridian 大圆盘并统一 32 组时钟配色，覆盖验收进行中。手表应用 [RPK 0.1.12](releases/watch-0.1.12/README.md) 已安装，增加 3.9/7.8 曲线基准线；手机 APK 不变。最新设备状态与待办见 [交接记录](docs/HANDOFF.md)。
+2026-10-29：[0.1.14 三款表盘](releases/0.1.14/README.md) 已上传并由用户逐款确认显示。[0.1.16](releases/0.1.16/README.md) 改为 Signal 球衣数字与 48px 紧凑血糖栏、Meridian 底部浅灰血糖/淡色箭头，并修复图片变色未生效导致的固定配色；覆盖验收进行中。手表应用 [RPK 0.1.12](releases/watch-0.1.12/README.md) 已安装，增加 3.9/7.8 曲线基准线；手机 APK 不变。最新设备状态与待办见 [交接记录](docs/HANDOFF.md)。
 
 把手机欧态 Ottai 通知中的血糖、趋势、原始测量时间，经小米运动健康的蓝牙通道发送到 Redmi Watch 6。包含独立应用「血糖镜像」与原创 Lua 表盘「Ottai Minimal」，无需 xDrip。
 
@@ -30,7 +30,7 @@
 
 Ottai 约每 5 分钟更新一次。程序不轮询传感器、不提高 Ottai 刷新频率。当前固件未验证可靠的手表常驻后台接收，因此表盘采用上述短暂唤起后返回的方式，无需手动打开应用。0.1.11 每次未送达读数的发送尝试最多申请 20 秒 partial CPU wake lock，匹配文件回执后提前释放，保障关屏后的 8 秒回退；它不能代替 HyperOS 的后台冻结豁免。新安装时手机「表盘自动同步」默认关闭，使用表盘需要开启。表盘在创建、亮屏和恢复时读取文件，可见期间每 15 秒检查小文件，息屏暂停；长期耗电尚未测量。后台设置和验收边界见 [HyperOS 后台排查](docs/background-running.md)。
 
-![Signal 电子数字与 Meridian 大圆盘；合成示例并非手表截图](releases/0.1.15/preview-new-styles.png)
+![Signal 球衣数字与极简 Meridian；合成示例并非手表截图](releases/0.1.16/preview-new-styles.png)
 
 表盘显示紧凑日期、完整圆点大时钟（无冒号）、动态分段颜色血糖与趋势、原始测量时间、电量与心率。现源码时钟已扩展为 [32 组协调双色](docs/clock-palettes.md)，白橙为其中一组，实机安装状态见上文。时钟采用 6×14 点阵，数字间距加宽，日期与时钟区约占屏幕上方 3/5；血糖采用更小、更稀疏的 5×7 点阵，数值居中，左侧更新时间放大提亮，右侧显示趋势箭头。布局参数在 `watchface/layout.json`。运行时血糖仅取自合法数据文件，安装缩略图使用占位。
 
@@ -43,7 +43,7 @@ git clone git@github.com:joviliu/ottai_watch.git
 cd ottai_watch
 ```
 
-**直接安装**：手机 APK 沿用 [0.1.11](releases/0.1.11)，表盘候选见 [0.1.15](releases/0.1.15/README.md)，手表应用为 [RPK 0.1.12](releases/watch-0.1.12/README.md)。先核对各目录 SHA256SUMS，按 [安装文档](docs/install.md) 和 [交接记录](docs/HANDOFF.md) 确认实际版本，勿重复清除已有数据。表盘通过 [SPP 临时安装器](tools/spp-installer/README.md) 上传，使用自己设备的合法配对凭据，结束卸载。官方版曾通过日常同步，但本轮上传在其环境下中断；修改版对照已完成三款上传，不能把这项结果直接解释为官方禁止表盘安装。修改版已确认可覆盖升级 RPK；官方 RPK 侧载入口仍未验。
+**直接安装**：手机 APK 沿用 [0.1.11](releases/0.1.11)，表盘候选见 [0.1.16](releases/0.1.16/README.md)，手表应用为 [RPK 0.1.12](releases/watch-0.1.12/README.md)。先核对各目录 SHA256SUMS，按 [安装文档](docs/install.md) 和 [交接记录](docs/HANDOFF.md) 确认实际版本，勿重复清除已有数据。表盘通过 [SPP 临时安装器](tools/spp-installer/README.md) 上传，使用自己设备的合法配对凭据，结束卸载。官方版曾通过日常同步，但本轮上传在其环境下中断；修改版对照已完成三款上传，不能把这项结果直接解释为官方禁止表盘安装。修改版已确认可覆盖升级 RPK；官方 RPK 侧载入口仍未验。
 
 **继续开发**：需要 Python 3、Node.js ≥18、JDK ≥17、Android SDK Platform 35 / Build Tools 35.0.0、OpenSSL。先运行不依赖 Android SDK 的测试：
 
