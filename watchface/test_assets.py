@@ -52,6 +52,9 @@ for variant in ['ultra','signal','meridian']:
                 assert 0<left<right<image.width and 0<top<bottom<image.height,('clipped glyph',file)
         if variant=='signal':
             assert len(list(assets.glob('clock-*.png')))==32*20
+            with Image.open(assets/f'clock-{CLOCK_PALETTES[0]["name"]}-hour-0.png') as image:
+                left,top,right,bottom=image.getchannel('A').point(lambda a:255 if a>=32 else 0).getbbox()
+                assert .95<(right-left)/(bottom-top)<1.25,'Poiret One zero must retain its rounded proportions'
             for palette in CLOCK_PALETTES:
                 for part in ['hour','minute']:
                     with Image.open(assets/f'clock-{palette["name"]}-{part}-8.png') as image:

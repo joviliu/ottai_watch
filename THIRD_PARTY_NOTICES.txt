@@ -64,3 +64,10 @@ watchface/fonts/Graduate-Regular.ttf:
   License: SIL Open Font License 1.1; full text in watchface/fonts/OFL-Graduate.txt.
   Original unmodified TTF, SHA256 971222b309851d86f2513f89b510dc52d52ef7798b5f43af2c6f58d43df568e5.
   Used at build time for Signal varsity numerals; two-color outlines are bitmap artwork.
+
+watchface/fonts/PoiretOne-Regular.ttf:
+  Origin: https://github.com/google/fonts/tree/8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5/ofl/poiretone
+  Copyright 2011 The Poiret One Project Authors (https://github.com/alexeiva/poiretone)
+  License: SIL Open Font License 1.1; full text in watchface/fonts/OFL-PoiretOne.txt.
+  Original unmodified TTF, SHA256 457f2d03263f58e5a6dbcc1b607b10dff6581e7cf9c4ebdf330ec3e6772a3558.
+  Signal 0.1.17 uses proportionally scaled numeral images generated from this font.

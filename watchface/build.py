@@ -1,6 +1,6 @@
 """Build an original 432x514 Lua watchface. Requires Pillow; no vendor compiler."""
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageColor
 from functools import lru_cache
 from vendor import facebin
 import hashlib
@@ -112,36 +112,27 @@ def colored_alpha(image,color):
 
 
 @lru_cache(maxsize=32)
-def jersey_mask(char,width,height,outlined):
-    scale=4;pad=7 if outlined else 3
-    font=ImageFont.truetype(str(ROOT/'fonts/Graduate-Regular.ttf'),1024)
+def poiret_mask(char,width,height):
+    scale=4;pad=3
+    font=ImageFont.truetype(str(ROOT/'fonts/PoiretOne-Regular.ttf'),1024)
     top=font.getbbox('0123456789')[1];bottom=font.getbbox('0123456789')[3]
     widest=max(font.getbbox(c)[2]-font.getbbox(c)[0] for c in '0123456789')
     bbox=font.getbbox(char)
     natural=Image.new('L',(widest,bottom-top))
     ImageDraw.Draw(natural).text(((widest-bbox[2]+bbox[0])/2-bbox[0],-top),char,font=font,fill=255)
+    factor=min((width-pad*2)/widest,(height-pad*2)/(bottom-top))
+    if char in '.-':factor=(height-pad*2)/(bottom-top)
+    w,h=round(widest*factor*scale),round((bottom-top)*factor*scale)
     result=Image.new('L',(width*scale,height*scale))
-    result.paste(natural.resize(((width-pad*2)*scale,(height-pad*2)*scale),Image.Resampling.LANCZOS),(pad*scale,pad*scale))
-    return result,result.filter(ImageFilter.MaxFilter(25)) if outlined else None,result.filter(ImageFilter.MaxFilter(13)) if outlined else None
+    result.paste(natural.resize((w,h),Image.Resampling.LANCZOS),((width*scale-w)//2,(height*scale-h)//2))
+    return result
 
 
-def jersey_glyph(char,width,height,color,outline=None):
-    scale=4
-    if char in ('dot','dash'):
-        image=Image.new('RGBA',(width*scale,height*scale));draw=ImageDraw.Draw(image)
-        if char=='dot':
-            radius=min(width*.22,height*.05);x=width/2;y=height-3-radius
-            draw.ellipse(((x-radius)*scale,(y-radius)*scale,(x+radius)*scale,(y+radius)*scale),fill=color)
-        else:draw.rounded_rectangle((3*scale,(height/2-1)*scale,(width-3)*scale,(height/2+1)*scale),radius=scale,fill=color)
-        return colored_alpha(image.resize((width,height),Image.Resampling.LANCZOS),color)
-    mask,outer,separator=jersey_mask(char,width,height,outline is not None)
-    image=Image.new('RGBA',mask.size)
-    if outline:
-        image.paste(outline,(0,0,*mask.size),outer)
-        image.paste('black',(0,0,*mask.size),separator)
-    image.paste(color,(0,0,*mask.size),mask)
-    image=image.resize((width,height),Image.Resampling.LANCZOS)
-    return image if outline else colored_alpha(image,color)
+def poiret_glyph(char,width,height,color):
+    if char in ('dot','dash'):char='.' if char=='dot' else '-'
+    mask=poiret_mask(char,width,height)
+    image=Image.new('RGBA',mask.size,color);image.putalpha(mask)
+    return colored_alpha(image.resize((width,height),Image.Resampling.LANCZOS),color)
 
 
 def hand_image(index,count,length,width,color,size):
@@ -162,9 +153,10 @@ def background(layout):
     image=Image.new('RGBA',(432,514),'black');d=ImageDraw.Draw(image)
     font=lambda size:ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-SemiBold.ttf'),size)
     if layout['style']=='solid':
-        for fraction in (.35,.65):
-            y=round(layout['clockY']+layout['clockH']*fraction)
-            d.rounded_rectangle((212,y,220,y+9),radius=3,fill=DATE_COLOR)
+        box=poiret_mask('8',layout['clockW'],layout['clockH']).getbbox()
+        center=layout['clockY']+(box[1]+box[3])/8
+        offset=(box[3]-box[1])/4*.18
+        for y in (center-offset,center+offset):d.ellipse((214,y-2,218,y+2),fill=DATE_COLOR)
         d.line((28,381,404,381),fill='#29343C',width=1)
         d.rounded_rectangle((22,392,410,440),radius=14,fill='#101C24',outline='#26363F',width=1)
         d.text((40,404),'GLUCOSE',font=font(18),fill=DATE_COLOR)
@@ -231,7 +223,7 @@ def build_face(variant='ultra'):
             for part in ['hour','minute']:
                 assert contrast_on_black(palette[part])>=4.5
                 for char in '0123456789':
-                    img=glyph(char,layout['clockW'],layout['clockH'],palette[part],clock_rows=layout['clockRows']) if layout['style']=='dots' else jersey_glyph(char,layout['clockW'],layout['clockH'],palette[part],palette['minute' if part=='hour' else 'hour'])
+                    img=glyph(char,layout['clockW'],layout['clockH'],palette[part],clock_rows=layout['clockRows']) if layout['style']=='dots' else poiret_glyph(char,layout['clockW'],layout['clockH'],palette[part])
                     img.save(assets/f'clock-{palette["name"]}-{part}-{char}.png')
         assert len(list(assets.glob('clock-*.png')))==20*len(colors)
     (assets/'clock-palettes.lua').write_text(clock_palette_source())
@@ -242,7 +234,7 @@ def build_face(variant='ultra'):
             for char in list('0123456789')+['dot','dash']:
                 if layout.get('valueBox'):continue
                 w=layout['valueDotW'] if char=='dot' else layout['valueW']
-                img=glyph(char,w,layout['valueH'],color,blood=True) if layout['style']=='dots' else jersey_glyph(char,w,layout['valueH'],color)
+                img=glyph(char,w,layout['valueH'],color,blood=True) if layout['style']=='dots' else poiret_glyph(char,w,layout['valueH'],color)
                 img.save(assets/f'value-{band}-{state}-{char}.png')
             size=layout.get('trendSize',54)
             for kind in ['unknown','up','up_right','flat','down_right','down','up_fast','down_fast']:

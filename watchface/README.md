@@ -1,5 +1,7 @@
 # Redmi Watch 6：三款 Lua 血糖表盘
 
+最终实机组合：Ultra 0.1.14（不改）、Meridian 0.1.16（用户确认）、Signal 0.1.17（Poiret One 原字形，用户确认）。Signal 32 组使用预着色图片，Meridian 用原生有色对象，不依赖已证明不生效的 image recolor。开始前先看 [当前交接](../docs/HANDOFF.md)。
+
 最新为 [0.1.16](../releases/0.1.16/README.md)：Signal 球衣数字、大时钟与 48px 紧凑血糖行；Meridian 原生彩色指针、底部浅灰血糖替换心率、淡色趋势箭头。Ultra 仍保留 0.1.14。0.1.15 的图片 recolor 已被真机证明没有生效，本版用预着色图片/原生对象修复；当前显示验收状态以 [交接](../docs/HANDOFF.md) 为准。
 
 2026-10-29：0.1.14 三款已通过本地 SPP 安装并由用户逐款确认可见。最新 [0.1.15](../releases/0.1.15/README.md) 优化 Signal 电子数字、Meridian 全宽圆盘，并让两款接入同一 32 组分时配色；已覆盖 Signal/Meridian，最终目视/非充电验收待完成，实时状态以 [交接记录](../docs/HANDOFF.md) 为准。当前客户端已按用户要求切回修改版 3.33.6i 作安装对照；官方日常同步的历史结果保留。
@@ -101,3 +103,5 @@ Mi Fitness 开发入口在授权接口 HTTP 404 处失败；打开页面、解�
 [Barlow Condensed](https://github.com/google/fonts/tree/main/ofl/barlowcondensed) 按 [SIL OFL](fonts/OFL.txt) 使用；SemiBold 原文件 SHA-256 为 `7b619d14bc2327509a9ef32b0890f709626f7ecc9ff61191c2a4314c5499d2d9`。新数字在构建时转为 PNG，设备无需另外安装字体。
 
 Signal 0.1.16 使用 [Graduate](https://github.com/google/fonts/tree/c1eda9233c33ad7775b27efd794f931095cf6133/ofl/graduate) 的学院球衣号码轮廓，在构建时生成双色描边位图；字体原文件未修改，许可见 [OFL-Graduate.txt](fonts/OFL-Graduate.txt)。Meridian 的血糖使用设备已有 MiSans-Regular 28px，与旧心率一致，字体不随时钟配色变化。
+
+Signal 当前用 [Poiret One](https://github.com/google/fonts/tree/8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5/ofl/poiretone) 原字体等比生成图片，保留圆润 0/8 与细线条，不描边或纵向拉伸；许可在 [OFL-PoiretOne.txt](fonts/OFL-PoiretOne.txt)。Graduate 仅用于历史 0.1.16 球衣候选，当前不使用。
