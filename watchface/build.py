@@ -225,7 +225,7 @@ def build_face(variant='ultra'):
         colors_preview.paste(preview(layout,assets,text,band,state),(i*432,0))
     colors_preview.save(dest/'preview-colors.png')
     if layout['style']=='dots':
-        palettes_preview=Image.new('RGB',(432*4,576*2),'black')
+        palettes_preview=Image.new('RGB',(432*4,576*((len(CLOCK_PALETTES)+3)//4)),'black')
         for i,palette in enumerate(CLOCK_PALETTES):
             x,y=(i%4)*432,(i//4)*576;palettes_preview.paste(preview(layout,assets,palette=palette),(x,y))
             d=ImageDraw.Draw(palettes_preview);font=ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-Light.ttf'),22)

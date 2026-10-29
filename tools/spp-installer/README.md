@@ -4,7 +4,7 @@
 
 ## 已签名安装包
 
-本轮候选 [ottai-watchface-installer-0.1.5.apk](../../releases/0.1.13/ottai-watchface-installer-0.1.5.apk)（versionCode 6），先按 [0.1.13 发布说明](../../releases/0.1.13/README.md)核对 SHA-256。白名单仅含 `8670260101/102/103` 三款，未增加任意 ID 删除能力；本地检查通过，尚未做新版本无线安装。APK 不含配对凭据，也不预装任何健康数据。安装完成后卸载临时安装器，它不参与日常更新。
+本轮候选 [ottai-watchface-installer-0.1.5.apk](../../releases/0.1.14/ottai-watchface-installer-0.1.5.apk)（versionCode 6），先按 [0.1.14 发布说明](../../releases/0.1.14/README.md)核对 SHA-256。白名单仅含 `8670260101/102/103` 三款，未增加任意 ID 删除能力；本地检查通过，尚未做新版本无线安装。APK 不含配对凭据，也不预装任何健康数据。安装完成后卸载临时安装器，它不参与日常更新。
 
 ## 源码构建
 
@@ -56,7 +56,7 @@ subprocess.run(['adb','shell','run-as',pkg,'chmod','600','files/auth.json','file
 2. 安装 APK，并授予蓝牙权限：
 
 ```sh
-adb install -r releases/0.1.13/ottai-watchface-installer-0.1.5.apk
+adb install -r releases/0.1.14/ottai-watchface-installer-0.1.5.apk
 adb shell pm grant com.example.ottaiwatchfaceinstaller android.permission.BLUETOOTH_CONNECT
 adb shell pm grant com.example.ottaiwatchfaceinstaller android.permission.BLUETOOTH_SCAN
 ```

@@ -54,5 +54,173 @@
     "hour": "#F9F3DF",
     "minute": "#FFC898",
     "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "linen_sage",
+    "label": "亚麻鼠尾草",
+    "hour": "#FEFAF3",
+    "minute": "#B8CFB3",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "mauve_petal",
+    "label": "雾紫花瓣",
+    "hour": "#C5B3D3",
+    "minute": "#F5CBCB",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "lime_ice",
+    "label": "青柠冰蓝",
+    "hour": "#F6FFDC",
+    "minute": "#CFECF3",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "cream_peach",
+    "label": "奶油蜜桃",
+    "hour": "#FFEABB",
+    "minute": "#FBC3C1",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "coral_paper",
+    "label": "暖纸珊瑚",
+    "hour": "#FEEAC9",
+    "minute": "#FD7979",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "porcelain_iris",
+    "label": "瓷白鸢尾",
+    "hour": "#FEEBF6",
+    "minute": "#687FE5",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "peach_cloud",
+    "label": "桃色云朵",
+    "hour": "#FFF2EB",
+    "minute": "#FFD6BA",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "aqua_orchid",
+    "label": "水青兰紫",
+    "hour": "#A6D6D6",
+    "minute": "#8E7DBE",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "primrose_mint",
+    "label": "樱草薄荷",
+    "hour": "#F4F8D3",
+    "minute": "#A6D6D6",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "ivory_mauve",
+    "label": "象牙烟紫",
+    "hour": "#FFF7F3",
+    "minute": "#C599B6",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "peach_rose",
+    "label": "桃绒玫瑰",
+    "hour": "#FAD0C4",
+    "minute": "#E6B2BA",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "butter_iris",
+    "label": "奶黄鸢尾",
+    "hour": "#FBF3B9",
+    "minute": "#B7B1F2",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "honey_lilac",
+    "label": "蜂蜜丁香",
+    "hour": "#FFF9BF",
+    "minute": "#CB9DF0",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "blush_satin",
+    "label": "杏粉缎面",
+    "hour": "#FDDBBB",
+    "minute": "#F0C1E1",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "cream_periwinkle",
+    "label": "奶油长春花",
+    "hour": "#FFF6E3",
+    "minute": "#CDC1FF",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "glacier_lilac",
+    "label": "冰川淡紫",
+    "hour": "#BFECFF",
+    "minute": "#CDC1FF",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "linen_olive",
+    "label": "亚麻橄榄",
+    "hour": "#EDE8DC",
+    "minute": "#A5B68D",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "oat_rose",
+    "label": "燕麦浅玫",
+    "hour": "#C1CFA1",
+    "minute": "#E7CCCC",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "apricot_orchid",
+    "label": "杏色兰花",
+    "hour": "#FFEBD4",
+    "minute": "#F0A8D0",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "ivory_jade",
+    "label": "象牙浅玉",
+    "hour": "#F7F9F2",
+    "minute": "#91DDCF",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "pearl_blush",
+    "label": "珍珠胭脂",
+    "hour": "#F6F5F2",
+    "minute": "#F3D0D7",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "warm_rose",
+    "label": "暖白干玫",
+    "hour": "#FFF8E3",
+    "minute": "#E6A4B4",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "blush_sage",
+    "label": "粉瓷灰绿",
+    "hour": "#FFEEF4",
+    "minute": "#94A684",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "porcelain_lilac",
+    "label": "瓷白丁香",
+    "hour": "#FAF3F0",
+    "minute": "#DBC4F0",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
   }
 ]

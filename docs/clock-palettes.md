@@ -1,6 +1,6 @@
 # 时钟配色与切换时段
 
-0.1.13 开发候选，仅 Ottai Ultra 点阵款使用分时随机双色；Signal 与 Meridian 使用各自固定的协调主题。当前真机仍为 0.1.12，0.1.13 尚未安装，待最后统一调试。
+0.1.14 开发候选，仅 Ottai Ultra 点阵款使用分时随机双色；Signal 与 Meridian 使用各自固定的协调主题。上一轮已确认真机为 0.1.12，0.1.14 尚未安装，待最后统一调试。
 
 ## 选择规则
 
@@ -11,7 +11,7 @@
 
 ## 重新筛选的配色依据
 
-根据 Color Hunt 已发布组合取色，采用柔和中性色与同调强调色，移除原来的霓虹青莓、强蓝橙和高饱和朱红组合。协调性是人工设计取舍，黑底对比度仅负责可读性，不能独自证明美观。Coolors 的调色板和趋势页在本轮访问返回 403，因此没有把未读取到的内容列作取色依据。
+保留 0.1.13 中用户认可的原 8 组，再增加 24 组，共 32 组。根据 Color Hunt 已发布组合取色，采用柔和中性色与同调强调色，移除原来的霓虹青莓、强蓝橙和高饱和朱红组合。协调性是人工设计取舍，黑底对比度仅负责可读性，不能独自证明美观。Coolors 的调色板和趋势页在本轮访问返回 403，因此没有把未读取到的内容列作取色依据。
 
 颜色及出处的唯一数据源为 [palettes.json](../watchface/palettes.json)。部分色组来自 Color Hunt 分类页可核对的已发布列表，不虚构独立调色板链接。
 
@@ -25,8 +25,32 @@
 | 丝绸浅粉 | `#F9F5F6` / `#F2BED1` | [Color Hunt](https://colorhunt.co/palette/f9f5f6f8e8eefdcedff2bed1) |
 | 海雾兰紫 | `#C0DBEA` / `#BA90C6` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
 | 杏砂奶油 | `#F9F3DF` / `#FFC898` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 亚麻鼠尾草 | `#FEFAF3` / `#B8CFB3` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 雾紫花瓣 | `#C5B3D3` / `#F5CBCB` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 青柠冰蓝 | `#F6FFDC` / `#CFECF3` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 奶油蜜桃 | `#FFEABB` / `#FBC3C1` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 暖纸珊瑚 | `#FEEAC9` / `#FD7979` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 瓷白鸢尾 | `#FEEBF6` / `#687FE5` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 桃色云朵 | `#FFF2EB` / `#FFD6BA` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 水青兰紫 | `#A6D6D6` / `#8E7DBE` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 樱草薄荷 | `#F4F8D3` / `#A6D6D6` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 象牙烟紫 | `#FFF7F3` / `#C599B6` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 桃绒玫瑰 | `#FAD0C4` / `#E6B2BA` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 奶黄鸢尾 | `#FBF3B9` / `#B7B1F2` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 蜂蜜丁香 | `#FFF9BF` / `#CB9DF0` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 杏粉缎面 | `#FDDBBB` / `#F0C1E1` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 奶油长春花 | `#FFF6E3` / `#CDC1FF` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 冰川淡紫 | `#BFECFF` / `#CDC1FF` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 亚麻橄榄 | `#EDE8DC` / `#A5B68D` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 燕麦浅玫 | `#C1CFA1` / `#E7CCCC` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 杏色兰花 | `#FFEBD4` / `#F0A8D0` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 象牙浅玉 | `#F7F9F2` / `#91DDCF` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 珍珠胭脂 | `#F6F5F2` / `#F3D0D7` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 暖白干玫 | `#FFF8E3` / `#E6A4B4` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 粉瓷灰绿 | `#FFEEF4` / `#94A684` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 瓷白丁香 | `#FAF3F0` / `#DBC4F0` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
 
-16 个时钟基色与实际黑底的最低 sRGB 对比度约 **7.611:1**，高于构建门槛 4.5:1。小时/分钟不相互叠印，因此不把双色彼此的对比度当成文本与背景对比度。Ultra 保持黑底、原点阵形状及布局。
+64 个时钟基色与实际黑底的最低 sRGB 对比度约 **5.756:1**，高于构建门槛 4.5:1。小时/分钟不相互叠印，因此不把双色彼此的对比度当成文本与背景对比度。Ultra 保持黑底、原点阵形状及布局。
 
 日期与血糖原始更新时间统一 `#B9C2C8`，包括旧数据的时间；仍保留 `OLD`，血糖值与趋势在原有紫/黄/红色系中变暗，不改变原始测量时间。
 
@@ -36,4 +60,4 @@ Signal 采用珍珠白/青瓷实心数字和暗色信息卡；Meridian 采用暖
 
 四个时间边界、午夜、跨年/闰日、夏令时、同段重载、息屏跨段恢复及原血糖数据/过期规则已通过本地 Lua 测试。构建检查所有颜色、资源路径、ID、Lua 主入口及三款全天每分钟的时钟资源。
 
-预览是合成数据；字体在真机使用系统 MiSans 的日期/指标与打包的数字位图，桌面字体度量不能代替真机核对。0.1.13 的三款加载、选择器并存、字体位置与真实读数更新均待统一真机调试；此前 0.1.12 安装验收不可移作本轮结果。历史 06/14/22 与旧配色库见 [旧记录](https://github.com/joviliu/ottai_watch/blob/0b77ed7/docs/clock-palettes.md)。
+预览是合成数据；字体在真机使用系统 MiSans 的日期/指标与打包的数字位图，桌面字体度量不能代替真机核对。0.1.14 的三款加载、选择器并存、字体位置与真实读数更新均待统一真机调试；此前 0.1.12 安装验收不可移作本轮结果。历史 06/14/22 与旧配色库见 [旧记录](https://github.com/joviliu/ottai_watch/blob/0b77ed7/docs/clock-palettes.md)。

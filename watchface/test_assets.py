@@ -43,6 +43,9 @@ for variant in ['ultra','signal','meridian']:
                         assert image.size==(layout['clockW'],layout['clockH']) and image.getchannel('A').tobytes()==alpha
     print(variant,manifest['files'],'resources;',manifest['bytes'],'bytes; runtime resources/entry/geometry passed')
 assert len(ids)==3
+assert len(CLOCK_PALETTES)==32
+assert [(p['hour'],p['minute']) for p in CLOCK_PALETTES[:8]]==[('#EEEEEE','#76ABAE'),('#FEFAE0','#CCD5AE'),('#D6E6F2','#769FCD'),('#F4EEFF','#A6B1E1'),('#F5EBEB','#D5B4B4'),('#F9F5F6','#F2BED1'),('#C0DBEA','#BA90C6'),('#F9F3DF','#FFC898')]
+with Image.open(root/'build/preview-clock-palettes.png') as image:assert image.size==(432*4,576*8)
 assert all(contrast_on_black(p[part])>=4.5 for p in CLOCK_PALETTES for part in ['hour','minute'])
 assert all(p['source'].startswith('https://colorhunt.co/') for p in CLOCK_PALETTES)
 print('Palette minimum contrast on black:',round(min(contrast_on_black(p[part]) for p in CLOCK_PALETTES for part in ['hour','minute']),3))
