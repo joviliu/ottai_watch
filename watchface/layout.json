@@ -1,12 +1,62 @@
 {
-    "faceId": "8670260101",
-    "title": "Ottai Ultra",
-    "clockW": 90,
-    "clockH": 232,
-    "clockRows": 14,
-    "clockX": [8, 116, 226, 334],
-    "clockY": 68,
-    "valueY": 352,
-    "sourceY": 365,
-    "trendY": 353
+  "faceId": "8670260101",
+  "title": "Ottai Ultra",
+  "clockW": 90,
+  "clockH": 232,
+  "clockRows": 14,
+  "clockX": [
+    8,
+    116,
+    226,
+    334
+  ],
+  "clockY": 68,
+  "valueY": 352,
+  "trendY": 353,
+  "style": "dots",
+  "valueW": 40,
+  "valueH": 56,
+  "valueDotW": 12,
+  "valueCenter": 216,
+  "dateBox": [
+    30,
+    16,
+    372,
+    36,
+    24
+  ],
+  "sourceBox": [
+    14,
+    365,
+    100,
+    68,
+    28
+  ],
+  "batteryIcon": [
+    60,
+    466,
+    34,
+    24
+  ],
+  "batteryBox": [
+    100,
+    459,
+    96,
+    40,
+    28
+  ],
+  "heartIcon": [
+    230,
+    464,
+    30,
+    28
+  ],
+  "heartBox": [
+    265,
+    459,
+    106,
+    40,
+    28
+  ],
+  "trendX": 341
 }

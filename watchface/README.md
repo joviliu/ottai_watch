@@ -1,26 +1,18 @@
-# Ottai Ultra：Redmi Watch 6 Lua 表盘
+# Redmi Watch 6：三款 Lua 血糖表盘
 
-原创 432×514 表盘，采用上方大圆点时钟、下方稀疏点阵血糖及日期、电量、心率。**本轮只有一个表盘，ID `8670260101`，名称 Ottai Ultra，直接覆盖此前同 ID 版本。** 不发布第二款样式。
+0.1.13 开发候选，432×514。**三款已构建并通过本地验证，尚未安装，最后统一真机调试。** 当前真机仍是 0.1.12 与官方小米运动健康 3.59.2；旧版验证见 [记录](../docs/validation.md)。
 
-## 0.1.12 时钟协调双色（已安装）
+| 款式 | 固定 ID | 设计 |
+| --- | --- | --- |
+| Ottai Ultra | `8670260101` | 保留已确认的点阵布局；04/11/15/19 换组，8 组柔和双色；日期与更新时间同灰 |
+| Ottai Signal | `8670260102` | 实心大数字、青瓷强调色、独立血糖卡片与指标行 |
+| Ottai Meridian | `8670260103` | 简洁刻度、暖象牙/灰青指针、下方血糖及指标；无秒针，指针每分钟更新 |
 
-时钟按手表当地时间 06／14／22 点，每 8 小时从 12 组协调双色中稳定伪随机选取一整对；同段抬腕或重新加载不变，相邻时段不重复。颜色取自设计调色板并按实际黑底检查，最低对比度约 4.591:1，风格范围开放。背景、布局、字体、CGM 三色和刷新机制不变，没有增加定时器、通信或写入。来源与算法见 [配色说明](../docs/clock-palettes.md)。
+三款都有时间、日期、血糖、趋势、原始更新时间、电量和心率，独立 ID 可并存。沿用同一 RPK 与同一合法数据文件，无需新增手机采集应用。保留原始测量时间与 OLD；没有新增通信、传感器轮询或常驻后台。
 
-已构建并通过分段、时区、日期、重载、息屏恢复及旧功能回归测试，BIN 为 2,673,172 B / 366 资源。已通过本地 SPP 覆盖当前 ID，用户确认实际显示正常、同段两次抬腕颜色一致。原授权和启用状态已恢复，临时安装器已卸载；同步通道经短暂发现等待后恢复并收到文件回执。真实跨时段目视尚未等待。制品与合成预览见 [0.1.12](../releases/0.1.12/README.md)。
+布局默认值在 [layout.json](layout.json)，新款覆盖参数在 [faces.json](faces.json)；打包与 Lua 共用生成的 layout.lua。配色及来源见 [说明](../docs/clock-palettes.md)。Ultra 原时钟 6×14、90×232、位置不变，血糖仍为稀疏 5×7；新款使用实心数字，Meridian 指针预渲染为透明图片，复用既有 Image API，不依赖未验证的图形旋转接口。
 
-布局唯一参数源为 [layout.json](layout.json)，构建生成 `layout.lua`，预览与 Lua UI 使用同一配置：
-
-| 区域 | 参数 |
-| --- | --- |
-| 时钟 | 原创 6×14 点阵，PNG/控件 90×232，x=8/116/226/334，y=68..300，约占屏幕上方 3/5 |
-| 血糖 | 原创稀疏 5×7 单点笔画，数字 40×56、小数点 12×56、间距 4 px，y=352；整体按实际宽度自动居中，未用槽隐藏 |
-| 原始时间 | 左侧 y=365、28 px、亮色 `#e9f2f8`，过期另起一行 `OLD` |
-| 趋势 | 右侧 y=353、54×54 图形箭头 |
-| 日期/电量/心率 | 沿用原布局，电量与心率为图标加文本 |
-
-小时白色 `#f5f5f5`、分钟橙色 `#ff682b`，无冒号。血糖数值及趋势箭头按下面的用户自定义分段同步着色；无单位及曲线，时钟/血糖均不依赖字体轮廓。
-
-**2026-10-26 的布局和同步基线。** 当时手机 APK 为 0.1.11 / code 12，RPK 0.1.9 试验未通过、不推荐使用，已覆盖安装复用 0.1.8 逻辑的 RPK 0.1.10 / code 11，两次旧测量自动写入已确认，恢复旧测量时的表盘原始时间和正常返回已由用户确认；随后两个原始时间推进的读数均已自动导出并收到 ACK，本两条未额外取得屏显目视，表盘沿用 0.1.10，已确认的布局和配色不变。单款 ID `8670260101` 已覆盖成功，通知图标也已确认正确。历史短锁屏自然更新不能外推为 Home 后或长期后台通过；后续确认 HyperOS Greezer 曾冻结手机进程，此前手机 0.1.11 + RPK 0.1.8 已完成恢复补传及三个镜像持续后台的正常自然周期文件导出；前两轮屏显和自动返回已由用户确认。Mi Fitness 开发授权 `designer_license` 仍返回 HTTP 404，实际安装沿用本地 SPP。参见 [后台排查](../docs/background-running.md)、[验证记录](../docs/validation.md) 和 [接续任务](../docs/HANDOFF.md)。
+日期与血糖更新时间均为 `#B9C2C8`；旧数据仍保留 OLD 及血糖色系变暗。选择器缩略图的血糖/时间/指标为占位，正常运行只取真实文件，合成示例不写入设备。
 
 ## 用户自定义显示颜色
 
@@ -45,10 +37,11 @@ python3 -m venv .toolchain/watchface-venv
 .toolchain/watchface-venv/bin/pip install -r watchface/requirements.txt
 .toolchain/watchface-venv/bin/python watchface/test_frame.py
 .toolchain/watchface-venv/bin/python watchface/test_ui.py
-.toolchain/watchface-venv/bin/python watchface/build.py
+.toolchain/watchface-venv/bin/python watchface/build.py --variant all
+.toolchain/watchface-venv/bin/python watchface/test_assets.py
 ```
 
-另需 Node.js 测试真实 JS 导出兼容性。构建使用 Pillow；时钟/血糖来自原创点阵，Barlow 仅用于预览文字及 unknown 问号，Lupa 仅用于桌面 Lua 测试。不依赖 Windows、EasyFace 或官方编译器。
+另需 Node.js 测试真实 JS 导出兼容性。构建使用 Pillow；Ultra 时钟/血糖来自原创点阵；新款数字使用 Barlow Condensed SemiBold，Barlow Light 用于预览及 unknown 问号，Lupa 仅用于桌面 Lua 测试。不依赖 Windows、EasyFace 或官方编译器。
 
 输出位于忽略的 `watchface/build/`：
 
@@ -56,6 +49,7 @@ python3 -m venv .toolchain/watchface-venv
 - `ottai-minimal-watch6.zip`：Mi Fitness 内部开发入口封装，不是商店发布包。
 - `preview-example.png`：合成布局预览，不是实机截图。
 - `manifest.json`：ID、尺寸、体积和 SHA-256；另含生成素材及 `layout.lua`。
+- `signal/ottai-signal-watch6.bin/.zip`、`meridian/ottai-meridian-watch6.bin/.zip`：另外两款，各有预览和 manifest。
 
 选择器的血糖/时间使用 `--` 与 `--:--` 占位，设备只显示合法文件读数，不把合成预览当实时数据。
 
@@ -75,7 +69,7 @@ Vela 应用接收合法帧后，通过 `system.file` 写入双槽文件；Lua �
 
 ## 安装入口与验收
 
-当前手机 APK 见 [0.1.11 发布目录](../releases/0.1.11/README.md)；表盘 BIN/ZIP 现为 [0.1.12 发布目录](../releases/0.1.12/README.md)，随机双色已覆盖安装；当前 RPK 恢复包见 [watch-0.1.10 发布目录](../releases/watch-0.1.10/README.md)，0.1.9 不推荐使用；原始稳定基线仍在 [0.1.8 发布目录](../releases/0.1.8/README.md)。临时安装器 0.1.4 / code 5 位于 0.1.10 目录。先分别核对校验和，两端包名与证书保持一致即可，无需同版本号。本轮临时安装器 0.1.4 已卸载并清除手机端私有凭据；日常同步只需要原有镜像和 Mi Fitness 通道。
+已安装手机 APK 见 [0.1.11 发布目录](../releases/0.1.11/README.md)；表盘 BIN/ZIP 现为 [0.1.12 发布目录](../releases/0.1.12/README.md)，随机双色已覆盖安装；当前 RPK 恢复包见 [watch-0.1.10 发布目录](../releases/watch-0.1.10/README.md)，0.1.9 不推荐使用；原始稳定基线仍在 [0.1.8 发布目录](../releases/0.1.8/README.md)。临时安装器 0.1.4 / code 5 位于 0.1.10 目录。先分别核对校验和，两端包名与证书保持一致即可，无需同版本号。本轮临时安装器 0.1.4 已卸载并清除手机端私有凭据；日常同步只需要原有镜像和 Mi Fitness 通道。
 
 先完成 [安装文档](../docs/install.md) 的工具链与签名配置，然后可打开开发入口：
 
@@ -84,7 +78,7 @@ Vela 应用接收合法帧后，通过 `system.file` 写入双槽文件；Lua �
 python3 tools/open_installer.py --serial SERIAL --watchface watchface/build/ottai-minimal-watch6.zip
 ```
 
-Mi Fitness 开发入口在授权接口 HTTP 404 处失败；打开页面、解压成功或请求授权均不表示安装完成。[本地 SPP 临时安装器](../tools/spp-installer/README.md) 已完成正常认证、100% 上传及断开，用户也已确认修正 Lua 入口后的表盘正常绘制。本轮用安装器 0.1.4 的 `replace` 覆盖 ID `8670260101`：只删除当前 BIN 目标，独立查询确认删除后再安装，不删除其他表盘、不解绑。安装器另外允许预留 ID `8670260102`，供未来不同风格扩展；本轮不发布、不安装该 ID。只能使用用户自己设备的合法配对密钥，密钥不得进入仓库或日志输出。
+Mi Fitness 开发入口在授权接口 HTTP 404 处失败；打开页面、解压成功或请求授权均不表示安装完成。[本地 SPP 临时安装器](../tools/spp-installer/README.md) 已完成正常认证、100% 上传及断开，用户也已确认修正 Lua 入口后的表盘正常绘制。历史用安装器 0.1.4 的 `replace` 覆盖 `8670260101`。本轮构建安装器 0.1.5，白名单仅包含上表三款：Ultra 用 replace，另外两款首次用 install；只操作当前 BIN 目标，保留其他 ID。只能使用用户自己设备的合法配对密钥，密钥不得进入仓库或日志输出。
 
 曾出现“上传完成但黑屏”：容器中上游命名为 `sentinel` 的字段实际是 Lua anchor payload 的资源索引，默认 `n-1` 在本项目指向趋势 PNG，而 `lua/main.lua` 当时位于索引 14。构建现在按文件名确定 `main_index`，打包后解包断言确实指向 `lua/main.lua`，不能把 14 当作以后固定入口。
 
@@ -99,3 +93,7 @@ Mi Fitness 开发入口在授权接口 HTTP 404 处失败；打开页面、解�
 时钟使用原创 6×14 点阵，血糖使用原创稀疏 5×7 点阵，不依赖字体轮廓。[Barlow Condensed Light](https://github.com/google/fonts/tree/main/ofl/barlowcondensed)仅用于桌面预览文字和 unknown 趋势问号，SIL OFL 1.1，许可证在 `fonts/OFL.txt`。Lua 使用设备自带 MiSans 绘制其他文本，不分发原厂表盘素材。更多来源见 [第三方声明](../THIRD_PARTY_NOTICES.txt)。
 
 后续不同风格可采用独立表盘 ID 实现并存，继续共用现有镜像 RPK 和数据文件；相同 ID 会覆盖已有样式。本轮依用户要求只替换当前表盘。
+
+## 字体来源
+
+[Barlow Condensed](https://github.com/google/fonts/tree/main/ofl/barlowcondensed) 按 [SIL OFL](fonts/OFL.txt) 使用；SemiBold 原文件 SHA-256 为 `7b619d14bc2327509a9ef32b0890f709626f7ecc9ff61191c2a4314c5499d2d9`。新数字在构建时转为 PNG，设备无需另外安装字体。

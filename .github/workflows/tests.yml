@@ -17,4 +17,4 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -r watchface/requirements.txt
-      - run: python watchface/test_frame.py && python watchface/test_ui.py && python watchface/build.py
+      - run: python watchface/test_frame.py && python watchface/test_ui.py && python watchface/build.py --variant all && python watchface/test_assets.py

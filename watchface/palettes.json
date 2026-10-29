@@ -1,0 +1,58 @@
+[
+  {
+    "name": "pearl_teal",
+    "label": "珍珠青瓷",
+    "hour": "#EEEEEE",
+    "minute": "#76ABAE",
+    "source": "https://colorhunt.co/palette/22283131363f76abaeeeeeee"
+  },
+  {
+    "name": "ivory_sage",
+    "label": "象牙鼠尾草",
+    "hour": "#FEFAE0",
+    "minute": "#CCD5AE",
+    "source": "https://colorhunt.co/palette/ccd5aee9edc9fefae0faedcd"
+  },
+  {
+    "name": "powder_blue",
+    "label": "雾蓝瓷白",
+    "hour": "#D6E6F2",
+    "minute": "#769FCD",
+    "source": "https://colorhunt.co/palette/f7fbfcd6e6f2b9d7ea769fcd"
+  },
+  {
+    "name": "lilac_mist",
+    "label": "柔雾藤紫",
+    "hour": "#F4EEFF",
+    "minute": "#A6B1E1",
+    "source": "https://colorhunt.co/palette/f4eeffdcd6f7a6b1e1424874"
+  },
+  {
+    "name": "dusty_rose",
+    "label": "暖灰玫瑰",
+    "hour": "#F5EBEB",
+    "minute": "#D5B4B4",
+    "source": "https://colorhunt.co/palette/867070d5b4b4e4d0d0f5ebeb"
+  },
+  {
+    "name": "rose_silk",
+    "label": "丝绸浅粉",
+    "hour": "#F9F5F6",
+    "minute": "#F2BED1",
+    "source": "https://colorhunt.co/palette/f9f5f6f8e8eefdcedff2bed1"
+  },
+  {
+    "name": "sea_lilac",
+    "label": "海雾兰紫",
+    "hour": "#C0DBEA",
+    "minute": "#BA90C6",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  },
+  {
+    "name": "apricot_sand",
+    "label": "杏砂奶油",
+    "hour": "#F9F3DF",
+    "minute": "#FFC898",
+    "source": "https://colorhunt.co/palettes/pastel-light-pink"
+  }
+]

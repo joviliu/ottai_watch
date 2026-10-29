@@ -1,0 +1,85 @@
+{
+  "ultra": {},
+  "signal": {
+    "faceId": "8670260102",
+    "title": "Ottai Signal",
+    "style": "solid",
+    "clockW": 82,
+    "clockH": 118,
+    "clockX": [
+      28,
+      110,
+      240,
+      322
+    ],
+    "clockY": 91,
+    "valueW": 54,
+    "valueH": 78,
+    "valueDotW": 16,
+    "valueCenter": 174,
+    "valueY": 334,
+    "trendX": 328,
+    "trendY": 348,
+    "dateBox": [
+      30,
+      52,
+      372,
+      28,
+      22
+    ],
+    "sourceBox": [
+      276,
+      448,
+      124,
+      56,
+      24
+    ],
+    "batteryIcon": [
+      46,
+      239,
+      34,
+      24
+    ],
+    "batteryBox": [
+      90,
+      230,
+      100,
+      40,
+      28
+    ],
+    "heartIcon": [
+      250,
+      239,
+      30,
+      28
+    ],
+    "heartBox": [
+      288,
+      230,
+      100,
+      40,
+      28
+    ]
+  },
+  "meridian": {
+    "faceId": "8670260103",
+    "title": "Ottai Meridian",
+    "style": "analog",
+    "valueY": 374,
+    "trendY": 375,
+    "dateBox": [
+      30,
+      12,
+      372,
+      32,
+      24
+    ],
+    "sourceBox": [
+      14,
+      385,
+      100,
+      68,
+      24
+    ]
+  }
+}

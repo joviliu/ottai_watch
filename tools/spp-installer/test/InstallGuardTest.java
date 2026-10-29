@@ -19,9 +19,9 @@ public final class InstallGuardTest {
         reject(()->InstallGuard.face(true,"wrong",432,514));
         reject(()->InstallGuard.deletionTarget("wrong"));
         reject(()->InstallGuard.deletionTarget(null));
-        reject(()->InstallGuard.deletionTarget("8670260103"));
-        reject(()->InstallGuard.face(true,"8670260103",432,514));
-        for (String id : new String[]{"8670260101", "8670260102"}) {
+        reject(()->InstallGuard.deletionTarget("8670260104"));
+        reject(()->InstallGuard.face(true,"8670260104",432,514));
+        for (String id : new String[]{"8670260101", "8670260102", "8670260103"}) {
             InstallGuard.face(true,id,432,514);
             if (!id.equals(InstallGuard.deletionTarget(id))) throw new AssertionError("replacement must preserve BIN target");
             reject(()->InstallGuard.face(true,id,212,520));

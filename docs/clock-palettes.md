@@ -1,41 +1,39 @@
-# 时钟的协调双色随机配色
+# 时钟配色与切换时段
 
-表盘 0.1.12 只改变时钟图片的颜色。字号、圆点形状、位置、日期、电量、心率以及血糖数值/趋势的紫黄红规则沿用既有版本，黑色背景保持不变。
+0.1.13 开发候选，仅 Ottai Ultra 点阵款使用分时随机双色；Signal 与 Meridian 使用各自固定的协调主题。当前真机仍为 0.1.12，0.1.13 尚未安装，待最后统一调试。
 
 ## 选择规则
 
-- 以手表当地时间的 **06:00、14:00、22:00** 为切换点，每组保持 8 小时；午夜仍沿用前一天 22:00 的选择。
-- 从下面的已配对方案中整体选取小时/分钟双色。配色依据为原始调色板、主题关系和实际黑底可读性，风格范围开放。
-- 使用当地公历日期及时段作为稳定伪随机种子；同一时段内抬腕、重新打开或重新加载表盘都得到相同选择。相邻时段从交错的两组中选取，保证不重复；没有固定的每日三色顺序。
-- 复用原有可见时 15 秒刷新和亮屏立即刷新，息屏暂停。没有新增定时器、联网、蓝牙通信或持久化写入。
+- 当地时间 **04:00、11:00、15:00、19:00** 换组，分别对应 04–11、11–15、15–19、19–次日04；午夜不换组。
+- 整组选取小时/分钟双色，同段重新加载、抬腕或重启渲染仍相同，相邻段不重复；不是独立随机两种颜色。
+- 使用当地公历日期与四个时段作稳定伪随机种子；相邻时段在两个交错的配色组中选取，无额外持久化。
+- 复用可见时 15 秒检查与亮屏立即刷新，息屏暂停。不增加传感器轮询、蓝牙请求或定时器。
 
-这是一种可复现的伪随机选择，不是密码学随机。调整配色库或算法会改变相应时段的选择结果。
+## 重新筛选的配色依据
 
-## 配色依据
+根据 Color Hunt 已发布组合取色，采用柔和中性色与同调强调色，移除原来的霓虹青莓、强蓝橙和高饱和朱红组合。协调性是人工设计取舍，黑底对比度仅负责可读性，不能独自证明美观。Coolors 的调色板和趋势页在本轮访问返回 403，因此没有把未读取到的内容列作取色依据。
 
-以下为小时色 / 分钟色。原色取自相应已发布调色板，双色取舍与中文主题命名由本项目整理；时钟仍使用原创点阵素材。
+颜色及出处的唯一数据源为 [palettes.json](../watchface/palettes.json)。部分色组来自 Color Hunt 分类页可核对的已发布列表，不虚构独立调色板链接。
 
-| 主题 | 小时 / 分钟 | 搭配依据 | 原始调色板 |
-| --- | --- | --- | --- |
-| 白橙经典 | `#F5F5F5` / `#FF682B` | 中性色与暖色强调 | 已确认的原表盘方案 |
-| 玫瑰奶油 | `#FAE8E0` / `#EF7C8E` | 暖奶油与柔和玫瑰色 | [Canva Rosettes and Cream](https://www.canva.com/colors/color-palettes/rosettes-and-cream/) |
-| 像素蓝橙 | `#41A6F6` / `#EF7D57` | 冷蓝与柔暖橙对比 | [Sweetie 16 — GrafxKid](https://lospec.com/palette-list/sweetie-16) |
-| 银灰杏粉 | `#B9B7BD` / `#E7D2CC` | 低饱和灰与暖杏粉 | [Canva Room for Comfort](https://www.canva.com/colors/color-palettes/room-for-comfort/) |
-| 霓虹青莓 | `#2FF3E0` / `#FA26A0` | 鲜明青色与莓粉对比 | [Canva Retro Punch](https://www.canva.com/colors/color-palettes/retro-punch/) |
-| 象牙鼠尾草 | `#FEFAE0` / `#CCD5AE` | 暖象牙与自然灰绿 | [Color Hunt](https://colorhunt.co/palette/ccd5aee9edc9fefae0faedcd) |
-| 冰蓝兰紫 | `#C8F4F9` / `#C26DBC` | 浅冰蓝衬兰紫 | [Canva Icy Gradient](https://www.canva.com/colors/color-palettes/icy-gradient/) |
-| 薄荷粉糖 | `#B4F8C8` / `#FFAEBC` | 柔和薄荷与浅粉 | [Canva Pastel Dreams](https://www.canva.com/colors/color-palettes/pastel-dreams/) |
-| 暮蓝莓紫 | `#249FDE` / `#BC4A9B` | 明亮蓝与莓紫 | [AAP-64 — Adigun A. Polack](https://lospec.com/palette-list/aap-64) |
-| 青瓷淡紫 | `#85D2D0` / `#887BB0` | 低饱和青瓷与淡紫 | [Canva Pastel Blonde](https://www.canva.com/colors/color-palettes/pastel-blonde/) |
-| 琥珀朱红 | `#FDB750` / `#FC2E20` | 相近暖色的明度与色相区分 | [Canva Warm Sunset](https://www.canva.com/colors/color-palettes/warm-sunset/) |
-| 奶白莓粉 | `#EFEBE0` / `#FB6B90` | 奶白中性色与莓粉强调 | [Canva Sweet Cotton Sugar](https://www.canva.com/colors/color-palettes/sweet-cotton-sugar/) |
+| 主题 | 小时 / 分钟 | 来源 |
+| --- | --- | --- |
+| 珍珠青瓷 | `#EEEEEE` / `#76ABAE` | [Color Hunt](https://colorhunt.co/palette/22283131363f76abaeeeeeee) |
+| 象牙鼠尾草 | `#FEFAE0` / `#CCD5AE` | [Color Hunt](https://colorhunt.co/palette/ccd5aee9edc9fefae0faedcd) |
+| 雾蓝瓷白 | `#D6E6F2` / `#769FCD` | [Color Hunt](https://colorhunt.co/palette/f7fbfcd6e6f2b9d7ea769fcd) |
+| 柔雾藤紫 | `#F4EEFF` / `#A6B1E1` | [Color Hunt](https://colorhunt.co/palette/f4eeffdcd6f7a6b1e1424874) |
+| 暖灰玫瑰 | `#F5EBEB` / `#D5B4B4` | [Color Hunt](https://colorhunt.co/palette/867070d5b4b4e4d0d0f5ebeb) |
+| 丝绸浅粉 | `#F9F5F6` / `#F2BED1` | [Color Hunt](https://colorhunt.co/palette/f9f5f6f8e8eefdcedff2bed1) |
+| 海雾兰紫 | `#C0DBEA` / `#BA90C6` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
+| 杏砂奶油 | `#F9F3DF` / `#FFC898` | [Color Hunt](https://colorhunt.co/palettes/pastel-light-pink) |
 
-构建时分别计算每个基色与实际黑背景的 sRGB 对比度，要求至少 4.5:1；当前最低约 4.591:1。该数值用于筛除难辨识的组合，不能代替手表亮度、环境光和点阵渲染的实机观察。黑底让全部候选及既有血糖信息共用已验证的背景，当前无需增加背景换色。
+16 个时钟基色与实际黑底的最低 sRGB 对比度约 **7.611:1**，高于构建门槛 4.5:1。小时/分钟不相互叠印，因此不把双色彼此的对比度当成文本与背景对比度。Ultra 保持黑底、原点阵形状及布局。
 
-配色常量集中在 `watchface/build.py` 的 `CLOCK_PALETTES`，生成 240 张时钟 PNG 与 `clock-palettes.lua`。当前 BIN 为 2,673,172 B、366 项资源，沿用单款 ID `8670260101`；Lua 入口按名字定位并在打包往返后校验。
+日期与血糖原始更新时间统一 `#B9C2C8`，包括旧数据的时间；仍保留 `OLD`，血糖值与趋势在原有紫/黄/红色系中变暗，不改变原始测量时间。
 
-## 验证与安装边界
+Signal 采用珍珠白/青瓷实心数字和暗色信息卡；Meridian 采用暖象牙时针/灰青分针，黑底刻度。设计参考主流表盘的数字模块与传统指针两类信息层级，例如 [Apple 的 Modular / Simple / California 类型](https://support.apple.com/en-euro/guide/watch/apde9218b440/27/watchos/27)；未复制其素材或专有字体。
 
-已通过帧/UI测试、06/14/22边界、午夜、年末、闰日、夏令时重复时刻、同分钟缓存、同段重新加载稳定和息屏跨段恢复测试；原血糖分段、旧数据、布局与暂停逻辑回归通过。24 个基色的黑底对比度、全部数字尺寸和透明轮廓均检查通过。
+## 验证边界
 
-预览包含合成示例，不是实机截图；安装缩略图使用血糖占位。已完成本地 SPP 覆盖安装，用户确认当前色组显示正常、同段息屏再抬腕颜色一致，366 项资源在本固件的加载已有目视证据。原授权与日常通信已恢复，临时安装器已卸载。真实跨 8 小时时段切换未现场等待；实机范围见 [0.1.12 发布说明](../releases/0.1.12/README.md)。
+四个时间边界、午夜、跨年/闰日、夏令时、同段重载、息屏跨段恢复及原血糖数据/过期规则已通过本地 Lua 测试。构建检查所有颜色、资源路径、ID、Lua 主入口及三款全天每分钟的时钟资源。
+
+预览是合成数据；字体在真机使用系统 MiSans 的日期/指标与打包的数字位图，桌面字体度量不能代替真机核对。0.1.13 的三款加载、选择器并存、字体位置与真实读数更新均待统一真机调试；此前 0.1.12 安装验收不可移作本轮结果。历史 06/14/22 与旧配色库见 [旧记录](https://github.com/joviliu/ottai_watch/blob/0b77ed7/docs/clock-palettes.md)。

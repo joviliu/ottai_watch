@@ -6,7 +6,7 @@ import java.util.List;
 public final class InstallGuard {
     private InstallGuard() {}
     private static boolean projectFace(String id) {
-        return "8670260101".equals(id) || "8670260102".equals(id);
+        return "8670260101".equals(id) || "8670260102".equals(id) || "8670260103".equals(id);
     }
     public static boolean mode(String mode) {
         return "auth".equals(mode) || "list".equals(mode) || "install".equals(mode) || "replace".equals(mode);

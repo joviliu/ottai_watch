@@ -1,10 +1,10 @@
 # 临时 SPP 表盘安装器
 
-仅用于开发验证本项目的 Redmi Watch 6 表盘。它直接使用已配对设备的正常 SPP 认证和表盘上传协议，不调用 Mi Fitness 的云表盘授权接口。不需要解绑或重新配对。此前单款表盘已完成上传、正常绘制及配套镜像的两轮基本更新验收；本轮只覆盖当前 ID `8670260101` 的 Ottai Ultra，用户已确认最终布局及显示正常，不发布或安装第二款。
+仅用于开发验证本项目的 Redmi Watch 6 表盘。它直接使用已配对设备的正常 SPP 认证和表盘上传协议，不调用 Mi Fitness 的云表盘授权接口。不需要解绑或重新配对。此前单款表盘已完成上传、正常绘制及配套镜像的两轮基本更新验收；此前仅安装 Ultra；本轮新增 Signal / Meridian，三款的最终统一真机调试尚未开始。可保留官方小米运动健康；安装器使用已有合法配对凭据，安装期间暂时释放客户端蓝牙占用，结束恢复原客户端与镜像，不必替换为修改版。
 
 ## 已签名安装包
 
-使用 [ottai-watchface-installer-0.1.4.apk](../../releases/0.1.10/ottai-watchface-installer-0.1.4.apk)（versionCode 5），先按照 [0.1.10 发布说明](../../releases/0.1.10/README.md)核对 SHA-256。0.1.4 的白名单允许当前 ID 与一个未来预留 ID；本轮仅使用 `8670260101`。APK 不含配对凭据，也不预装任何健康数据。安装完成后卸载临时安装器，它不参与日常更新。
+本轮候选 [ottai-watchface-installer-0.1.5.apk](../../releases/0.1.13/ottai-watchface-installer-0.1.5.apk)（versionCode 6），先按 [0.1.13 发布说明](../../releases/0.1.13/README.md)核对 SHA-256。白名单仅含 `8670260101/102/103` 三款，未增加任意 ID 删除能力；本地检查通过，尚未做新版本无线安装。APK 不含配对凭据，也不预装任何健康数据。安装完成后卸载临时安装器，它不参与日常更新。
 
 ## 源码构建
 
@@ -24,7 +24,7 @@ python3 tools/spp-installer/build.py --face watchface/build/ottai-minimal-watch6
 独立包名 `com.example.ottaiwatchfaceinstaller`，debuggable 仅便于开发时通过 `run-as` 放入私有文件。Activity 受系统 `DUMP` 权限保护，只通过 ADB 启动，不提供普通应用可触发的公开安装入口。
 
 - 应用私有 `files/auth.json`：字段 `bluetoothMac`、`authKey`。密钥必须来自当前已配对的自己的设备，不能使用其他项目的默认值。
-- 应用私有 `files/watchface.bin`：本轮 Ottai Ultra BIN，ID `8670260101`、432×514。白名单另允许未来预留 ID `8670260102`，本轮不发布、不安装；其他 ID 一律拒绝。
+- 应用私有 `files/watchface.bin`：本项目三款 BIN 之一，ID `8670260101`、`8670260102` 或 `8670260103`，均为 432×514；其他 ID 一律拒绝。
 - 不要把凭据放在此源码目录、APK资源、命令行、终端输出或Git中。
 
 安装 APK 后，Python 示例用 stdin 向应用私有文件写入，凭据不经过命令行或标准输出：
@@ -56,7 +56,7 @@ subprocess.run(['adb','shell','run-as',pkg,'chmod','600','files/auth.json','file
 2. 安装 APK，并授予蓝牙权限：
 
 ```sh
-adb install -r releases/0.1.10/ottai-watchface-installer-0.1.4.apk
+adb install -r releases/0.1.13/ottai-watchface-installer-0.1.5.apk
 adb shell pm grant com.example.ottaiwatchfaceinstaller android.permission.BLUETOOTH_CONNECT
 adb shell pm grant com.example.ottaiwatchfaceinstaller android.permission.BLUETOOTH_SCAN
 ```
@@ -82,9 +82,9 @@ adb shell am start -S -n com.example.ottaiwatchfaceinstaller/.MainActivity --es 
 adb shell am start -S -n com.example.ottaiwatchfaceinstaller/.MainActivity --es mode replace
 ```
 
-`replace` 仅允许项目白名单 `8670260101` 和预留的 `8670260102`，目标从当前 BIN 解析，不能传入任意删除 ID。先查询列表，若找到当前目标，只删除该目标，再独立查询确认已不存在后重装；查询失败或删除未确认则停止，不删除其他 ID。
+`replace` 仅允许项目白名单 `8670260101`、`8670260102`、`8670260103`，目标从当前 BIN 解析，不能传入任意删除 ID。先查询列表，若找到当前目标，只删除该目标，再独立查询确认已不存在后重装；查询失败或删除未确认则停止，不删除其他 ID。
 
-本轮发布的 Ottai Ultra 固定为 `8670260101`，按用户要求覆盖旧样式；不安装 `8670260102`。未来不同风格可使用独立 ID 并存，继续共用镜像 RPK 和数据文件；这只是扩展方式，不是本轮已安装第二款。
+Ultra 固定 `8670260101` 并覆盖旧版；Signal 为 `8670260102`，Meridian 为 `8670260103`，首次安装用 install，各自可独立切换并共用镜像 RPK/文件。本轮包已构建，三款并存及新款动态读取仍待最后统一真机验证。
 
 本环境中直接再次启动同一个 Activity 曾复用旧 Intent，导致新的 mode 没有执行，因此采用 `am start -S` 启动新实例。`-S` 会先停止已有安装器进程；**上一轮尚未 `DISCONNECTED` 时不可使用**，否则会打断正在进行的认证或传输。判断时看本轮最新日志，不把历史操作的 `DISCONNECTED` 当作当前操作已经结束。
 
@@ -104,15 +104,17 @@ adb uninstall com.example.ottaiwatchfaceinstaller
 - 对照最新自然 Ottai 通知核对镜像接收的原始测量时间、数值和趋势，再观察表盘；恢复缓存通知的回执不当作自然新周期或用于计算延迟。停留在旧缓存或仅看到连接成功不算恢复完成。不要公开原始通知、医疗时间线或设备标识。
 - 如需“表盘自动同步”，在手机明确开启。保持手表在表盘、不手动打开镜像，检查后续至少两个自然更新周期；文件导出回执和 ACK 不能代替表盘目视确认。
 
-## 当前验证状态
+## 历史实机验证与当前候选
 
 | 阶段 | 状态 |
 | --- | --- |
 | 本地正常 SPP 认证 | 已在当前设备收到 `AUTH_OK` 并完成 `DISCONNECTED` |
 | 基线 BIN 安装 | 曾收到 `UPLOAD 100%`、`INSTALL_OK`，并完成 `DISCONNECTED` |
-| 安装器 0.1.4 | 已实现当前/预留 ID 白名单及只替换 BIN 目标；本轮仅覆盖 `8670260101`，上传及用户最终目视已通过 |
+| 历史安装器 0.1.4 | 已实现当前/预留 ID 白名单及只替换 BIN 目标；本轮仅覆盖 `8670260101`，上传及用户最终目视已通过 |
 | 表盘渲染 | 修正打包器 Lua anchor 入口后，用户确认正常绘制 |
 | 本轮安装器清理 | 0.1.4 已卸载成功，手机端私有凭据清除；已恢复镜像/Mi Fitness 默认启用状态与原通知监听 |
 | 自动同步 | 用户确认自动返回点阵表盘并显示当前读数；手机锁屏后连续两轮自然更新完成导出及 ACK，用户已确认最新屏显与正常返回，基本验收通过；0.1.10 重启恢复后又一轮自然通知约 9.8 秒完成导出及 ACK。此能力来自镜像应用的短暂唤起策略，非安装器或常驻后台 |
 
 此组件源码独立采用 AGPL-3.0，协议来源及依赖见 NOTICE.md。没有联网权限、广泛存储权限或固件更新功能。
+
+0.1.5 本地已完成第三 ID 白名单、有效/无效尺寸和目标检查、BIN 解析与签名打包；尚未用于真机。当前官方客户端为 `com.mi.health`，其通知服务是 `com.mi.health/com.xiaomi.fitness.notify.NotifySyncService`，不能在恢复时套用历史修改版的组件名。若重新配对导致原密钥失效，须先合法取得新凭据，不能绕过认证。

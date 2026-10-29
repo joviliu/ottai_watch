@@ -5,12 +5,12 @@ local layout=require('layout')
 local clockPalettes=require('clock-palettes')
 local function clockPalette(now)
     local hour=tonumber(os.date('%H',now))
-    -- Anchor to civil dates so daylight-saving changes cannot shift the 06:00 boundary.
-    local dayTime=hour<6 and now-43200 or now
+    -- Civil-date anchor keeps the overnight slot stable across midnight and DST.
+    local dayTime=hour<4 and now-43200 or now
     local year=tonumber(os.date('%Y',dayTime))-1
     local day=365*year+math.floor(year/4)-math.floor(year/100)+math.floor(year/400)+tonumber(os.date('%j',dayTime))-1
-    local phase=hour<6 and 2 or math.floor((hour-6)/8)
-    local slot=day*3+phase
+    local phase=hour<4 and 3 or hour<11 and 0 or hour<15 and 1 or hour<19 and 2 or 3
+    local slot=day*4+phase
     -- Alternating disjoint groups avoid adjacent repeats without storing prior choices.
     local parity=slot%2
     local count=math.floor((#clockPalettes+1-parity)/2)
@@ -32,23 +32,33 @@ local function label(text,x,y,w,h,size,color)
     obj:add_flag(lvgl.FLAG.EVENT_BUBBLE)
     return obj
 end
-local date=label('',30,16,372,36,24,0xb9c2c8)
+local muted=0xb9c2c8
+local function at(text,box,color) return label(text,box[1],box[2],box[3],box[4],box[5],color) end
+local function icon(name,box) return image(name,box[1],box[2],box[3],box[4]) end
+if layout.style~='dots' then image('background',0,0,432,514) end
+local date=at('',layout.dateBox,muted)
 local digits={}
-local initialPalette=clockPalette(os.time())
-for i,x in ipairs(layout.clockX) do
-    digits[i]=image('clock-'..initialPalette..'-'..(i<=2 and 'hour-' or 'minute-')..'0',x,layout.clockY,layout.clockW,layout.clockH)
+local hourHand,minuteHand
+if layout.style=='analog' then
+    hourHand=image('hand-hour-0',52,38,328,328)
+    minuteHand=image('hand-minute-0',52,38,328,328)
+else
+    local initialPalette=layout.style=='dots' and clockPalette(os.time()) or 'signal'
+    for i,x in ipairs(layout.clockX) do
+        digits[i]=image('clock-'..initialPalette..'-'..(i<=2 and 'hour-' or 'minute-')..'0',x,layout.clockY,layout.clockW,layout.clockH)
+    end
 end
 local glucose={}
-for i=1,4 do glucose[i]=image('value-normal-fresh-dash',0,layout.valueY,40,56) end
+for i=1,4 do glucose[i]=image('value-normal-fresh-dash',0,layout.valueY,layout.valueW,layout.valueH) end
 local function showValue(text,stale,band)
     local width=0
-    for i=1,#text do width=width+(text:sub(i,i)=='.' and 12 or 40) end
-    local x=math.floor((432-width-4*(#text-1))/2)
+    for i=1,#text do width=width+(text:sub(i,i)=='.' and layout.valueDotW or layout.valueW) end
+    local x=math.floor(layout.valueCenter-(width+4*(#text-1))/2)
     for i,obj in ipairs(glucose) do
         if i<=#text then
             local char=text:sub(i,i)
             local name=char=='.' and 'dot' or char=='-' and 'dash' or char
-            local w=char=='.' and 12 or 40
+            local w=char=='.' and layout.valueDotW or layout.valueW
             obj:clear_flag(lvgl.FLAG.HIDDEN)
             obj:set{src=SCRIPT_PATH..'/value-'..band..'-'..(stale and 'old-' or 'fresh-')..name..'.png',x=x,w=w}
             x=x+w+4
@@ -56,12 +66,12 @@ local function showValue(text,stale,band)
     end
 end
 showValue('--',false,'normal')
-local trend=image('trend-normal-fresh-unknown',341,layout.trendY,54,54)
-local source=label('--:--',14,layout.sourceY,100,68,28,0xe9f2f8)
-image('battery',60,466,34,24)
-local battery=label('--%',100,459,96,40,28,0xc4d0d8)
-local heartIcon=image('heart',230,464,30,28)
-local heart=label('--',265,459,106,40,28,0xc4d0d8)
+local trend=image('trend-normal-fresh-unknown',layout.trendX,layout.trendY,54,54)
+local source=at('--:--',layout.sourceBox,muted)
+icon('battery',layout.batteryIcon)
+local battery=at('--%',layout.batteryBox,0xc4d0d8)
+icon('heart',layout.heartIcon)
+local heart=at('--',layout.heartBox,0xc4d0d8)
 local current,visible,screenOn=nil,true,true
 local lastClock,lastSource,lastValue,lastTrend,lastDate
 local function read(path)
@@ -73,10 +83,17 @@ local function render()
     if not visible or not screenOn then return end
     local now=os.time()
     local clock=os.date('%H%M',now)
-    local palette=clockPalette(now)
+    local palette=layout.style=='dots' and clockPalette(now) or layout.style
     local clockKey=palette..clock
     if clockKey~=lastClock then
-        for i=1,4 do digits[i]:set{src=SCRIPT_PATH..'/clock-'..palette..'-'..(i<=2 and 'hour-' or 'minute-')..clock:sub(i,i)..'.png'} end
+        if layout.style=='analog' then
+            local hour,minute=tonumber(clock:sub(1,2)),tonumber(clock:sub(3,4))
+            hourHand:set{src=SCRIPT_PATH..'/hand-hour-'..((hour%12)*60+minute)..'.png'}
+            minuteHand:set{src=SCRIPT_PATH..'/hand-minute-'..minute..'.png'}
+        else
+            local name=layout.style=='dots' and palette or 'signal'
+            for i=1,4 do digits[i]:set{src=SCRIPT_PATH..'/clock-'..name..'-'..(i<=2 and 'hour-' or 'minute-')..clock:sub(i,i)..'.png'} end
+        end
         lastClock=clockKey
     end
     local day=os.date('%a %d %b',now):upper()
@@ -96,7 +113,7 @@ local function render()
         if trendKey~=lastTrend then trend:set{src=SCRIPT_PATH..'/trend-'..trendKey..'.png'};lastTrend=trendKey end
         local stamp=os.date('%H:%M',math.floor(current.sourceAt/1000))..(stale and '\nOLD' or '')
         if stamp~=lastSource then
-            source:set{text=stamp,text_color=stale and 0xffbc73 or 0xe9f2f8}
+            source:set{text=stamp,text_color=muted}
             lastSource=stamp
         end
     end
