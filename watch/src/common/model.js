@@ -26,12 +26,13 @@ function chart(frame) {
     if (samples[i].time - samples[i - 1].time > 600000) { samples = samples.slice(i); break }
   }
   var values = samples.map(function (s) { return Math.round(s.value * 10) })
-  var lo = Math.max(0, Math.min.apply(null, values) - 5)
-  var hi = Math.max.apply(null, values) + 5
+  var lo = Math.max(0, Math.min.apply(null, [39].concat(values)) - 5)
+  var hi = Math.max.apply(null, [78].concat(values)) + 5
   return {
     options: {xAxis:{min:0,max:Math.max(1,values.length - 1),display:false,axisTick:2},yAxis:{min:lo,max:hi,display:false,axisTick:2},series:{lineStyle:{width:'2px'}}},
     data:[{strokeColor:'#70dfc3',data:values}], count:values.length,
-    range:(lo / 10).toFixed(1) + ' — ' + (hi / 10).toFixed(1) + ' mmol/L',
+    references:{lowerY:Math.round((hi-39)*53/(hi-lo)),upperY:Math.round((hi-78)*53/(hi-lo))},
+    range:(lo / 10).toFixed(1) + ' — ' + (hi / 10).toFixed(1) + ' · 基准 3.9 / 7.8',
     times:clock(samples[0].time) + ' — ' + clock(samples[samples.length - 1].time)
   }
 }

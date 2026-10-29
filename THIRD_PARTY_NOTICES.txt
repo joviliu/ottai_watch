@@ -50,3 +50,9 @@ watchface/fonts/BarlowCondensed-Light.ttf:
   sparse 5x7 dot patterns. Neither derives its outlines from this font. Other
   on-device labels use the device's existing MiSans font; that font is not
   redistributed here.
+
+watchface/fonts/BarlowCondensed-SemiBold.ttf:
+  Origin: https://github.com/google/fonts/tree/main/ofl/barlowcondensed
+  Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
+  License: SIL Open Font License 1.1; full text in watchface/fonts/OFL.txt.
+  Used for dial labels and static preview headings; seven-segment numerals use original geometric patterns.

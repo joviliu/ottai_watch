@@ -146,6 +146,24 @@ for variant in ['signal','meridian']:
         sources=[w['props']['src'] for w in lua.globals().widgets.values() if w['props']['src']]
         assert '/lua/hand-hour-0.png' in sources and '/lua/hand-minute-0.png' in sources
     else:assert_clock('signal','2359')
+    # All three styles select the same stable slot, without multiplying hand sprites.
+    for hour in [3,4,10,11,14,15,18,19,23]:
+        clock_at(hour,0)
+        reference=create_ui(load_layout(),lua.globals().now)
+        clock=next(w for w in reference.globals().widgets.values() if '/clock-' in (w['props']['src'] or ''))
+        name=clock['props']['src'].split('/clock-')[1].split('-hour-')[0]
+        chosen=next(p for p in CLOCK_PALETTES if p['name']==name)
+        colored=[w for w in lua.globals().widgets.values() if '/hand-' in (w['props']['src'] or '') or '/clock-' in (w['props']['src'] or '')]
+        assert [w['props']['img_recolor'] for w in colored]==[int(chosen['hour'][1:],16)]*(1 if variant=='meridian' else 2)+[int(chosen['minute'][1:],16)]*(1 if variant=='meridian' else 2)
+        before=[w['updates'] for w in colored]
+        lua.globals().timer['cb']();assert [w['updates'] for w in colored]==before
+    if variant=='meridian':
+        images=[w['props']['src'] for w in lua.globals().widgets.values() if w['props']['src']]
+        assert images.index('/lua/hand-minute-0.png') < images.index('/lua/complications.png') < next(i for i,p in enumerate(images) if '/value-' in p)
+    # Unsupported recolor properties must preserve a working clock on older firmware.
+    lua.execute("for _,w in ipairs(widgets) do local original=w.set; w.set=function(self,v) if v.img_recolor then error('unsupported') end; return original(self,v) end end")
+    clock_at(4,1)
+    assert value_text()=='60.0'
     lua.globals().pageOnPause();assert lua.globals().timer['paused']
     lua.globals().pageOnResume();assert not lua.globals().timer['paused']
     assert lua.globals().timer['period']==15000

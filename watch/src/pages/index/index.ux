@@ -7,7 +7,11 @@
     <text class="age" style="color:{{ageColor}}">{{age}}</text>
     <div class="chart-area">
       <text class="range" if="{{chartVisible}}">{{range}}</text>
-      <chart class="graph" if="{{chartVisible}}" type="line" options="{{chartOptions}}" datasets="{{chartData}}"></chart>
+      <stack class="graph-frame" if="{{chartVisible}}">
+        <chart class="graph" type="line" options="{{chartOptions}}" datasets="{{chartData}}"></chart>
+        <div class="reference" style="top:{{upperReferenceY}}px"></div>
+        <div class="reference" style="top:{{lowerReferenceY}}px"></div>
+      </stack>
       <text class="waiting" if="{{!chartVisible}}">{{historyStatus}}</text>
     </div>
     <text class="times">{{times}}</text>
@@ -25,7 +29,7 @@ import model from '../../common/model'
 export default {
   private: {
     value:'--',trend:'',source:'等待欧态数据',age:'尚无读数',ageColor:'#a8a8a8',
-    chartVisible:false,chartOptions:{},chartData:[],range:'',times:'',historyStatus:'等待真实历史数据',status:'点击连接手机'
+    chartVisible:false,chartOptions:{},chartData:[],lowerReferenceY:0,upperReferenceY:0,range:'',times:'',historyStatus:'等待真实历史数据',status:'点击连接手机'
   },
   onInit() {
     this.frame = null
@@ -88,6 +92,8 @@ export default {
     clearTimeout(this.chartTimer)
     this.chartOptions = graph.options
     this.chartData = graph.data
+    this.lowerReferenceY = graph.references.lowerY
+    this.upperReferenceY = graph.references.upperY
     this.range = graph.range
     this.times = graph.count > 1 ? graph.times + ' · ' + graph.count + '条' : ''
     this.historyStatus = '正在积累趋势历史（' + graph.count + '条）'
@@ -113,6 +119,8 @@ export default {
 .chart-area { width:180px; height:69px; flex-direction:column; align-items:center; }
 .range { color:#8497a5; font-size:10px; height:14px; }
 .graph { width:176px; height:54px; }
+.graph-frame { width:176px; height:54px; }
+.reference { left:0px; width:176px; height:1px; background-color:#9baab5; }
 .waiting { color:#8497a5; font-size:11px; text-align:center; margin-top:22px; }
 .times { color:#8497a5; font-size:10px; height:16px; }
 .status { color:#a7bdce; font-size:10px; height:23px; width:196px; text-align:center; lines:1; text-overflow:ellipsis; }

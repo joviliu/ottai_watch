@@ -1,6 +1,6 @@
 {
   "name": "glucose-watch6",
-  "version": "0.1.10",
+  "version": "0.1.12",
   "private": true,
   "scripts": {
     "build": "aiot build",

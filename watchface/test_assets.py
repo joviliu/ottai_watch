@@ -41,6 +41,12 @@ for variant in ['ultra','signal','meridian']:
                 for part in ['hour','minute']:
                     with Image.open(assets/f'clock-{palette["name"]}-{part}-{char}.png') as image:
                         assert image.size==(layout['clockW'],layout['clockH']) and image.getchannel('A').tobytes()==alpha
+    else:
+        for file in list(assets.glob('value-*.png'))+list(assets.glob('clock-*.png')):
+            with Image.open(file) as image:
+                # Ignore the faint Lanczos halo; the visible strokes must retain padding.
+                left,top,right,bottom=image.getchannel('A').point(lambda alpha:255 if alpha>=32 else 0).getbbox()
+                assert 0<left<right<image.width and 0<top<bottom<image.height,('clipped glyph',file)
     print(variant,manifest['files'],'resources;',manifest['bytes'],'bytes; runtime resources/entry/geometry passed')
 assert len(ids)==3
 assert len(CLOCK_PALETTES)==32

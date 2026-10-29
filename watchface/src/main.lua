@@ -40,8 +40,9 @@ local date=at('',layout.dateBox,muted)
 local digits={}
 local hourHand,minuteHand
 if layout.style=='analog' then
-    hourHand=image('hand-hour-0',52,38,328,328)
-    minuteHand=image('hand-minute-0',52,38,328,328)
+    hourHand=icon('hand-hour-0',layout.dialBox)
+    minuteHand=icon('hand-minute-0',layout.dialBox)
+    image('complications',0,0,432,514)
 else
     local initialPalette=layout.style=='dots' and clockPalette(os.time()) or 'signal'
     for i,x in ipairs(layout.clockX) do
@@ -83,7 +84,7 @@ local function render()
     if not visible or not screenOn then return end
     local now=os.time()
     local clock=os.date('%H%M',now)
-    local palette=layout.style=='dots' and clockPalette(now) or layout.style
+    local palette=clockPalette(now)
     local clockKey=palette..clock
     if clockKey~=lastClock then
         if layout.style=='analog' then
@@ -93,6 +94,22 @@ local function render()
         else
             local name=layout.style=='dots' and palette or 'signal'
             for i=1,4 do digits[i]:set{src=SCRIPT_PATH..'/clock-'..name..'-'..(i<=2 and 'hour-' or 'minute-')..clock:sub(i,i)..'.png'} end
+        end
+        if layout.style~='dots' then
+            for _,colors in ipairs(clockPalettes) do
+                if colors.name==palette then
+                    -- Older engines retain the baked-in colors if runtime recoloring is unavailable.
+                    pcall(function()
+                        if layout.style=='analog' then
+                            hourHand:set{img_recolor=colors.hour,img_recolor_opa=lvgl.OPA(100)}
+                            minuteHand:set{img_recolor=colors.minute,img_recolor_opa=lvgl.OPA(100)}
+                        else
+                            for i,obj in ipairs(digits) do obj:set{img_recolor=i<=2 and colors.hour or colors.minute,img_recolor_opa=lvgl.OPA(100)} end
+                        end
+                    end)
+                    break
+                end
+            end
         end
         lastClock=clockKey
     end

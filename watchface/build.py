@@ -22,7 +22,7 @@ DATE_COLOR = '#B9C2C8'
 
 def clock_palette_source():
     return 'return {' + ','.join(
-        '{name=' + json.dumps(p['name']) + '}'
+        '{name=' + json.dumps(p['name']) + ',hour=0x' + p['hour'][1:] + ',minute=0x' + p['minute'][1:] + '}'
         for p in CLOCK_PALETTES) + '}\n'
 
 
@@ -100,25 +100,37 @@ def load_layout(variant='ultra'):
     return layout
 
 
-def solid_glyph(char,width,height,color):
-    text='.' if char=='dot' else '-' if char=='dash' else char
-    scale=4
-    font=ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-SemiBold.ttf'),height*scale)
-    # Use one baseline and scale for the entire alphabet: decimal/dash must not grow to digit size.
-    digits=font.getbbox('0123456789')
-    bbox=font.getbbox(text)
-    ratio=min((height-4)*scale/(digits[3]-digits[1]),(width-4)*scale/max(font.getbbox('0')[2],1))
-    if char in ('dot','dash'): ratio=(height-4)*scale/(digits[3]-digits[1])
-    font=ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-SemiBold.ttf'),max(1,int(height*scale*ratio)))
-    bbox=font.getbbox(text);baseline=font.getbbox('0123456789')
-    image=Image.new('RGBA',(width*scale,height*scale))
-    ImageDraw.Draw(image).text(((width*scale-(bbox[2]-bbox[0]))/2-bbox[0],(height*scale-(baseline[3]-baseline[1]))/2-baseline[1]),text,font=font,fill=color)
+def segment_glyph(char,width,height,color):
+    scale=4;pad=3;stroke=min(width*.10,height*.065);gap=max(.9,stroke*.18)
+    image=Image.new('RGBA',(width*scale,height*scale));draw=ImageDraw.Draw(image)
+    left=pad+stroke/2;right=width-pad-stroke/2
+    top=pad+stroke/2;middle=height/2;bottom=height-pad-stroke/2
+    def polygon(points):draw.polygon([(x*scale,y*scale) for x,y in points],fill=color)
+    def horizontal(y):
+        polygon([(left,y),(left+stroke/2,y-stroke/2),(right-stroke/2,y-stroke/2),
+                 (right,y),(right-stroke/2,y+stroke/2),(left+stroke/2,y+stroke/2)])
+    def vertical(x,y1,y2):
+        polygon([(x,y1),(x+stroke/2,y1+stroke/2),(x+stroke/2,y2-stroke/2),
+                 (x,y2),(x-stroke/2,y2-stroke/2),(x-stroke/2,y1+stroke/2)])
+    patterns={'0':'abcdef','1':'bc','2':'abdeg','3':'abcdg','4':'bcfg',
+              '5':'acdfg','6':'acdefg','7':'abc','8':'abcdefg','9':'abcdfg','dash':'g'}
+    if char=='dot':
+        radius=min(width*.22,height*.05);x=width/2;y=height-pad-radius
+        draw.ellipse(((x-radius)*scale,(y-radius)*scale,(x+radius)*scale,(y+radius)*scale),fill=color)
+    else:
+        for segment in patterns[char]:
+            if segment in 'adg':horizontal({'a':top,'d':bottom,'g':middle}[segment])
+            else:
+                upper=segment in 'bf'
+                vertical(right if segment in 'bc' else left,
+                         (top if upper else middle)+stroke/2+gap,
+                         (middle if upper else bottom)-stroke/2-gap)
     return image.resize((width,height),Image.Resampling.LANCZOS)
 
 
-def hand_image(index,count,length,width,color):
+def hand_image(index,count,length,width,color,size):
     import math
-    size=328;scale=3;center=size/2
+    scale=3;center=size/2
     angle=index*2*math.pi/count
     forward=(math.sin(angle),-math.cos(angle));side=(math.cos(angle),math.sin(angle))
     points=[]
@@ -142,17 +154,28 @@ def background(layout):
         d.text((42,302),'GLUCOSE',font=font(18),fill=DATE_COLOR)
         d.text((30,454),'LAST UPDATE',font=font(21),fill=DATE_COLOR)
     elif layout['style']=='analog':
-        cx,cy=216,202
-        d.ellipse((cx-147,cy-147,cx+147,cy+147),outline='#28383C',width=2)
+        x,y,size,_=layout['dialBox'];cx,cy=x+size/2,y+size/2
+        radius=size/2-3
+        d.ellipse((cx-radius,cy-radius,cx+radius,cy+radius),outline='#28383C',width=2)
         for i in range(60):
-            a=i*math.pi/30;outer=139;inner=outer-(12 if i%5==0 else 5)
+            a=i*math.pi/30;outer=radius-8;inner=outer-(16 if i%5==0 else 6)
             d.line((cx+math.sin(a)*inner,cy-math.cos(a)*inner,cx+math.sin(a)*outer,cy-math.cos(a)*outer),fill='#B3C0C0' if i%5==0 else '#46575B',width=3 if i%5==0 else 1)
-        for text,x,y in [('12',216,84),('3',332,202),('6',216,320),('9',100,202)]:
+        inset=radius-34
+        for text,x,y in [('12',cx,cy-inset),('3',cx+inset,cy),('9',cx-inset,cy)]:
             d.text((x,y),text,anchor='mm',font=font(26),fill='#DCD7C9')
-        d.text((216,250),'MERIDIAN',anchor='mt',font=font(17),fill='#8EAAA6')
-        d.text((216,273),'OTTAI',anchor='mt',font=font(13),fill='#657A79')
-        d.line((46,355,386,355),fill='#28383C',width=1)
     return image
+
+
+def complications(layout):
+    image=Image.new('RGBA',(432,514))
+    ImageDraw.Draw(image).rounded_rectangle((88,288,344,410),radius=20,fill='#0A1217',outline='#26363F',width=1)
+    return image
+
+
+def tinted(image,color):
+    result=Image.new('RGBA',image.size,color)
+    result.putalpha(image.getchannel('A'))
+    return result
 
 
 def preview(layout,assets,text='6.8',band='normal',state='fresh',palette=None,placeholders=False):
@@ -162,13 +185,17 @@ def preview(layout,assets,text='6.8',band='normal',state='fresh',palette=None,pl
         x,y,w,h,size=box
         for offset,line in enumerate(text.split('\n')):d.text((x+w/2,y+offset*size),line,anchor='mt',font=font(size),fill=color)
     label('THU 29 OCT',layout['dateBox'],DATE_COLOR)
+    colors=palette or CLOCK_PALETTES[0]
     if layout['style']=='analog':
-        image.alpha_composite(hand_image(10*60+9,720,81,11,'#F0D9B4'),(52,38))
-        image.alpha_composite(hand_image(9,60,121,6,'#8DBDB3'),(52,38))
+        x,y,size,_=layout['dialBox']
+        image.alpha_composite(hand_image(10*60+9,720,112,11,colors['hour'],size),(x,y))
+        image.alpha_composite(hand_image(9,60,174,6,colors['minute'],size),(x,y))
+        image.alpha_composite(complications(layout))
     else:
-        colors=palette or (CLOCK_PALETTES[0] if layout['style']=='dots' else {'name':'signal','hour':'#EEEEEE','minute':'#76ABAE'})
         for i,(char,x) in enumerate(zip('1009',layout['clockX'])):
-            image.alpha_composite(Image.open(assets/f'clock-{colors["name"]}-{"hour" if i<2 else "minute"}-{char}.png'),(x,layout['clockY']))
+            part='hour' if i<2 else 'minute';name=colors['name'] if layout['style']=='dots' else 'signal'
+            img=Image.open(assets/f'clock-{name}-{part}-{char}.png')
+            image.alpha_composite(img if layout['style']=='dots' else tinted(img,colors[part]),(x,layout['clockY']))
     text='--' if placeholders else text
     widths=[layout['valueDotW'] if c=='.' else layout['valueW'] for c in text]
     x=int(layout['valueCenter']-(sum(widths)+4*(len(widths)-1))/2)
@@ -191,22 +218,24 @@ def build_face(variant='ultra'):
     assert len(CLOCK_PALETTES)>=2 and len({p['name'] for p in CLOCK_PALETTES})==len(CLOCK_PALETTES)
     colors=CLOCK_PALETTES if layout['style']=='dots' else [{'name':'signal','hour':'#EEEEEE','minute':'#76ABAE'}]
     if layout['style']=='analog':
-        for part,count,length,width,color in [('hour',720,81,11,'#F0D9B4'),('minute',60,121,6,'#8DBDB3')]:
-            for index in range(count):hand_image(index,count,length,width,color).save(assets/f'hand-{part}-{index}.png')
+        for part,count,length,width,color in [('hour',720,112,11,'#F0D9B4'),('minute',60,174,6,'#8DBDB3')]:
+            for index in range(count):hand_image(index,count,length,width,color,layout['dialBox'][2]).save(assets/f'hand-{part}-{index}.png')
+        complications(layout).save(assets/'complications.png')
     else:
         for palette in colors:
             for part in ['hour','minute']:
                 assert contrast_on_black(palette[part])>=4.5
                 for char in '0123456789':
-                    img=glyph(char,layout['clockW'],layout['clockH'],palette[part],clock_rows=layout['clockRows']) if layout['style']=='dots' else solid_glyph(char,layout['clockW'],layout['clockH'],palette[part])
+                    img=glyph(char,layout['clockW'],layout['clockH'],palette[part],clock_rows=layout['clockRows']) if layout['style']=='dots' else segment_glyph(char,layout['clockW'],layout['clockH'],palette[part])
                     img.save(assets/f'clock-{palette["name"]}-{part}-{char}.png')
         assert len(list(assets.glob('clock-*.png')))==20*len(colors)
     (assets/'clock-palettes.lua').write_text(clock_palette_source())
     for band,states in VALUE_COLORS.items():
         for state,color in states.items():
+            if band=='normal' and state=='fresh':color=layout.get('normalColor',color)
             for char in list('0123456789')+['dot','dash']:
                 w=layout['valueDotW'] if char=='dot' else layout['valueW']
-                img=glyph(char,w,layout['valueH'],color,blood=True) if layout['style']=='dots' else solid_glyph(char,w,layout['valueH'],color)
+                img=glyph(char,w,layout['valueH'],color,blood=True) if layout['style']=='dots' else segment_glyph(char,w,layout['valueH'],color)
                 img.save(assets/f'value-{band}-{state}-{char}.png')
             for kind in ['unknown','up','up_right','flat','down_right','down','up_fast','down_fast']:arrow(kind,color).save(assets/f'trend-{band}-{state}-{kind}.png')
     battery=Image.new('RGBA',(34,24));d=ImageDraw.Draw(battery)

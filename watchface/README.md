@@ -1,12 +1,12 @@
 # Redmi Watch 6：三款 Lua 血糖表盘
 
-0.1.14 开发候选，432×514。**三款已构建并通过本地验证，尚未安装，统一真机调试。** 当前真机仍是 0.1.12 与官方小米运动健康 3.59.2；旧版验证见 [记录](../docs/validation.md)。
+2026-10-29：0.1.14 三款已通过本地 SPP 安装并由用户逐款确认可见。最新 [0.1.15](../releases/0.1.15/README.md) 优化 Signal 电子数字、Meridian 全宽圆盘，并让两款接入同一 32 组分时配色；覆盖/最终验收进行中，实时状态以 [交接记录](../docs/HANDOFF.md) 为准。当前客户端已按用户要求切回修改版 3.33.6i 作安装对照；官方日常同步的历史结果保留。
 
 | 款式 | 固定 ID | 设计 |
 | --- | --- | --- |
 | Ottai Ultra | `8670260101` | 保留已确认的点阵布局；04/11/15/19 换组，32 组柔和双色；日期与更新时间同灰 |
-| Ottai Signal | `8670260102` | 实心大数字、青瓷强调色、独立血糖卡片与指标行 |
-| Ottai Meridian | `8670260103` | 简洁刻度、暖象牙/灰青指针、下方血糖及指标；无秒针，指针每分钟更新 |
+| Ottai Signal | `8670260102` | 原创七段电子数字、独立血糖卡片与指标行；32 组分时配色 |
+| Ottai Meridian | `8670260103` | 408 像素圆盘、盘面血糖浮层、32 组分时指针配色；无秒针，指针每分钟更新 |
 
 三款都有时间、日期、血糖、趋势、原始更新时间、电量和心率，独立 ID 可并存。沿用同一 RPK 与同一合法数据文件，无需新增手机采集应用。保留原始测量时间与 OLD；没有新增通信、传感器轮询或常驻后台。
 
@@ -41,7 +41,7 @@ python3 -m venv .toolchain/watchface-venv
 .toolchain/watchface-venv/bin/python watchface/test_assets.py
 ```
 
-另需 Node.js 测试真实 JS 导出兼容性。构建使用 Pillow；Ultra 时钟/血糖来自原创点阵；新款数字使用 Barlow Condensed SemiBold，Barlow Light 用于预览及 unknown 问号，Lupa 仅用于桌面 Lua 测试。不依赖 Windows、EasyFace 或官方编译器。
+另需 Node.js 测试真实 JS 导出兼容性。构建使用 Pillow；Ultra 时钟/血糖来自原创点阵；新款时间/血糖使用原创七段电子图案，Barlow Condensed SemiBold 仅用于刻度文字和静态预览标识，Barlow Light 用于预览及 unknown 问号，Lupa 仅用于桌面 Lua 测试。不依赖 Windows、EasyFace 或官方编译器。
 
 输出位于忽略的 `watchface/build/`：
 
@@ -69,7 +69,7 @@ Vela 应用接收合法帧后，通过 `system.file` 写入双槽文件；Lua �
 
 ## 安装入口与验收
 
-已安装手机 APK 见 [0.1.11 发布目录](../releases/0.1.11/README.md)；表盘 BIN/ZIP 现为 [0.1.12 发布目录](../releases/0.1.12/README.md)，随机双色已覆盖安装；当前 RPK 恢复包见 [watch-0.1.10 发布目录](../releases/watch-0.1.10/README.md)，0.1.9 不推荐使用；原始稳定基线仍在 [0.1.8 发布目录](../releases/0.1.8/README.md)。临时安装器 0.1.4 / code 5 位于 0.1.10 目录。先分别核对校验和，两端包名与证书保持一致即可，无需同版本号。本轮临时安装器 0.1.4 已卸载并清除手机端私有凭据；日常同步只需要原有镜像和 Mi Fitness 通道。
+手机 APK 仍用 [0.1.11](../releases/0.1.11/README.md)，表盘候选见 [0.1.15](../releases/0.1.15/README.md)，新增基准线的 RPK 为 [watch-0.1.12](../releases/watch-0.1.12/README.md)。临时安装器沿用 0.1.5/code6；最终安装、清理和后台验收以 [交接记录](../docs/HANDOFF.md) 为准。各目录先核对 SHA256SUMS，升级须保留原包名/签名，不要求 APK 与 RPK 版本号一致。
 
 先完成 [安装文档](../docs/install.md) 的工具链与签名配置，然后可打开开发入口：
 
@@ -92,7 +92,7 @@ Mi Fitness 开发入口在授权接口 HTTP 404 处失败；打开页面、解�
 
 时钟使用原创 6×14 点阵，血糖使用原创稀疏 5×7 点阵，不依赖字体轮廓。[Barlow Condensed Light](https://github.com/google/fonts/tree/main/ofl/barlowcondensed)仅用于桌面预览文字和 unknown 趋势问号，SIL OFL 1.1，许可证在 `fonts/OFL.txt`。Lua 使用设备自带 MiSans 绘制其他文本，不分发原厂表盘素材。更多来源见 [第三方声明](../THIRD_PARTY_NOTICES.txt)。
 
-后续不同风格可采用独立表盘 ID 实现并存，继续共用现有镜像 RPK 和数据文件；相同 ID 会覆盖已有样式。本轮依用户要求只替换当前表盘。
+后续不同风格可采用独立表盘 ID 实现并存，继续共用现有镜像 RPK 和数据文件；相同 ID 会覆盖已有样式。当前已有三个独立 ID；同 ID 的新布局以覆盖方式更新，其他款保留。
 
 ## 字体来源
 

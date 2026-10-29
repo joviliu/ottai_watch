@@ -1,10 +1,10 @@
 # 临时 SPP 表盘安装器
 
-仅用于开发验证本项目的 Redmi Watch 6 表盘。它直接使用已配对设备的正常 SPP 认证和表盘上传协议，不调用 Mi Fitness 的云表盘授权接口。不需要解绑或重新配对。此前单款表盘已完成上传、正常绘制及配套镜像的两轮基本更新验收；此前仅安装 Ultra；本轮新增 Signal / Meridian，三款的统一真机调试已开始，尚未完成。本轮官方客户端下认证及安装请求曾成功，数据上传 Broken pipe；不能确认官方客户端限制。用户要求切换修改版进行对照，当前切换和恢复状态见 [交接记录](../../docs/HANDOFF.md)。安装器直接使用已有合法配对凭据；安装期间暂时释放实际客户端蓝牙占用，结束须恢复该客户端与镜像。
+仅用于开发验证本项目的 Redmi Watch 6 表盘。它直接使用已配对设备的正常 SPP 认证和表盘上传协议，不调用 Mi Fitness 的云表盘授权接口。不需要解绑或重新配对。此前单款表盘已完成上传、正常绘制及配套镜像的两轮基本更新验收；此前仅安装 Ultra；本轮新增 Signal / Meridian，0.1.14 三款已经上传并逐款目视，0.1.15 的新样式验收进行中。本轮官方客户端下认证及安装请求曾成功，数据上传 Broken pipe；修改版对照下三款随后传完，仍不能确认官方客户端限制。当前恢复与验收状态见 [交接记录](../../docs/HANDOFF.md)。安装器直接使用已有合法配对凭据；安装期间暂时释放实际客户端蓝牙占用，结束须恢复该客户端与镜像。
 
 ## 已签名安装包
 
-本轮候选 [ottai-watchface-installer-0.1.5.apk](../../releases/0.1.14/ottai-watchface-installer-0.1.5.apk)（versionCode 6），先按 [0.1.14 发布说明](../../releases/0.1.14/README.md)核对 SHA-256。白名单仅含 `8670260101/102/103` 三款，未增加任意 ID 删除能力；本地检查通过，已用于真机尝试，尚无新表盘上传完成记录。APK 不含配对凭据，也不预装任何健康数据。安装完成后卸载临时安装器，它不参与日常更新。
+本轮候选 [ottai-watchface-installer-0.1.5.apk](../../releases/0.1.14/ottai-watchface-installer-0.1.5.apk)（versionCode 6），先按 [0.1.14 发布说明](../../releases/0.1.14/README.md)核对 SHA-256。白名单仅含 `8670260101/102/103` 三款，未增加任意 ID 删除能力；本地检查通过，已用于真机尝试，0.1.14 三款已传完并由用户逐款确认显示。APK 不含配对凭据，也不预装任何健康数据。安装完成后卸载临时安装器，它不参与日常更新。
 
 ## 源码构建
 
@@ -117,4 +117,4 @@ adb uninstall com.example.ottaiwatchfaceinstaller
 
 此组件源码独立采用 AGPL-3.0，协议来源及依赖见 NOTICE.md。没有联网权限、广泛存储权限或固件更新功能。
 
-0.1.5 本地已完成第三 ID 白名单、有效/无效尺寸和目标检查、BIN 解析与签名打包；已用于真机尝试，但新表盘尚未传完。官方客户端 `com.mi.health` 的通知服务是 `com.mi.health/com.xiaomi.fitness.notify.NotifySyncService`；修改版 `com.xiaomi.wearable` 的通知服务是 `com.xiaomi.wearable/com.xiaomi.wearable.home.devices.ble.sync.NotifySyncService`。恢复时按实际安装客户端及开始前记录处理，不得混用组件名。若重新配对导致原密钥失效，须先合法取得新凭据，不能绕过认证。
+0.1.5 本地已完成第三 ID 白名单、有效/无效尺寸和目标检查、BIN 解析与签名打包；已用于真机完成 0.1.14 三款上传。官方客户端 `com.mi.health` 的通知服务是 `com.mi.health/com.xiaomi.fitness.notify.NotifySyncService`；修改版 `com.xiaomi.wearable` 的通知服务是 `com.xiaomi.wearable/com.xiaomi.wearable.home.devices.ble.sync.NotifySyncService`。恢复时按实际安装客户端及开始前记录处理，不得混用组件名。若重新配对导致原密钥失效，须先合法取得新凭据，不能绕过认证。

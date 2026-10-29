@@ -13,11 +13,11 @@
       322
     ],
     "clockY": 91,
-    "valueW": 54,
-    "valueH": 78,
-    "valueDotW": 16,
+    "valueW": 42,
+    "valueH": 60,
+    "valueDotW": 12,
     "valueCenter": 174,
-    "valueY": 334,
+    "valueY": 343,
     "trendX": 328,
     "trendY": 348,
     "dateBox": [
@@ -59,27 +59,39 @@
       100,
       40,
       28
-    ]
+    ],
+    "normalColor": "#B8A8D9"
   },
   "meridian": {
     "faceId": "8670260103",
     "title": "Ottai Meridian",
     "style": "analog",
-    "valueY": 374,
-    "trendY": 375,
+    "valueY": 298,
+    "trendY": 300,
     "dateBox": [
       30,
-      12,
+      10,
       372,
-      32,
-      24
+      28,
+      22
     ],
     "sourceBox": [
-      14,
-      385,
-      100,
-      68,
-      24
-    ]
+      144,
+      358,
+      144,
+      48,
+      22
+    ],
+    "dialBox": [
+      12,
+      44,
+      408,
+      408
+    ],
+    "valueW": 40,
+    "valueH": 56,
+    "valueCenter": 184,
+    "trendX": 275,
+    "normalColor": "#B8A8D9"
   }
 }

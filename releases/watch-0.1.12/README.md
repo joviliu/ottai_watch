@@ -1,0 +1,9 @@
+# 手表 RPK 0.1.12 / code 13：无圆点的曲线基准线
+
+2026-10-29。在 0.1.10 稳定同步逻辑上，为趋势图增加用户指定的 3.9、7.8 mmol/L 两条水平细线。参考线由 stack 中两个 1px 高的覆盖层绘制，位于曲线上方，不加入 chart 数据集，因此不会产生参考点标记。y 轴同时容纳读数和两条基准线并保留余量；图上方标出“基准 3.9 / 7.8”。只有一条有效历史时仍显示积累历史，缺测不跨段连接。
+
+不改通知、同步唤起/退出、缓存、文件发布/身份回执或手机 APK。沿用原签名，可直接覆盖，无需删除手表应用。内部 0.1.11 参考序列候选已依用户意见被本版替代。
+
+模型/回归测试和 release 构建通过；修改版运动健康已回报本版安装 code 0。细线目视和最终自然后台周期仍待完成，当前状态见 [交接记录](../../docs/HANDOFF.md)。
+
+依据 [Vela chart](https://iot.mi.com/vela/quickapp/en/components/basic/chart.html) 的坐标范围及 [stack](https://iot.mi.com/vela/quickapp/en/components/container/stack.html) 叠层行为。先核对 SHA256SUMS，安装方法见 [安装文档](../../docs/install.md)。
