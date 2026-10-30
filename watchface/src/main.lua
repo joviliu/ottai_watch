@@ -14,8 +14,9 @@ local function clockPalette(now)
     -- Alternating disjoint groups avoid adjacent repeats without storing prior choices.
     local parity=slot%2
     local count=math.floor((#clockPalettes+1-parity)/2)
-    local state=slot%2147483646+1
-    for _=1,3 do state=(state*48271)%2147483647 end
+    -- Keep every intermediate below 2^24: exact in float32 and int32 Lua alike.
+    local state=slot%65521
+    for _=1,3 do state=(state*251+13849)%65521 end
     return clockPalettes[(state%count)*2+parity+1].name
 end
 local root=lvgl.Object(nil,{w=lvgl.HOR_RES(),h=lvgl.VER_RES(),bg_color=0,bg_opa=lvgl.OPA(100),border_width=0,pad_all=0})

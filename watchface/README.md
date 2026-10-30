@@ -1,5 +1,7 @@
 # Redmi Watch 6：三款 Lua 血糖表盘
 
+2026-10-30：共享选色器已修复低精度大数运算导致的固定轮换风险，三款 [0.1.18](../releases/0.1.18/README.md) 已构建、尚未真机覆盖。32 组颜色、四个时点、字体与布局保留；新增真实 float32/int32 Lua 回归。当前设备仍是下面的已验收版本。
+
 最终实机组合：Ultra 0.1.14（不改）、Meridian 0.1.16（用户确认）、Signal 0.1.17（Poiret One 原字形，用户确认）。Signal 32 组使用预着色图片，Meridian 用原生有色对象，不依赖已证明不生效的 image recolor。开始前先看 [当前交接](../docs/HANDOFF.md)。
 
 Signal [0.1.17](../releases/0.1.17/README.md) 采用用户指定的 Poiret One 原字体；Meridian [0.1.16](../releases/0.1.16/README.md) 为原生彩色指针。0.1.15 的图片 recolor 在真机未生效，已被预着色图片/原生对象替代。开发结束后已还原官方小米运动健康 3.59.2，非充电锁屏两轮自动更新和最后 Signal 屏显已通过；修改版和临时安装器均已卸载。

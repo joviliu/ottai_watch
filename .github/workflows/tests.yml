@@ -17,4 +17,20 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -r watchface/requirements.txt
+      - name: Check palette arithmetic in float32 and int32 Lua
+        run: |
+          cd "$RUNNER_TEMP"
+          curl --fail --location --retry 3 -O https://www.lua.org/ftp/lua-5.2.4.tar.gz
+          curl --fail --location --retry 3 -O https://www.lua.org/ftp/lua-5.3.6.tar.gz
+          echo 'b9e2e4aad6789b3b63a056d442f7b39f0ecfca3ae0f1fc0ae4e9614401b69f4b  lua-5.2.4.tar.gz' | sha256sum --check
+          echo 'fc5fd69bb8736323f026672b1b7235da613d7177e72558893a0bdcd320466d60  lua-5.3.6.tar.gz' | sha256sum --check
+          tar -xzf lua-5.2.4.tar.gz
+          tar -xzf lua-5.3.6.tar.gz
+          sed -i 's/^#define LUA_NUMBER\s\+double$/#define LUA_NUMBER float/;s/^#define LUA_NUMBER_SCAN\s\+"%lf"$/#define LUA_NUMBER_SCAN "%f"/' lua-5.2.4/src/luaconf.h
+          make -C lua-5.2.4 generic -j2
+          make -C lua-5.3.6 generic MYCFLAGS=-DLUA_32BITS -j2
+          lua-5.2.4/src/lua -e 'assert((16777216.0+1.0)-16777216.0==0)'
+          lua-5.3.6/src/lua -e 'assert(math.maxinteger==2147483647)'
+          cd "$GITHUB_WORKSPACE"
+          python watchface/test_palette_precision.py --lua "$RUNNER_TEMP/lua-5.2.4/src/lua" --lua "$RUNNER_TEMP/lua-5.3.6/src/lua"
       - run: python watchface/test_frame.py && python watchface/test_ui.py && python watchface/build.py --variant all && python watchface/test_assets.py
