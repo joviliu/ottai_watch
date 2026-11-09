@@ -1,0 +1,20 @@
+[Unit]
+Description=Ottai isolated OpenAI relay
+After=network-online.target
+[Service]
+User=ottai-relay
+Group=ottai-relay
+EnvironmentFile=/etc/ottai-relay/relay.env
+ExecStart=/srv/cloud-level-up/runtime/node-v24.22.2-linux-x64/bin/node /opt/ottai-cloud/deploy/relay/start.cjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ottai-relay
+MemoryMax=128M
+TasksMax=32
+UMask=0077
+[Install]
+WantedBy=multi-user.target

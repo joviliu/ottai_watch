@@ -28,6 +28,7 @@ public final class OttaiMetadataListener extends NotificationListenerService {
             android.util.Log.i("GlucoseWatch6", "Ottai sourceAt=" + reading.sourceAt + " notificationAt=" + at
                 + " observedAt=" + observedAt + " value=" + reading.mmol + " trend=" + reading.trend);
             BridgeService.updated(this);
+            CloudSync.accepted(this, reading);
         }
     }
 }

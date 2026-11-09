@@ -1,0 +1,11 @@
+[Unit]
+Description=Run one daily Ottai observational analysis
+
+[Timer]
+OnCalendar=*-*-* 08:15:00 Asia/Shanghai
+Persistent=true
+AccuracySec=1min
+Unit=ottai-daily.service
+
+[Install]
+WantedBy=timers.target

@@ -9,5 +9,9 @@ mkdir -p android/build/test
 "$JAVA" -cp android/build/test com.example.glucosewatch6.ReadingTest
 "$JAVAC" -d android/build/test android/src/main/java/com/example/glucosewatch6/FaceSyncPolicy.java android/test/FaceSyncPolicyTest.java
 "$JAVA" -cp android/build/test com.example.glucosewatch6.FaceSyncPolicyTest
+"$JAVAC" -cp android/build/test -d android/build/test android/src/main/java/com/example/glucosewatch6/CloudPolicy.java android/test/CloudPolicyTest.java
+"$JAVA" -cp android/build/test com.example.glucosewatch6.CloudPolicyTest
+python3 -m unittest server.test_server -q
+python3 deploy/relay/test_worker.py
 (cd watch && npm test)
 python3 tools/test_setup_android.py

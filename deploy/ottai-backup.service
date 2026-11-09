@@ -1,0 +1,14 @@
+[Unit]
+Description=Private consistent Ottai SQLite backup
+After=ottai-cloud.service
+[Service]
+Type=oneshot
+User=ottai-cloud
+Group=ottai-cloud
+EnvironmentFile=/etc/ottai-cloud/service.env
+ExecStart=/usr/bin/python3 /srv/ottai-cloud/app/deploy/backup.py
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ottai-cloud

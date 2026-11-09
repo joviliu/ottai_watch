@@ -12,7 +12,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public final class MainActivity extends Activity {
-    private TextView reading, details;
+    private TextView reading, details, cloudStatus;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refresh = new Runnable() {
         public void run() { render(); handler.postDelayed(this, 60000); }
@@ -31,6 +31,8 @@ public final class MainActivity extends Activity {
         TextView title = new TextView(this); title.setText("血糖镜像 · Redmi Watch 6"); title.setTextSize(22); box.addView(title);
         reading = new TextView(this); reading.setTextSize(46); box.addView(reading);
         details = new TextView(this); details.setTextSize(16); box.addView(details);
+        cloudStatus = new TextView(this); cloudStatus.setTextSize(14); box.addView(cloudStatus);
+        button(box, "云同步 / 每日血糖观察", () -> startActivity(new Intent(this, CloudActivity.class)));
         button(box, "启动 / 重新连接", () -> BridgeService.start(this, false));
         button(box, "打开手表应用", () -> BridgeService.start(this, true));
         button(box, "允许读取欧态通知", () -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
@@ -56,6 +58,7 @@ public final class MainActivity extends Activity {
         Button button = new Button(this); button.setText(label); button.setOnClickListener(v -> action.run()); box.addView(button);
     }
     private void render() {
+        cloudStatus.setText("云端："+CloudSync.status(this));
         try {
             String raw = ReadingStore.frame(this);
             String info = "等待真实数据";

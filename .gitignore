@@ -22,3 +22,7 @@ __pycache__/
 !releases/**/*.rpk
 !releases/**/*.bin
 !watchface/assets/*.bin
+macos/build/
+macos/build-log.tmp
+*.sqlite*
+*.private.*

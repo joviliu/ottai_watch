@@ -1,0 +1,23 @@
+[Unit]
+Description=Ottai SG stateless OpenAI daily worker
+After=network-online.target ottai-ai-tunnel.service
+Wants=ottai-ai-tunnel.service
+[Service]
+User=ottai-ai
+Group=ottai-ai
+EnvironmentFile=/etc/ottai-ai/worker.env
+LoadCredential=openai-key:/root/.envs/default_apk
+Environment=OPENAI_API_KEY_FILE=%d/openai-key
+ExecStart=/usr/bin/python3 /opt/ottai-ai/worker.py
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ottai-ai
+MemoryMax=64M
+TasksMax=12
+UMask=0077
+[Install]
+WantedBy=multi-user.target

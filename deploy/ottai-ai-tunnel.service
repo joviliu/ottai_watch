@@ -1,0 +1,17 @@
+[Unit]
+Description=Restricted Ottai SG to Ali relay tunnel
+After=network-online.target
+Wants=network-online.target
+[Service]
+User=ottai-ai
+Group=ottai-ai
+LoadCredential=ssh-key:/etc/ottai-ai/id_ed25519
+ExecStart=/usr/bin/ssh -N -T -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/ottai-ai/known_hosts -i %d/ssh-key -L 127.0.0.1:18778:127.0.0.1:18779 ottai-tunnel@47.113.117.247
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+[Install]
+WantedBy=multi-user.target

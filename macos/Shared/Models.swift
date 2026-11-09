@@ -1,0 +1,169 @@
+import Foundation
+
+enum DisplayTime {
+    private static let clock: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+    private static let datedClock: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.dateFormat = "MM-dd HH:mm"
+        return formatter
+    }()
+    static func time(_ date: Date) -> String { clock.string(from: date) }
+    static func dateTime(_ date: Date) -> String { datedClock.string(from: date) }
+}
+
+struct Reading: Codable, Identifiable {
+    let sourceAt: Double
+    let value: Double
+    let trend: String
+    var id: Double { sourceAt }
+    var date: Date { Date(timeIntervalSince1970: sourceAt / 1000) }
+    func isStale(at now: Date) -> Bool { now.timeIntervalSince(date) > 600 || date.timeIntervalSince(now) > 120 }
+    var display: String { String(format: "%.1f", value) }
+    var displayTrend: String {
+        let known: Set<String> = ["↑↑", "↑", "↗", "→", "↘", "↓", "↓↓", "↔", "?"]
+        let text = trend.trimmingCharacters(in: .whitespacesAndNewlines)
+        if known.contains(text) { return text }
+        return text.first.flatMap { "↑↗→↘↓↔".contains($0) ? String($0) : nil } ?? "?"
+    }
+    var statusTrendSymbol: String {
+        switch displayTrend {
+        case "↑↑": return "chevron.up.2"
+        case "↑": return "arrow.up"
+        case "↗": return "arrow.up.right"
+        case "→", "↔": return "arrow.right"
+        case "↘": return "arrow.down.right"
+        case "↓": return "arrow.down"
+        case "↓↓": return "chevron.down.2"
+        default: return "questionmark"
+        }
+    }
+}
+
+struct Metrics: Codable {
+    var coveragePercent: Double?
+    var sampleCount: Int?
+    var mean: Double?
+    var min: Double?
+    var max: Double?
+    var cvPercent: Double?
+    var inRangePercent: Double?
+}
+
+struct ComparisonPoint: Codable, Identifiable {
+    let minuteOfDay: Int
+    let median: Double?
+    let p25: Double?
+    let p75: Double?
+    let sampleDays: Int?
+    var id: Int { minuteOfDay }
+}
+
+struct Comparison: Codable {
+    var daysAvailable: Double?
+    var timezone: String?
+    var points: [ComparisonPoint]?
+    var plotPoints: [ComparisonPoint] {
+        guard (daysAvailable ?? 0) >= 3 else { return [] }
+        return (points ?? []).filter { point in
+            guard (point.sampleDays ?? 0) >= 3, let value = point.median else { return false }
+            return value.isFinite && value > 0 && value <= 60
+        }
+    }
+}
+
+struct AnalysisSection: Codable, Identifiable {
+    let title: String
+    let text: String
+    var id: String { title + text }
+}
+
+struct AnalysisSource: Codable, Identifiable {
+    let title: String
+    let url: String
+    var id: String { url }
+}
+
+struct Analysis: Codable {
+    let status: String
+    var generatedAt: Double?
+    var reportDate: String?
+    var summary: String?
+    var sections: [AnalysisSection]?
+    var limitations: [String]?
+    var sources: [AnalysisSource]?
+    var dataStale: Bool?
+    var displayStatus: String {
+        if dataStale == true { return "旧报告" }
+        if status == "ready" { return "已生成" }
+        if status == "error" || status == "failed" { return summary?.isEmpty == false ? "分析失败 · 旧报告" : "分析失败" }
+        return summary?.isEmpty == false ? "旧报告 · 待更新" : "积累数据中"
+    }
+}
+
+struct Dashboard: Codable {
+    let schemaVersion: Int
+    let serverAt: Double
+    let latest: Reading?
+    let readings: [Reading]
+    var metrics: Metrics?
+    var comparison: Comparison?
+    var analysis: Analysis?
+
+    static func decode(_ data: Data) throws -> Dashboard {
+        let result = try JSONDecoder().decode(Dashboard.self, from: data)
+        guard result.schemaVersion == 1,
+              result.readings.count <= 10000,
+              result.readings.allSatisfy({ $0.value.isFinite && $0.value > 0 && $0.value <= 60 && $0.sourceAt.isFinite }),
+              result.latest.map({ $0.value.isFinite && $0.value > 0 && $0.value <= 60 && $0.sourceAt.isFinite }) ?? true
+        else { throw MirrorError.invalidResponse }
+        return result
+    }
+}
+
+struct CachedDashboard: Codable {
+    let fetchedAt: Date
+    let dashboard: Dashboard
+}
+
+enum MirrorError: LocalizedError {
+    case invalidConfiguration, invalidResponse, authentication, unavailable
+    var errorDescription: String? {
+        switch self {
+        case .invalidConfiguration: return "请设置 HTTPS 服务地址和只读令牌。"
+        case .invalidResponse: return "服务返回的数据格式不正确，已保留上次数据。"
+        case .authentication: return "服务拒绝访问，请检查只读令牌。"
+        case .unavailable: return "暂时连接不到服务，已保留上次数据。"
+        }
+    }
+}
+
+func metricText(_ value: Double?, suffix: String = "", decimals: Int = 1) -> String {
+    guard let value, value.isFinite else { return "—" }
+    return String(format: "%.*f", decimals, value) + suffix
+}
+
+struct PlotPoint: Identifiable {
+    let date: Date
+    let value: Double
+    let segment: Int
+    var id: Date { date }
+}
+
+func observedPoints(_ readings: [Reading]) -> [PlotPoint] {
+    let ordered = readings.sorted { $0.sourceAt < $1.sourceAt }
+    var previous: Date?
+    var segment = 0
+    return ordered.map { reading in
+        if let previous, reading.date.timeIntervalSince(previous) > 600 { segment += 1 }
+        previous = reading.date
+        return PlotPoint(date: reading.date, value: reading.value, segment: segment)
+    }
+}

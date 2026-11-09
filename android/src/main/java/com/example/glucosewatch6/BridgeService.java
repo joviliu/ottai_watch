@@ -79,6 +79,7 @@ public final class BridgeService extends Service {
         deliveryWakeLock = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "GlucoseWatch6:delivery");
         deliveryWakeLock.setReferenceCounted(false);
         running = this;
+        CloudSync.start(this);
         nodes = Wearable.getNodeApi(this);
         messages = Wearable.getMessageApi(this);
         client = ApiClient.getInstance(this);
