@@ -24,7 +24,7 @@ struct StatusStates: View {
         HStack {
             Text(title).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 42, alignment: .leading)
             Spacer(minLength: 6)
-            StatusBadge(reading: reading, now: now)
+            Image(nsImage: StatusBadge.menuImage(reading: reading, now: now))
         }.frame(height: 22)
     }
 }
@@ -33,9 +33,12 @@ struct StatusStates: View {
 struct StatusPreview {
     @MainActor static func main() throws {
         let now = Date()
+        assert(NSFont(name: "HelveticaNeue-Thin", size: 16) != nil)
+        let badge = StatusBadge.menuImage(reading: Reading(sourceAt: now.timeIntervalSince1970 * 1000, value: 6.2, trend: "→"), now: now)
+        assert(badge.isTemplate && badge.size.height == 22 && badge.size.width < 36 && badge.tiffRepresentation != nil)
         let view = VStack(spacing: 10) {
             HStack(spacing: 12) { StatusStates(scheme: .light, now: now); StatusStates(scheme: .dark, now: now) }
-            Text("合成状态预览 · 半重叠血滴 + Avenir Next 数值").font(.system(size: 11)).foregroundStyle(.secondary)
+            Text("合成状态预览 · 合成图像的内嵌细数字").font(.system(size: 11)).foregroundStyle(.secondary)
         }.padding(12).background(Color.white)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 3
