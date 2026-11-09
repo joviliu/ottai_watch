@@ -9,7 +9,7 @@ struct StatusStates: View {
         ("斜降", 6.8, "↘"), ("下降", 4.5, "↓"), ("快降", 3.8, "↓↓")]
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(scheme == .dark ? "深色 · 22pt" : "浅色 · 22pt").font(.system(size: 12, weight: .semibold)).padding(.bottom, 5)
+            Text(scheme == .dark ? "深色 · 18pt" : "浅色 · 18pt").font(.system(size: 12, weight: .semibold)).padding(.bottom, 5)
             ForEach(states, id: \.0) { state in
                 row(state.0, Reading(sourceAt: now.timeIntervalSince1970 * 1000, value: state.1, trend: state.2))
             }
@@ -35,7 +35,7 @@ struct StatusPreview {
         let now = Date()
         assert(NSFont(name: "HelveticaNeue-Thin", size: 16) != nil)
         let badge = StatusBadge.menuImage(reading: Reading(sourceAt: now.timeIntervalSince1970 * 1000, value: 6.2, trend: "→"), now: now)
-        assert(badge.isTemplate && badge.size.height == 22 && badge.size.width < 36 && badge.tiffRepresentation != nil)
+        assert(badge.isTemplate && badge.size.height == 18 && badge.size.width < 30 && badge.tiffRepresentation != nil)
         let view = VStack(spacing: 10) {
             HStack(spacing: 12) { StatusStates(scheme: .light, now: now); StatusStates(scheme: .dark, now: now) }
             Text("合成状态预览 · 合成图像的内嵌细数字").font(.system(size: 11)).foregroundStyle(.secondary)

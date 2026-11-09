@@ -26,10 +26,12 @@ struct StatusBadge: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            BloodDrop().fill(Color.primary.opacity(0.25)).frame(width: 22, height: 22)
+            BloodDrop().fill(Color.primary.opacity(0.48))
+                .overlay(BloodDrop().stroke(Color.primary.opacity(0.62), lineWidth: 0.6))
+                .frame(width: 16, height: 22)
             Text(reading?.display ?? "—")
                 .font(.custom("HelveticaNeue-Thin", size: 16)).monospacedDigit()
-                .padding(.leading, 5).offset(y: 1)
+                .padding(.leading, 3).offset(y: 1)
         }
         .foregroundStyle(.primary)
         .padding(.horizontal, 2).frame(height: 22)
@@ -46,6 +48,7 @@ struct StatusBadge: View {
             .environment(\.colorScheme, .light))
         renderer.scale = 3
         let image = renderer.nsImage ?? NSImage(size: NSSize(width: 30, height: 22))
+        image.size = NSSize(width: image.size.width * 18 / 22, height: 18)
         image.isTemplate = true
         return image
     }
