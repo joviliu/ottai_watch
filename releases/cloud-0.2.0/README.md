@@ -1,9 +1,9 @@
-# 手机云同步 0.2.0 / Mac 0.2.9
+# 手机云同步 0.2.0 / Mac 0.2.10
 
 2026-11-09。此包增加手机 → Ali 持久保存、Mac 状态栏与通知中心曲线、每日观察报告；保留现有 Redmi 手表链路，手表应用和表盘不需要重装。
 
 - `glucose-watch6-0.2.0.apk`：Android 0.2.0/code13，同一原签名。覆盖升级保留已有设置，新增云同步页；配置只在本机导入，包内没有令牌。
-- `OttaiMirror-0.2.9-macos.zip`：macOS15+，含arm64/x86_64主应用与真正WidgetKit扩展，本地ad-hoc签名；未notarize。推荐使用源码中的安装脚本导入私密配置并设置下一次登录启动，见[Mac安装说明](../../macos/README.md)。
+- `OttaiMirror-0.2.10-macos.zip`：macOS15+，含arm64/x86_64主应用与真正WidgetKit扩展，本地ad-hoc签名；未notarize。推荐使用源码中的安装脚本导入私密配置并设置下一次登录启动，见[Mac安装说明](../../macos/README.md)。
 - `menubar-synthetic.png`、`widget-synthetic.png`：合成数据的原生视图预览，不是正式健康资料或通知中心截图。
 
 ```sh
@@ -11,7 +11,7 @@ cd releases/cloud-0.2.0
 shasum -a 256 -c SHA256SUMS
 ```
 
-正式手机上传、Ali查询、重启保留与备份恢复已验。原Widget空白定位为共享文件访问被系统拒绝；0.2.9改用组件自己的沙盒、HTTPS只读连接及私密缓存，真实Provider已成功，用户确认组件有数据。之后真实Provider缓存的源时间已自然推进。状态栏样式的最终状态以[接续记录](../../docs/CLOUD_SYNC_HANDOFF.md)为准。
+正式手机上传、Ali查询、重启保留与备份恢复已验。原Widget空白定位为共享文件访问被系统拒绝；0.2.10改用组件自己的沙盒、HTTPS只读连接及私密缓存，真实Provider已成功，用户确认组件有数据。之后真实Provider缓存的源时间已自然推进。状态栏样式的最终状态以[接续记录](../../docs/CLOUD_SYNC_HANDOFF.md)为准。
 
 每日08:15（Asia/Shanghai）尝试一份同时比较近期/更远历史的报告。正式源资料自然跨度超过72h才开始；真实模型调用仅在临时合成四天数据库完成，未将合成资料混入正式数据库。长期自然日报效果、WidgetKit刷新预算和多日断线恢复仍需使用中观察。统计/分析不是诊断或用药建议。
 

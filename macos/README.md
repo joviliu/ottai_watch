@@ -1,8 +1,8 @@
 # macOS 血糖镜像
 
-原生 SwiftUI 菜单栏应用与 WidgetKit 通知中心组件，最低 macOS 15。0.2.9 修复了真实小组件空白：此前扩展能找到 App Group，但系统拒绝读取快照（`permission_denied`），CFPreferences 也没有得到数据。现在组件在自己的沙盒内，以独立只读连接通过 HTTPS 读取 Ali，并保存自己的 0600 缓存；不再依赖主应用的共享文件。保留 sandbox，仅增加标准 `network.client` 权限，没有关闭证书校验或绕过文件保护。
+原生 SwiftUI 菜单栏应用与 WidgetKit 通知中心组件，最低 macOS 15。0.2.10 修复了真实小组件空白：此前扩展能找到 App Group，但系统拒绝读取快照（`permission_denied`），CFPreferences 也没有得到数据。现在组件在自己的沙盒内，以独立只读连接通过 HTTPS 读取 Ali，并保存自己的 0600 缓存；不再依赖主应用的共享文件。保留 sandbox，仅增加标准 `network.client` 权限，没有关闭证书校验或绕过文件保护。
 
-菜单栏将 Helvetica Neue Thin 细长数字与浅色血滴渲染为单张 template 图像，数字大半嵌入水滴；水滴由22pt收窄到16pt，底色48%与细轮廓提高辨识度，整组再等比缩小至18pt高以协调系统菜单图标，去掉菜单栏趋势箭头；详情和组件仍有趋势。这避免系统将 Image/Text 标签重新分开排版。单实例保护使用当前用户私密目录内的原子 `flock`，兼容识别升级前进程。重复启动转交详情请求后退出；安装时退出旧实例、移除构建副本登记，只登记已安装应用。点击小组件通过 AppKit 打开详情窗口。
+菜单栏将 Helvetica Neue Thin 细长数字与浅色血滴渲染为单张 template 图像，数字大半嵌入水滴；水滴收窄为16:22比例后整体缩为18pt高，使用实心底；CoreGraphics XOR将重叠数字镂空为菜单栏原底色，外侧数字仍为前景色，去掉菜单栏趋势箭头；详情和组件仍有趋势。这避免系统将 Image/Text 标签重新分开排版。单实例保护使用当前用户私密目录内的原子 `flock`，兼容识别升级前进程。重复启动转交详情请求后退出；安装时退出旧实例、移除构建副本登记，只登记已安装应用。点击小组件通过 AppKit 打开详情窗口。
 
 主应用每五分钟读取同一 `/api/v1/dashboard`，更新菜单栏并请求 WidgetKit 重载。组件自己的 TimelineProvider 异步获取数据，即使主应用退出仍有独立获取路径。系统决定实际刷新预算，不能保证严格五分钟到达；组件保留测量时刻，并在读数超过十分钟后灰显，不将缓存当成新读数。网络失败保留最近快照。参考 Apple 的 [网络请求说明](https://developer.apple.com/documentation/widgetkit/making-network-requests-in-a-widget-extension) 和 [刷新机制](https://developer.apple.com/documentation/widgetkit/keeping-a-widget-up-to-date)。
 

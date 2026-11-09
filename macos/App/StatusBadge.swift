@@ -1,54 +1,42 @@
 import AppKit
-import SwiftUI
+import CoreText
 
-private struct BloodDrop: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addCurve(to: CGPoint(x: rect.minX, y: rect.height * 0.65),
-                      control1: CGPoint(x: rect.width * 0.38, y: rect.height * 0.22),
-                      control2: CGPoint(x: rect.minX, y: rect.height * 0.40))
-        path.addCurve(to: CGPoint(x: rect.maxX, y: rect.height * 0.65),
-                      control1: CGPoint(x: rect.minX, y: rect.height * 1.12),
-                      control2: CGPoint(x: rect.maxX, y: rect.height * 1.12))
-        path.addCurve(to: CGPoint(x: rect.midX, y: rect.minY),
-                      control1: CGPoint(x: rect.maxX, y: rect.height * 0.40),
-                      control2: CGPoint(x: rect.width * 0.62, y: rect.height * 0.22))
-        path.closeSubpath()
-        return path
-    }
-}
-
-struct StatusBadge: View {
-    let reading: Reading?
-    let now: Date
-    private var stale: Bool { reading?.isStale(at: now) ?? true }
-
-    var body: some View {
-        ZStack(alignment: .leading) {
-            BloodDrop().fill(Color.primary.opacity(0.48))
-                .overlay(BloodDrop().stroke(Color.primary.opacity(0.62), lineWidth: 0.6))
-                .frame(width: 16, height: 22)
-            Text(reading?.display ?? "—")
-                .font(.custom("HelveticaNeue-Thin", size: 16)).monospacedDigit()
-                .padding(.leading, 3).offset(y: 1)
-        }
-        .foregroundStyle(.primary)
-        .padding(.horizontal, 2).frame(height: 22)
-        .opacity(stale ? 0.48 : 1)
-        .fixedSize()
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("血糖 \(reading?.display ?? "暂无")，趋势 \(reading?.displayTrend ?? "未知")，\(stale ? "待更新" : "已更新")")
-        .help(reading.map { "血糖 \($0.display) mmol/L · \($0.displayTrend) · \(DisplayTime.time($0.date))\(stale ? " · 旧读数" : "")" } ?? "血糖镜像 · 等待数据")
-    }
-
+enum StatusBadge {
     @MainActor static func menuImage(reading: Reading?, now: Date) -> NSImage {
-        // MenuBarExtra separates Image/Text labels; render one template image to preserve overlap.
-        let renderer = ImageRenderer(content: StatusBadge(reading: reading, now: now)
-            .environment(\.colorScheme, .light))
-        renderer.scale = 3
-        let image = renderer.nsImage ?? NSImage(size: NSSize(width: 30, height: 22))
-        image.size = NSSize(width: image.size.width * 18 / 22, height: 18)
+        let text = NSAttributedString(string: reading?.display ?? "—", attributes: [
+            .font: NSFont(name: "HelveticaNeue-Thin", size: 16) ?? NSFont.systemFont(ofSize: 16, weight: .thin),
+            .foregroundColor: NSColor.black
+        ])
+        let line = CTLineCreateWithAttributedString(text)
+        let width = max(16, CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil)) + 3) + 4
+        let scale: CGFloat = 18 / 22
+        let size = NSSize(width: width * scale, height: 18)
+        guard let context = CGContext(data: nil, width: Int(ceil(size.width * 3)), height: 54,
+                                      bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return NSImage(size: size)
+        }
+        context.scaleBy(x: 3 * scale, y: 3 * scale)
+        context.setAlpha(reading?.isStale(at: now) ?? true ? 0.48 : 1)
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        context.setFillColor(NSColor.black.cgColor)
+        let drop = CGMutablePath()
+        drop.move(to: CGPoint(x: 10, y: 22))
+        drop.addCurve(to: CGPoint(x: 2, y: 7.7), control1: CGPoint(x: 8.08, y: 17.16), control2: CGPoint(x: 2, y: 13.2))
+        drop.addCurve(to: CGPoint(x: 18, y: 7.7), control1: CGPoint(x: 2, y: -2.2), control2: CGPoint(x: 18, y: -2.2))
+        drop.addCurve(to: CGPoint(x: 10, y: 22), control1: CGPoint(x: 18, y: 13.2), control2: CGPoint(x: 11.92, y: 17.16))
+        drop.closeSubpath()
+        context.addPath(drop)
+        context.fillPath()
+        // XOR cuts digits out inside the solid drop and keeps them opaque outside it.
+        context.setBlendMode(.xor)
+        context.textMatrix = .identity
+        context.textPosition = CGPoint(x: 5, y: 4)
+        CTLineDraw(line, context)
+        context.endTransparencyLayer()
+        guard let bitmap = context.makeImage() else { return NSImage(size: size) }
+        let image = NSImage(cgImage: bitmap, size: size)
+        // A single template image preserves overlap and adapts to the actual menu-bar background.
         image.isTemplate = true
         return image
     }
