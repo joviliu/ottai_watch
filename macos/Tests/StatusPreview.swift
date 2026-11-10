@@ -58,7 +58,7 @@ struct StatusPreview {
                                 bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
                                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         context.scaleBy(x: scale, y: scale)
-        let font = NSFont(name: "HelveticaNeue", size: 16 * 18 / 22)!
+        let font = NSFont(name: "HelveticaNeue", size: 14)!
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: NSColor.black]))
         context.textMatrix = .identity
         context.textPosition = CGPoint(x: 8, y: 4 * 18 / 22)
@@ -98,7 +98,7 @@ struct StatusPreview {
 
     @MainActor static func main() throws {
         let now = Date(timeIntervalSince1970: 1_794_290_400)
-        assert(NSFont(name: "HelveticaNeue", size: 16 * 18 / 22) != nil)
+        assert(NSFont(name: "HelveticaNeue", size: 14) != nil)
         for value in [3.9, 6.2, 7.8] {
             let reading = Reading(sourceAt: now.timeIntervalSince1970 * 1000, value: value, trend: "→")
             let badge = StatusBadge.menuImage(reading: reading, now: now)

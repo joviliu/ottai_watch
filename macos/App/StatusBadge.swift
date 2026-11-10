@@ -28,7 +28,7 @@ enum StatusBadge {
         let warning = low || high
         let iconOpacity: CGFloat = warning ? 0.65 : 0.40
         let value = reading?.display ?? "—"
-        let font = NSFont(name: "HelveticaNeue", size: 16 * 18 / 22) ?? NSFont.systemFont(ofSize: 16 * 18 / 22, weight: .regular)
+        let font = NSFont(name: "HelveticaNeue", size: 14) ?? NSFont.systemFont(ofSize: 14, weight: .regular)
         let origin = CGPoint(x: 8, y: 4 * 18 / 22)
         let measure = CTLineCreateWithAttributedString(NSAttributedString(string: value, attributes: [.font: font]))
         let size = NSSize(width: origin.x + CGFloat(CTLineGetTypographicBounds(measure, nil, nil, nil)) + 2, height: 16.2)
@@ -49,8 +49,6 @@ enum StatusBadge {
             let circle = CGRect(x: 0.7, y: 0.7, width: 14.8, height: 14.8)
             context.setAlpha(iconOpacity * 0.15)
             context.fillEllipse(in: circle)
-            context.setAlpha(iconOpacity)
-            context.strokeEllipse(in: circle)
             let wave = CGMutablePath()
             wave.move(to: CGPoint(x: 1.8, y: 7))
             wave.addLines(between: [CGPoint(x: 4, y: 7), CGPoint(x: 5.4, y: 11.4), CGPoint(x: 7.5, y: 4.5), CGPoint(x: 9.3, y: 9), CGPoint(x: 14.2, y: 9)])
