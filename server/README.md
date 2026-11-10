@@ -32,7 +32,7 @@ The database, WAL, audit rows, reports and upstream replies are private health d
 ## Run and test
 
 ```sh
-python3 -m unittest server.test_server -v
+python3 -m unittest server.test_server server.test_activity -v
 # With private environment loaded and database directory owned by the service user:
 python3 -m server.app serve
 ```
@@ -48,3 +48,7 @@ Eligibility requires 24h of source span, >=95% observed coverage, no unobserved 
 The endpoint claims before spawning bounded work and immediately returns 202. Clients poll dashboard status; a failed POST must be followed by a status read rather than an automatic paid retry. Dashboard adds `manualAnalysis` (eligibility/state), `rollingAnalysis`, `dailyAnalysis`; the legacy `analysis` field contains the most recently generated result for older clients. The two report bodies retain their own period/trigger and never overwrite one another.
 
 `excursions.py` computes descriptive candidate rises/recoveries without bridging >10min source gaps. A 3-point median locates sustained peaks; whole-window statistics retain original samples. Thresholds are documented heuristics, not validated meal detection or endocrine diagnostics. Censored recovery remains null. The prompt distinguishes observed shapes, approximate meal-review anchors, alternatives and verification; no hormone amount/function or unhealthy diet is inferred as fact. Healthy research descriptors and personal complete-day baselines are explicitly labeled and coverage qualified. See the scientific-method document for primary sources.
+
+## Optional Health Connect activity (0.4.0)
+
+The device-only `/api/v1/activity` endpoint ingests atomic, bounded Mi Fitness-origin snapshots; `dashboard.activity` supplies compact original periods and explicit sample summaries. Reports add observed activity context without inferring exercise from heart rate or causation from timing. Manual snapshot identity includes activity corrections while fixed daily reports remain independent. See [ACTIVITY.md](ACTIVITY.md) for the native START-time reconciliation contract, availability/deletion rules, client limits, provenance, scientific boundaries and tests.

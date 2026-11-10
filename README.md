@@ -1,12 +1,15 @@
 # Ottai → Redmi Watch 6 血糖镜像
 
+
+2026-11-10：[手机0.4.0](releases/cloud-0.4.0/README.md)新增官方 Health Connect 的运动/心率/步数时序接入，云端固定日报和动态24h分析加入活动背景；手机调整为浅彩背景与白色卡片。授权、时间粒度及验收边界见 [Health Connect接续文档](docs/HEALTH_CONNECT.md)。官方小米运动健康、现有手表应用与表盘保留。
+
 2026-11-10：[运动/历史心率关联可行性核查](docs/ACTIVITY_INTEGRATION_FEASIBILITY.md)确认当前官方运动健康声明Health Connect写权限、系统服务存在，但尚未授权/验证真实输出；活动曲线和AI关联接入仍是后续开发范围。
 
 2026-11-10：[Mac0.3.0](releases/cloud-0.3.0/README.md)加入动态24h主动分析与前一自然日固定日报的独立存储/文本区切换。动态分析在完整性门槛通过后可用，每30min至多一次，同快照复用；自动日报每天08:15、累计真实资料超过72h后运行。含候选餐后样波动、健康研究参考及自身近期/较早历史比较，方法见[科学依据](docs/CGM_ANALYSIS_METHOD.md)。刷新改为图标，设置移至独立窗口。
 
 2026-11-09 新功能：手机通知读数在原手表链路外独立排队上传 Ali；新增 Mac 菜单栏数值/趋势、24h 曲线、WidgetKit 通知中心组件及每日观察报告。每天的同一份报告同时比较近期和更长历史，没有单独周报调用。入口见 [云同步与 Mac 接续文档](docs/CLOUD_SYNC_HANDOFF.md)、[科学方法](docs/CGM_ANALYSIS_METHOD.md)、[服务端](server/README.md) 和 [Mac](macos/README.md)。
 
-当前云通路已部署：手机0.2.0完成正式上传及后台两轮自然更新；Ali持久化/重启保留、备份隔离恢复通过。Mac0.2.10移除刷新时的钥匙串读取，状态栏为半重叠水滴与Helvetica Neue Thin数值。通知中心空白已定位为共享文件权限拒绝，改为组件在自己的沙盒独立HTTPS读取；真实Provider已收到正式资料，屏显与后续刷新以[接续记录](docs/CLOUD_SYNC_HANDOFF.md)为准。每天08:15尝试一份含长短期比较的报告，正式资料超过72h才开始；临时合成数据库的真实模型链路已通过。官方小米运动健康继续保留，RPK/表盘本轮未升级。[发布包](releases/cloud-0.2.0/README.md)不包含私密配置。下文0.1.x版本及此前手表验收属于历史记录。
+2026-11-09云通路基线：手机0.2.0完成正式上传及后台两轮自然更新；Ali持久化/重启保留、备份隔离恢复通过。Mac0.2.10移除刷新时的钥匙串读取，状态栏为半重叠水滴与Helvetica Neue Thin数值。通知中心空白已定位为共享文件权限拒绝，改为组件在自己的沙盒独立HTTPS读取；真实Provider已收到正式资料，屏显与后续刷新以[接续记录](docs/CLOUD_SYNC_HANDOFF.md)为准。每天08:15尝试一份含长短期比较的报告，正式资料超过72h才开始；临时合成数据库的真实模型链路已通过。官方小米运动健康继续保留，RPK/表盘本轮未升级。[发布包](releases/cloud-0.2.0/README.md)不包含私密配置。下文0.1.x版本及此前手表验收属于历史记录。
 
 2026-10-30：针对每天同一时段配色疑似重复的反馈，已复现并修复选色器的低精度 Lua 兼容缺陷，三款 [0.1.18 安装包](releases/0.1.18/README.md) 已准备、尚未真机覆盖。32 组配色/切换点/字体/布局保持；当前手表仍为下述已验收版本，手机保留官方运动健康。此次未读取实际手表 Lua 编译配置，不将桌面复现直接当作真机根因或新包验收。
 
@@ -53,7 +56,7 @@ git clone git@github.com:joviliu/ottai_watch.git
 cd ottai_watch
 ```
 
-**直接安装**：手机 APK 使用[0.2.0云同步版](releases/cloud-0.2.0/README.md)，Signal 使用 [0.1.17](releases/0.1.17/README.md)，Meridian 使用 [0.1.16](releases/0.1.16/README.md)，Ultra 沿用 0.1.14，手表应用为 [RPK 0.1.12](releases/watch-0.1.12/README.md)。先核对各目录 SHA256SUMS，按 [安装文档](docs/install.md) 和 [交接记录](docs/HANDOFF.md) 确认实际版本，勿重复清除已有数据。表盘通过 [SPP 临时安装器](tools/spp-installer/README.md) 上传，使用自己设备的合法配对凭据，结束卸载。官方版曾通过日常同步，但本轮上传在其环境下中断；修改版对照已完成三款上传，不能把这项结果直接解释为官方禁止表盘安装。修改版已确认可覆盖升级 RPK；官方 RPK 侧载入口仍未验。
+**直接安装**：手机 APK 使用[0.4.0活动同步版](releases/cloud-0.4.0/README.md)，Signal 使用 [0.1.17](releases/0.1.17/README.md)，Meridian 使用 [0.1.16](releases/0.1.16/README.md)，Ultra 沿用 0.1.14，手表应用为 [RPK 0.1.12](releases/watch-0.1.12/README.md)。先核对各目录 SHA256SUMS，按 [安装文档](docs/install.md) 和 [交接记录](docs/HANDOFF.md) 确认实际版本，勿重复清除已有数据。表盘通过 [SPP 临时安装器](tools/spp-installer/README.md) 上传，使用自己设备的合法配对凭据，结束卸载。官方版曾通过日常同步，但本轮上传在其环境下中断；修改版对照已完成三款上传，不能把这项结果直接解释为官方禁止表盘安装。修改版已确认可覆盖升级 RPK；官方 RPK 侧载入口仍未验。
 
 **继续开发**：需要 Python 3、Node.js ≥18、JDK ≥17、Android SDK Platform 35 / Build Tools 35.0.0、OpenSSL。先运行不依赖 Android SDK 的测试：
 

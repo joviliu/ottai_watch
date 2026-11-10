@@ -17,9 +17,9 @@ unsigned = build/'unsigned.apk'
 resources = build/'resources.zip'
 run(env['AAPT2'],'compile','--dir',root/'android/src/main/res','-o',resources)
 run(env['AAPT2'],'link','-I',env['FRAMEWORK_RES'],'--manifest',root/'android/src/main/AndroidManifest.xml',resources,'--java',build/'generated','-o',unsigned)
-run(javac,'-d',build/'test',*[sources/f'com/example/glucosewatch6/{name}.java' for name in ('Reading','FaceSyncPolicy','CloudPolicy')],
-    *[root/f'android/test/{name}Test.java' for name in ('Reading','FaceSyncPolicy','CloudPolicy')])
-for name in ('Reading','FaceSyncPolicy','CloudPolicy'):
+run(javac,'-d',build/'test',*[sources/f'com/example/glucosewatch6/{name}.java' for name in ('Reading','FaceSyncPolicy','CloudPolicy','HealthPolicy','ActivitySyncPolicy')],
+    *[root/f'android/test/{name}Test.java' for name in ('Reading','FaceSyncPolicy','CloudPolicy','HealthPolicy','ActivitySyncPolicy')])
+for name in ('Reading','FaceSyncPolicy','CloudPolicy','HealthPolicy','ActivitySyncPolicy'):
     run(java,'-cp',build/'test',f'com.example.glucosewatch6.{name}Test')
 sdk = root/'android/vendor/sdk/main'
 framework = build/'framework.aidl'

@@ -12,7 +12,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public final class MainActivity extends Activity {
-    private TextView reading, details, cloudStatus;
+    private TextView reading, details, cloudStatus, healthStatus;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refresh = new Runnable() {
         public void run() { render(); handler.postDelayed(this, 60000); }
@@ -24,45 +24,53 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         android.service.notification.NotificationListenerService.requestRebind(new android.content.ComponentName(this,OttaiMetadataListener.class));
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int)(24 * getResources().getDisplayMetrics().density);
-        box.setPadding(pad, pad * 2, pad, pad);
-        TextView title = new TextView(this); title.setText("血糖镜像 · Redmi Watch 6"); title.setTextSize(22); box.addView(title);
-        reading = new TextView(this); reading.setTextSize(46); box.addView(reading);
-        details = new TextView(this); details.setTextSize(16); box.addView(details);
-        cloudStatus = new TextView(this); cloudStatus.setTextSize(14); box.addView(cloudStatus);
-        button(box, "云同步 / 每日血糖观察", () -> startActivity(new Intent(this, CloudActivity.class)));
-        button(box, "启动 / 重新连接", () -> BridgeService.start(this, false));
-        button(box, "打开手表应用", () -> BridgeService.start(this, true));
-        button(box, "允许读取欧态通知", () -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
-        Switch faceMode = new Switch(this);
-        faceMode.setText("表盘自动同步\n新读数到达且后台未送达时，短暂打开同步并自动返回");
+        LinearLayout box=MobileStyle.page(this);
+        MobileStyle.text(box,"血糖镜像",27,MobileStyle.INK,true);
+        MobileStyle.text(box,"欧态 · Redmi Watch 6",14,MobileStyle.MUTED,false);
+        LinearLayout current=MobileStyle.card(box);
+        MobileStyle.text(current,"当前血糖",14,MobileStyle.MUTED,true);
+        reading=MobileStyle.text(current,"--",54,MobileStyle.BLUE,false);
+        reading.setTypeface(android.graphics.Typeface.create("sans-serif-light",android.graphics.Typeface.NORMAL));
+        details=MobileStyle.text(current,"",14,MobileStyle.MUTED,false);
+        LinearLayout cloud=MobileStyle.card(box);
+        MobileStyle.text(cloud,"趋势与观察",19,MobileStyle.INK,true);
+        cloudStatus=MobileStyle.text(cloud,"",14,MobileStyle.MUTED,false);
+        button(cloud,"云同步 / 每日血糖观察  →",()->startActivity(new Intent(this,CloudActivity.class)));
+        LinearLayout health=MobileStyle.card(box);
+        MobileStyle.text(health,"运动与心率",19,MobileStyle.INK,true);
+        healthStatus=MobileStyle.text(health,"",14,MobileStyle.MUTED,false);
+        button(health,"Health Connect 连接与权限  →",()->startActivity(new Intent().setClassName(this,getPackageName()+".HealthActivity")));
+        LinearLayout watch=MobileStyle.card(box);
+        MobileStyle.text(watch,"手表连接",19,MobileStyle.INK,true);
+        button(watch,"启动 / 重新连接",()->BridgeService.start(this,false));
+        button(watch,"打开手表应用",()->BridgeService.start(this,true));
+        Switch faceMode=new Switch(this);
+        faceMode.setText("表盘自动同步");faceMode.setTextColor(MobileStyle.INK);faceMode.setTextSize(16);
+        faceMode.setPadding(0,MobileStyle.dp(this,18),0,MobileStyle.dp(this,10));
+        faceMode.setThumbTintList(android.content.res.ColorStateList.valueOf(MobileStyle.BLUE));
         faceMode.setChecked(getSharedPreferences(ReadingStore.PREFS,0).getBoolean("faceMode",false));
-        faceMode.setOnCheckedChangeListener((button,enabled) -> {
+        faceMode.setOnCheckedChangeListener((button,enabled)-> {
             getSharedPreferences(ReadingStore.PREFS,0).edit().putBoolean("faceMode",enabled).apply();
             BridgeService.start(this,false);
         });
-        box.addView(faceMode);
-        TextView note = new TextView(this);
-        note.setText("来源：欧态通知\n无数据时显示 --；超过 10 分钟标记为旧数据。");
-        box.addView(note);
-        ScrollView scroll = new ScrollView(this); scroll.addView(box); setContentView(scroll);
+        watch.addView(faceMode);
+        MobileStyle.text(watch,"新读数到达且后台未送达时，短暂打开同步并自动返回。",13,MobileStyle.MUTED,false);
+        button(watch,"允许读取欧态通知",()->startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+        MobileStyle.text(box,"无数据时显示 --；超过 10 分钟标记为旧数据。",12,MobileStyle.MUTED,false);
         ArrayList<String> permissions = new ArrayList<>();
         if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_CONNECT);
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.POST_NOTIFICATIONS);
         if (!permissions.isEmpty()) requestPermissions(permissions.toArray(new String[0]), 1);
         else BridgeService.start(this, false);
     }
-    private void button(LinearLayout box, String label, Runnable action) {
-        Button button = new Button(this); button.setText(label); button.setOnClickListener(v -> action.run()); box.addView(button);
-    }
+    private void button(LinearLayout box,String label,Runnable action) { MobileStyle.button(box,label,action); }
     private void render() {
-        cloudStatus.setText("云端："+CloudSync.status(this));
+        cloudStatus.setText(CloudSync.status(this));
+        healthStatus.setText(HealthConnectBridge.statusText(this));
         try {
             String raw = ReadingStore.frame(this);
             String info = "等待真实数据";
-            String valueText = "-- mmol/L";
+            String valueText = "--";
             if (!raw.isEmpty()) {
                 JSONObject frame = new JSONObject(raw);
                 long at = frame.getLong("sourceAt");

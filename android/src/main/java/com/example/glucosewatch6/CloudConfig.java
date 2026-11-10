@@ -16,7 +16,7 @@ final class CloudConfig {
     private static final String KEY = "ottai-cloud-device-token";
     static SharedPreferences prefs(Context c) { return c.getSharedPreferences(PREFS, 0); }
     static String endpoint(Context c) { return prefs(c).getString("endpoint", ""); }
-    static String token(Context c) throws Exception {
+    static synchronized String token(Context c) throws Exception {
         String saved = prefs(c).getString("token", "");
         if (saved.isEmpty()) return "";
         String[] parts = saved.split(":");
@@ -26,7 +26,14 @@ final class CloudConfig {
         return new String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), java.nio.charset.StandardCharsets.UTF_8);
     }
     static boolean configured(Context c) { return !endpoint(c).isEmpty() && !prefs(c).getString("token", "").isEmpty(); }
-    static void save(Context c, String endpoint, String token) throws Exception {
+    static final class Connection {
+        final String endpoint, token;
+        Connection(String endpoint,String token) { this.endpoint=endpoint;this.token=token; }
+    }
+    static synchronized Connection connection(Context c) throws Exception {
+        return new Connection(endpoint(c),token(c));
+    }
+    static synchronized void save(Context c, String endpoint, String token) throws Exception {
         String address = CloudPolicy.endpoint(endpoint);
         if (token.isEmpty()) token = token(c);
         if (!CloudPolicy.validToken(token)) throw new IllegalArgumentException("请填写至少 16 位的设备上传令牌");

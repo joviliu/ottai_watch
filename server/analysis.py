@@ -13,6 +13,7 @@ from urllib.request import Request, HTTPRedirectHandler, ProxyHandler, build_ope
 from .statistics import DAY, analysis_input
 from .excursions import candidate_excursions, day_quality
 from .storage import now_ms
+from .activity import analysis_context
 
 SOURCES = [
     {'title': 'International Consensus on Time in Range (2019)',
@@ -29,6 +30,10 @@ SOURCES = [
      'url': 'https://www.ncbi.nlm.nih.gov/books/NBK279127/'},
     {'title': 'CGM-only meal detection in healthy adults (2026)',
      'url': 'https://doi.org/10.1038/s41598-026-50699-5'},
+    {'title': 'ADA Physical Activity/Exercise Position Statement (2016)',
+     'url': 'https://doi.org/10.2337/dc16-1728'},
+    {'title': 'ACSM Exercise/Physical Activity Consensus Statement (2022)',
+     'url': 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8802999/'},
     {'title': 'Shah et al. CGM Profiles in Healthy Nondiabetic Participants (2019)',
      'url': 'https://pubmed.ncbi.nlm.nih.gov/31127824/'},
 ]
@@ -165,7 +170,7 @@ def parse_response(response):
     return result
 
 
-def _report_body(readings, end, trigger, date, now, invoke, request_identity):
+def _report_body(readings, end, trigger, date, now, invoke, request_identity, activity=None):
     data = analysis_input(readings, end)
     data['trigger'] = trigger
     data['periodMeaning'] = ('固定前一自然日00:00–24:00' if trigger == 'scheduled_daily' else '截至最新测量的滚动24小时')
@@ -173,6 +178,10 @@ def _report_body(readings, end, trigger, date, now, invoke, request_identity):
     data['previous24hQuality'] = day_quality([r for r in readings if r['sourceAt'] <= end-DAY], end-DAY)
     data['candidateExcursions'] = candidate_excursions(readings, end-DAY, end)
     data['previous24hExcursions'] = candidate_excursions(readings, end-2*DAY, end-DAY)
+    if activity is not None:
+        data['activity'] = {
+            'latest24h': analysis_context(activity, readings, end-DAY, end, now, data['candidateExcursions']),
+            'previous24h': analysis_context(activity, readings, end-2*DAY, end-DAY, now, data['previous24hExcursions'])}
     request = response_request(data, date, os.environ.get('OPENAI_MODEL', 'gpt-6.1-terra'))
     result = parse_response((invoke or relay_post)(request, request_identity))
     limits = list(result['limitations']) + data['windows']['latest24h']['limitations']
@@ -180,7 +189,8 @@ def _report_body(readings, end, trigger, date, now, invoke, request_identity):
         limits.append('累计观察不足14天；当前为初步观察，不代表稳定长期模式。')
     result.update(status='ready', generatedAt=now_ms(), reportDate=date,
                   periodStart=end-DAY, periodEnd=end, limitations=list(dict.fromkeys(limits)),
-                  sources=SOURCES, methodVersion='cgm-observation-2', trigger=trigger)
+                  sources=SOURCES, methodVersion='cgm-observation-3', trigger=trigger,
+                  activityContextIncluded=activity is not None)
     return result
 
 
@@ -202,7 +212,8 @@ def generate_daily(store, now=None, invoke=None):
     try:
         rows = store.readings(end-365*DAY-300000, end)
         with store.analysis_lock():
-            body = _report_body(rows, end, 'scheduled_daily', date, now, invoke, 'daily:'+date)
+            body = _report_body(rows, end, 'scheduled_daily', date, now, invoke, 'daily:'+date,
+                                store.activity_snapshot(end-2*DAY,end))
         store.finish_report(date, now_ms(), body=body)
         return {'status': 'ready', 'reportDate': date}
     except Exception as error:
@@ -211,9 +222,9 @@ def generate_daily(store, now=None, invoke=None):
         return {'status': 'error', 'reportDate': date, 'errorCode': code}
 
 
-def _snapshot_id(points, end):
+def _snapshot_id(points, end, activity_digest=None):
     observed = [[r['sourceAt'],r['value'],r['trend']] for r in points if end-2*DAY-300000 <= r['sourceAt'] <= end]
-    return hashlib.sha256(json.dumps(['manual-v2', end, observed], separators=(',', ':')).encode()).hexdigest()
+    return hashlib.sha256(json.dumps(['manual-v3', end, observed, activity_digest], separators=(',', ':')).encode()).hexdigest()
 
 
 def manual_report_view(store):
@@ -229,14 +240,15 @@ def manual_report_view(store):
     return body
 
 
-def manual_status(store, now=None, points=None):
+def manual_status(store, now=None, points=None, activity=None):
     now = now if now is not None else now_ms()
     points = points if points is not None else store.readings(now-2*DAY-300000, now)
     end = points[-1]['sourceAt'] if points else now
     quality = day_quality(points, end)
     if now-end > 10*60000:
         quality.update(ready=False, latestFresh=False, reason=quality['reason']+' 请先恢复最新读数同步。')
-    key = _snapshot_id(points, end)
+    activity_digest = activity['digest'] if activity is not None else store.activity_identity(end-2*DAY,end)
+    key = _snapshot_id(points, end, activity_digest)
     same = store.manual_report(key)
     last = store.manual_report()
     cooldown = max(0, (last['started_at']+30*60000-now)//1000) if last else 0
@@ -256,11 +268,12 @@ def manual_status(store, now=None, points=None):
                 status=status, reason=reason, cooldownSeconds=cooldown, windowEnd=end, snapshotId=key)
 
 
-def generate_manual(store, key, end, rows, now, invoke=None):
+def generate_manual(store, key, end, rows, now, invoke=None, activity=None):
     date = datetime.fromtimestamp(end/1000, timezone(timedelta(hours=8))).date().isoformat()
     try:
         with store.analysis_lock():
-            body = _report_body(rows, end, 'manual24h', date, now, invoke, 'manual:'+key)
+            body = _report_body(rows, end, 'manual24h', date, now, invoke, 'manual:'+key,
+                                activity if activity is not None else store.activity_snapshot(end-2*DAY,end))
         store.finish_manual(key, now_ms(), body=body)
     except Exception as error:
         code = str(error) if isinstance(error, AnalysisError) else 'analysis_internal_error'
@@ -270,7 +283,9 @@ def generate_manual(store, key, end, rows, now, invoke=None):
 def request_manual(store, now=None, launch=None):
     now = now if now is not None else now_ms()
     rows = store.readings(now-366*DAY, now)
-    status = manual_status(store, now, points=rows)
+    end = rows[-1]['sourceAt'] if rows else now
+    activity = store.activity_snapshot(end-2*DAY,end)
+    status = manual_status(store, now, points=rows, activity=activity)
     if not status['eligible']:
         return (200 if status['status'] in ('ready', 'running') else 409), status
     key, end = status['snapshotId'], status['windowEnd']
@@ -278,7 +293,7 @@ def request_manual(store, now=None, launch=None):
     if claimed != 'created':
         return (200 if claimed == 'existing' else 409), manual_status(store, now)
     def run():
-        generate_manual(store, key, end, rows, now)
+        generate_manual(store, key, end, rows, now, activity=activity)
     try:
         if launch is None:
             threading.Thread(target=run, name='ottai-manual-analysis', daemon=True).start()

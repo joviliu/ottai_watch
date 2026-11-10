@@ -85,7 +85,8 @@ def candidate_excursions(readings, start, end):
             rise_minutes = (peak_at-at)/MINUTE
             fall_minutes = (last_at-peak_at)/MINUTE
             peak_value = smooth[peak]
-            events.append({'riseStartLocal': clock(at), 'peakLocal': clock(peak_at), 'endLocal': clock(last_at),
+            events.append({'riseStartAt': at, 'peakAt': peak_at, 'endAt': last_at,
+                           'riseStartLocal': clock(at), 'peakLocal': clock(peak_at), 'endLocal': clock(last_at),
                            'baseline': round_value(baseline), 'sustainedPeak': round_value(peak_value),
                            'riseAmplitude': round_value(peak_value-baseline), 'riseMinutes': round_value(rise_minutes),
                            'riseRatePerMinute': round_value((peak_value-baseline)/rise_minutes, 3) if rise_minutes else None,

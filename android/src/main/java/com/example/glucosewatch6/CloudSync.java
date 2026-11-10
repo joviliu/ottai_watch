@@ -68,6 +68,7 @@ final class CloudSync {
     }
     static void configured(Context c, boolean changedEndpoint) {
         CloudJobService.schedule(c);
+        ActivityCloud.configured(c);
         CloudSync cloud = get(c);
         cloud.submit(() -> {
             if (changedEndpoint) cloud.outbox.resetHeads();
@@ -77,6 +78,8 @@ final class CloudSync {
         });
     }
     static String status(Context c) { return CloudConfig.prefs(c).getString("status", "尚未配置云同步"); }
+    static void requestActivity(Context c, boolean foreground, boolean force) { ActivityCloud.request(c,foreground,force); }
+    static String activityStatus(Context c) { return ActivityCloud.status(c); }
     static void job(Context c, Runnable complete) {
         CloudSync cloud=get(c);
         try { cloud.worker.execute(()-> { try { cloud.bootstrap();cloud.sync(false); } finally { complete.run(); } }); }
@@ -121,6 +124,8 @@ final class CloudSync {
         retry = clock.schedule(() -> request(false), Math.max(1000, delay), TimeUnit.MILLISECONDS);
     }
     private void sync(boolean forceDashboard) {
+        // Separate queue/executor: optional health reads never delay glucose/watch delivery.
+        ActivityCloud.request(context,false,false);
         if (!CloudConfig.configured(context)) { status("云同步未配置；读数继续保存在本机待上传队列"); return; }
         android.content.SharedPreferences prefs=CloudConfig.prefs(context);
         if (prefs.getBoolean("permanent",false)) return;
@@ -189,8 +194,10 @@ final class CloudSync {
     }
     private String http(String method, String path, String body) throws Exception {
         String phase="POST".equals(method)?"upload":"dashboard";
+        stage=phase+"_token";
+        CloudConfig.Connection credentials=CloudConfig.connection(context);
         stage=phase+"_url";
-        URL url=new URL(CloudConfig.endpoint(context)+path);
+        URL url=new URL(credentials.endpoint+path);
         stage=phase+"_open_connection";
         javax.net.ssl.HttpsURLConnection connection=(javax.net.ssl.HttpsURLConnection)url.openConnection();
         try {
@@ -198,7 +205,7 @@ final class CloudSync {
             connection.setInstanceFollowRedirects(false); connection.setConnectTimeout(10000); connection.setReadTimeout(15000);
             connection.setRequestMethod(method);
             stage=phase+"_token";
-            String token=CloudConfig.token(context);
+            String token=credentials.token;
             stage=phase+"_headers";
             connection.setRequestProperty("Authorization","Bearer "+token);connection.setRequestProperty("Accept","application/json");
             byte[] requestBytes=null;

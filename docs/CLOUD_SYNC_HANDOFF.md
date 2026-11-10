@@ -101,3 +101,7 @@ Ali API 为独立进程，配套模板见 [server/deploy](../server/deploy)。�
 - [x] 代码、发布包及校验和已提交；最新CI以[Actions](https://github.com/joviliu/ottai_watch/actions)为准，不以本地测试代替线上结果。
 
 实际更新日期与当前制品见 [云发布包](../releases/cloud-0.2.0/README.md)。正式资料截图、数据库、令牌及签名私钥不得进入公开制品。
+
+## 2026-11-10 Health Connect 0.4.0
+
+Android0.4.0/code14新增独立活动读取和上传通道，服务端新增活动表及`POST /api/v1/activity`，既有schema1 GET兼容Mac0.3.0/组件。最新功能、权限、原生开始时间查询语义、AI活动背景和实际验收请从 [Health Connect](HEALTH_CONNECT.md) 与 [0.4.0发布包](../releases/cloud-0.4.0/README.md) 接续。官方运动健康、绑定、RPK和表盘保留；不要为读取活动重新侧载修改版。正式健康资料与凭据仍不进入仓库。

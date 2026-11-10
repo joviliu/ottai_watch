@@ -7,6 +7,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
 import android.widget.*;
+import android.view.View;
+import android.view.ViewGroup;
+import android.app.AlertDialog;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.*;
@@ -17,7 +20,8 @@ import java.util.Locale;
 
 public final class CloudActivity extends Activity {
     private EditText endpoint, token;
-    private TextView status, metrics, reportTime, summary;
+    private TextView status, metrics, reportTime, summary, latest, latestInfo, activitySummary;
+    private LinearLayout connection;
     private LinearLayout sections;
     private CloudGraph graph;
     private final Handler handler=new Handler(Looper.getMainLooper());
@@ -27,33 +31,55 @@ public final class CloudActivity extends Activity {
     };
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);
-        int pad=(int)(20*getResources().getDisplayMetrics().density);box.setPadding(pad,pad,pad,pad);
-        label(box,"云同步与每日观察",24);
-        label(box,"最近 24 小时及长期趋势每天统一分析。3.9–7.8 是自定义观察范围；CGM 读数不能用于自行诊断糖前期或调整用药。",14);
-        status=label(box,"",15);
-        Button retry=new Button(this);retry.setText("立即同步 / 更新日报");retry.setOnClickListener(v->CloudSync.retryNow(this));box.addView(retry);
-        graph=new CloudGraph(this);box.addView(graph,new LinearLayout.LayoutParams(-1,(int)(220*getResources().getDisplayMetrics().density)));
-        metrics=label(box,"",16);reportTime=label(box,"",14);summary=label(box,"",17);
-        sections=new LinearLayout(this);sections.setOrientation(LinearLayout.VERTICAL);box.addView(sections);
-        label(box,"连接设置",21);
+        LinearLayout box=MobileStyle.page(this);
+        MobileStyle.text(box,"趋势与观察",26,MobileStyle.INK,true);
+        MobileStyle.text(box,"过去 24 小时 · 血糖与活动",14,MobileStyle.MUTED,false);
+        LinearLayout current=MobileStyle.card(box);
+        LinearLayout header=new LinearLayout(this);header.setGravity(android.view.Gravity.CENTER_VERTICAL);current.addView(header);
+        latest=new TextView(this);latest.setText("--");latest.setTextSize(36);latest.setTextColor(MobileStyle.BLUE);
+        latest.setTypeface(android.graphics.Typeface.create("sans-serif-light",0));
+        header.addView(latest,new LinearLayout.LayoutParams(0,-2,1));
+        Button retry=new Button(this);retry.setText("↻");retry.setTextSize(28);retry.setTextColor(MobileStyle.BLUE);
+        retry.setContentDescription("立即同步并刷新");retry.setAllCaps(false);retry.setMinWidth(0);retry.setMinimumWidth(0);
+        retry.setPadding(0,0,0,0);retry.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x203f78ee),MobileStyle.rounded(this,0x00ffffff,24),null));
+        header.addView(retry,new LinearLayout.LayoutParams(MobileStyle.dp(this,48),MobileStyle.dp(this,48)));
+        retry.setOnClickListener(v-> { v.animate().rotationBy(360).setDuration(450).start();CloudSync.retryNow(this);CloudSync.requestActivity(this,true,true); });
+        latestInfo=MobileStyle.text(current,"mmol/L",13,MobileStyle.MUTED,false);
+        status=MobileStyle.text(current,"",13,MobileStyle.MUTED,false);
+        graph=new CloudGraph(this);current.addView(graph,new LinearLayout.LayoutParams(-1,MobileStyle.dp(this,225)));
+        metrics=MobileStyle.text(current,"",15,MobileStyle.INK,false);
+        LinearLayout health=MobileStyle.card(box);
+        MobileStyle.text(health,"运动与心率",18,MobileStyle.INK,true);
+        activitySummary=MobileStyle.text(health,"",14,MobileStyle.MUTED,false);
+        MobileStyle.button(health,"Health Connect 连接与权限  →",()->startActivity(new Intent().setClassName(this,getPackageName()+".HealthActivity")));
+        LinearLayout report=MobileStyle.card(box);
+        MobileStyle.text(report,"每日观察",20,MobileStyle.VIOLET,true);
+        reportTime=MobileStyle.text(report,"",12,MobileStyle.MUTED,false);summary=MobileStyle.text(report,"",17,MobileStyle.INK,true);
+        sections=MobileStyle.column(this);report.addView(sections);
+        MobileStyle.text(box,"趋势观察不用于确诊、药量调整或替代医生诊疗。",12,MobileStyle.MUTED,false);
+        MobileStyle.button(box,"连接设置",this::showSettings);
+        MobileStyle.button(box,"返回手表连接",()->finish());
+        connection=MobileStyle.column(this);int pad=MobileStyle.dp(this,18);connection.setPadding(pad,pad,pad,pad);
         endpoint=new EditText(this);endpoint.setHint("HTTPS 服务地址（可含路径前缀）");endpoint.setSingleLine(true);
-        endpoint.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);endpoint.setText(CloudConfig.endpoint(this));box.addView(endpoint);
+        endpoint.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);endpoint.setText(CloudConfig.endpoint(this));MobileStyle.field(endpoint);connection.addView(endpoint);
         token=new EditText(this);token.setHint(CloudConfig.configured(this)?"设备令牌已保存；留空保留":"设备上传令牌");token.setSingleLine(true);
-        token.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);box.addView(token);
-        Button save=new Button(this);save.setText("保存连接设置");save.setOnClickListener(v->save(endpoint.getText().toString(),token.getText().toString()));box.addView(save);
-        Button load=new Button(this);load.setText("从配置文件导入");load.setOnClickListener(v-> {
+        token.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);MobileStyle.field(token);connection.addView(token);
+        MobileStyle.button(connection,"保存连接设置",()->save(endpoint.getText().toString(),token.getText().toString()));
+        MobileStyle.button(connection,"从配置文件导入",()-> {
             Intent open=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE);
             startActivityForResult(open,41);
-        });box.addView(load);
-        label(box,"仅保存本设备上传令牌；模型 API 密钥由服务器保管。离线读数会排队，连续失败会暂停，恢复网络或点击立即同步后继续。",13);
-        Button back=new Button(this);back.setText("返回手表连接");back.setOnClickListener(v->finish());box.addView(back);
-        ScrollView scroll=new ScrollView(this);scroll.addView(box);setContentView(scroll);
+        });
+        MobileStyle.text(connection,"仅保存本设备上传令牌；模型 API 密钥由服务器保管。离线读数会保留并等待补传。",13,MobileStyle.MUTED,false);
         CloudSync.start(this);
     }
     private TextView label(LinearLayout box,String text,int size) {
-        TextView view=new TextView(this);view.setText(text);view.setTextSize(size);
-        int pad=(int)(8*getResources().getDisplayMetrics().density);view.setPadding(0,pad,0,pad);box.addView(view);return view;
+        return MobileStyle.text(box,text,size,size>=18?MobileStyle.INK:MobileStyle.MUTED,size>=18);
+    }
+    private void showSettings() {
+        if(connection.getParent() instanceof ViewGroup)((ViewGroup)connection.getParent()).removeView(connection);
+        ScrollView scroll=new ScrollView(this);scroll.addView(connection);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("连接设置").setView(scroll).setPositiveButton("完成",null).create();
+        dialog.setOnDismissListener(d->token.setText(""));dialog.show();
     }
     private void save(String address,String secret) {
         try {
@@ -75,6 +101,10 @@ public final class CloudActivity extends Activity {
             if(!CloudPolicy.validToken(secret))throw new IOException();CloudPolicy.endpoint(address);save(address,secret);
         } catch(Exception error) { Toast.makeText(this,"配置文件无效，请核对 endpoint 和 token",Toast.LENGTH_LONG).show(); }
     }
+    private static boolean contains(JSONArray values,String target) {
+        if(values!=null)for(int i=0;i<values.length();i++)if(target.equals(values.optString(i)))return true;
+        return false;
+    }
     private String at(long value) { return value<=0?"尚无":new SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date(value)); }
     private String number(JSONObject object,String key,String unit) {
         double n=object.optDouble(key,Double.NaN);return Double.isFinite(n)?String.format(Locale.CHINA,"%.1f%s",n,unit):"--";
@@ -82,12 +112,32 @@ public final class CloudActivity extends Activity {
     private void render() {
         android.content.SharedPreferences p=CloudConfig.prefs(this);
         status.setText(CloudSync.status(this)+"\n待上传 "+p.getInt("pending",0)+" 条 · 最近上传 "+at(p.getLong("lastUpload",0)));
+        activitySummary.setText(HealthConnectBridge.statusText(this));
         try {
             String raw=p.getString("dashboard","");
-            if(raw.isEmpty()) { summary.setText("等待服务器数据。完成连接后会先展示统计，积累超过 3 天后生成每日分析。");return; }
+            if(raw.isEmpty()) {
+                latest.setText("--");latestInfo.setText("mmol/L · 等待读数");metrics.setText("");reportTime.setText("");sections.removeAllViews();
+                graph.setData(null,null);graph.setActivity(null);
+                summary.setText("等待服务器数据。完成连接后会先展示统计，积累超过 3 天后生成每日分析。");return;
+            }
             JSONObject dashboard=new JSONObject(raw);graph.setData(dashboard.optJSONArray("readings"),dashboard.optJSONObject("comparison"));
+            JSONObject value=dashboard.optJSONObject("latest");
+            latest.setText(value==null?"--":number(value,"value","")+" "+value.optString("trend",""));
+            latestInfo.setText(value==null?"mmol/L · 等待读数":"mmol/L · 更新 "+at(value.optLong("sourceAt",0)));
+            JSONObject activity=dashboard.optJSONObject("activity");graph.setActivity(activity);
+            if(activity!=null) {
+                JSONObject stats=activity.optJSONObject("summary");if(stats==null)stats=new JSONObject();
+                JSONArray kinds=activity.optJSONArray("readableKinds");
+                boolean available="available".equals(activity.optString("status",""));
+                String collected="运动 "+(available&&contains(kinds,"exercise")?stats.optLong("recordedExerciseCount",0)+" 段":"未同步")
+                    +" · 心率 "+(available&&contains(kinds,"heart_rate")?stats.optLong("heartRateSampleCount",0)+" 个采样":"未同步")
+                    +"\n步数记录 "+(available&&contains(kinds,"steps")?stats.optLong("stepRecordCount",0)+" 条":"未同步");
+                activitySummary.setText(HealthConnectBridge.statusText(this)+"\n最近 24 小时："+collected
+                    +(activity.optBoolean("stale",false)?"\n活动数据待更新":"")
+                    +(activity.optBoolean("exerciseSessionsTruncated",false)?"\n色带仅显示前 128 段已记录运动":"\n曲线下方色带表示已记录的运动时段。"));
+            }
             JSONObject m=dashboard.optJSONObject("metrics");if(m==null)m=new JSONObject();
-            metrics.setText("最近 24 小时 · 自定义观察范围 3.9–7.8\n平均 "+number(m,"mean"," mmol/L")
+            metrics.setText("平均 "+number(m,"mean"," mmol/L")
                 +"　最高 "+number(m,"max"," mmol/L")+"\n最低 "+number(m,"min"," mmol/L")
                 +"　覆盖率 "+number(m,"coveragePercent","%")+"\n观察范围内 "+number(m,"inRangePercent","%"));
             JSONObject a=dashboard.optJSONObject("analysis");if(a==null)a=new JSONObject();

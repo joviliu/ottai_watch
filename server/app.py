@@ -11,6 +11,7 @@ from socketserver import ThreadingMixIn
 from .analysis import generate_daily, report_view, manual_status, request_manual, manual_report_view
 from .statistics import DAY, NOMINAL_INTERVAL, historical_profile, metrics
 from .storage import Store, now_ms, validate_batch
+from .activity import MAX_ACTIVITY_BODY, dashboard_activity, validate_activity
 
 MAX_BODY = 262144
 
@@ -25,6 +26,7 @@ def dashboard(store, now=None):
             'readings': [r for r in points if now-DAY <= r['sourceAt'] <= now],
             'metrics': metrics(points, now-DAY, now),
             'comparison': historical_profile(points, now-29*DAY, now-DAY),
+            'activity': dashboard_activity(store.activity_snapshot(now-DAY,now), now-DAY,now,now),
             'analysis': current, 'dailyAnalysis': daily, 'rollingAnalysis': rolling, 'manualAnalysis': manual_status(store, now)}
 
 
@@ -82,7 +84,7 @@ def make_handler(store, ingest_token, read_token, analysis_token=""):
                     return self.send_json(status, result)
                 except Exception:
                     return self.send_json(503, {'error': 'temporarily_unavailable'})
-            if self.path != '/api/v1/readings':
+            if self.path not in ('/api/v1/readings', '/api/v1/activity'):
                 return self.send_json(404, {'error': 'not_found'})
             if not self.authorized(write=True):
                 return self.send_json(401, {'error': 'unauthorized'})
@@ -92,7 +94,7 @@ def make_handler(store, ingest_token, read_token, analysis_token=""):
             if not re.fullmatch(r'[0-9]{1,7}', length):
                 return self.send_json(411, {'error': 'content_length_required'})
             length = int(length)
-            if not 0 < length <= MAX_BODY:
+            if not 0 < length <= (MAX_ACTIVITY_BODY if self.path == '/api/v1/activity' else MAX_BODY):
                 return self.send_json(413, {'error': 'body_limit'})
             if self.headers.get_content_type() != 'application/json':
                 return self.send_json(415, {'error': 'json_required'})
@@ -102,11 +104,18 @@ def make_handler(store, ingest_token, read_token, analysis_token=""):
                 if len(raw) != length:
                     raise ValueError('Incomplete body')
                 now = now_ms()
-                items = validate_batch(json.loads(raw.decode('utf-8')), now)
-                counts = store.ingest(items, now)
+                payload = json.loads(raw.decode('utf-8'))
+                if self.path == '/api/v1/activity':
+                    items = validate_activity(payload, now)
+                    counts = store.ingest_activity(items, now)
+                else:
+                    items = validate_batch(payload, now)
+                    counts = store.ingest(items, now)
                 return self.send_json(200, {'ok': True, 'serverAt': now, **counts})
-            except (ValueError, UnicodeError):
-                return self.send_json(400, {'error': 'invalid_readings'})
+            except (ValueError, UnicodeError) as error:
+                if str(error) == 'snapshot_conflict':
+                    return self.send_json(409, {'error': 'snapshot_conflict'})
+                return self.send_json(400, {'error': 'invalid_activity' if self.path=='/api/v1/activity' else 'invalid_readings'})
             except Exception:
                 return self.send_json(503, {'error': 'temporarily_unavailable'})
     return Handler
