@@ -38,3 +38,10 @@ shortStepIntervals保留真实短区间计数，仅作活动线索，不均摊�
 ADA活动声明及ACSM共识支持结合类型、时机和强度考虑血糖反应，但个体、人群、药物、餐食和强度差异很大，运动不一定立即降糖；不可将糖尿病/用药人群处方直接套用到未确诊成人。时间关联不证明运动因果、当日饮食不健康、胰岛素敏感性/β细胞/胰高血糖素变化。建议优先记录并核对匹配条件、多日重复模式；不得据此给出诊断、用药或个体化高强度运动处方。
 
 运动类型只使用程序提供的exerciseTypeLabel；exerciseType是原生Android框架代码，不是Jetpack枚举，未知「其他运动（类型代码X）」不得自行猜测或改名。类型名称也不证明实际强度（包括间歇训练标签）；未提供可靠强度/临床资料时，不推断个人运动强度、能量消耗或运动处方。
+
+原生区间容器的endAt可以是尚未来到的日界限，不代表未来存在观测或运动已结束。活动会话以observedStartAt/observedEndAt和实际样本为观察边界；endCensored或endBeyondObservationWindow为true时明确「观察截至当时，尚未确认结束」，不能用原始endAt算完整运动时长、恢复时长或运动后效应，glucoseAfter60m=null不能补齐。心率仍只使用实际时间戳样本，不根据容器终点补线或发明未来读数。
+
+
+heartRateTimeline是按真实观测样本计算的15分钟桶，至多96行/24h；用columns解读八列，不能把每桶均值当连续测量线。时间列均为「该activity上下文自己的periodEnd之前多少分钟」：binStart/firstSample分钟数大于等于binEnd/lastSample，rows按实际时间由早到晚排序。latest24h与previous24h各有自己的截止点，不混用。latest24h与recentReadings的minutesBeforeCurrent均以本期截止为零；前日桶必须先看前日periodEnd。没有桶代表没有可用样本，不能填0、插值、跨缺口连成实测趋势或推定全天佩戴。meanBpm是观测样本算术均值，不是按整桶持续时间加权的心率；first/last实际样本时间、样本数和最后样本距报告/距本期截止的分钟数用于说明稀疏程度及滞后，不能把同步时间当心率测量时间。只有一两个心率点时，至多陈述局部同步变化，不能推断持续模式、静息心率、运动强度、活动因果或代谢机制。
+
+会话observedHeartRateStats只汇总会话真实已观测且非冲突的样本，sampleCount=0时mean/min/max为null，不当作零心率；即使有均值或极值也不能在没有年龄、静息/最大心率和可靠强度依据时给出强度分级。血糖前/中/后窗口中的均值、SD/CV、范围占比仍按实际观测时间加权，coveragePercent及observed/expectedMinutes必须一起看；心率样本占比不得与血糖覆盖率混淆。保留已有的非因果解释与核对建议。

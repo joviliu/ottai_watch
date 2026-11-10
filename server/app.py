@@ -2,6 +2,7 @@
 import argparse
 import hmac
 import json
+import logging
 import os
 import re
 import sys
@@ -11,7 +12,7 @@ from socketserver import ThreadingMixIn
 from .analysis import generate_daily, report_view, manual_status, request_manual, manual_report_view
 from .statistics import DAY, NOMINAL_INTERVAL, historical_profile, metrics
 from .storage import Store, now_ms, validate_batch
-from .activity import MAX_ACTIVITY_BODY, dashboard_activity, validate_activity
+from .activity import MAX_ACTIVITY_BODY, ActivityValidationError, dashboard_activity, validate_activity
 
 MAX_BODY = 262144
 
@@ -112,6 +113,10 @@ def make_handler(store, ingest_token, read_token, analysis_token=""):
                     items = validate_batch(payload, now)
                     counts = store.ingest(items, now)
                 return self.send_json(200, {'ok': True, 'serverAt': now, **counts})
+            except ActivityValidationError as error:
+                # Error text is constructor-whitelisted, never payload-derived data.
+                logging.warning('activity_validation code=%s', str(error))
+                return self.send_json(400, {'error': 'invalid_activity', 'reason': str(error)})
             except (ValueError, UnicodeError) as error:
                 if str(error) == 'snapshot_conflict':
                     return self.send_json(409, {'error': 'snapshot_conflict'})
