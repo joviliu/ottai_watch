@@ -1,5 +1,7 @@
 # Ottai → Redmi Watch 6 血糖镜像
 
+2026-11-10：[运动/历史心率关联可行性核查](docs/ACTIVITY_INTEGRATION_FEASIBILITY.md)确认当前官方运动健康声明Health Connect写权限、系统服务存在，但尚未授权/验证真实输出；活动曲线和AI关联接入仍是后续开发范围。
+
 2026-11-10：[Mac0.3.0](releases/cloud-0.3.0/README.md)加入动态24h主动分析与前一自然日固定日报的独立存储/文本区切换。动态分析在完整性门槛通过后可用，每30min至多一次，同快照复用；自动日报每天08:15、累计真实资料超过72h后运行。含候选餐后样波动、健康研究参考及自身近期/较早历史比较，方法见[科学依据](docs/CGM_ANALYSIS_METHOD.md)。刷新改为图标，设置移至独立窗口。
 
 2026-11-09 新功能：手机通知读数在原手表链路外独立排队上传 Ali；新增 Mac 菜单栏数值/趋势、24h 曲线、WidgetKit 通知中心组件及每日观察报告。每天的同一份报告同时比较近期和更长历史，没有单独周报调用。入口见 [云同步与 Mac 接续文档](docs/CLOUD_SYNC_HANDOFF.md)、[科学方法](docs/CGM_ANALYSIS_METHOD.md)、[服务端](server/README.md) 和 [Mac](macos/README.md)。
