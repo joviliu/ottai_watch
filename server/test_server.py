@@ -249,6 +249,14 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(self.fetch('/api/v1/analysis','a'*32,{})[0],400)
         self.assertIsNone(self.store.manual_report())
 
+    def test_manual_analysis_empty_post_submits_once(self):
+        with patch('server.app.request_manual', return_value=(202, {'status': 'running'})) as submit:
+            code, body = self.fetch('/api/v1/analysis', 'i'*32, method='POST')
+            self.assertEqual((code, body['status']), (202, 'running'))
+            code, body = self.fetch('/api/v1/analysis', 'i'*32, {})
+            self.assertEqual((code, body['error']), (400, 'empty_body_required'))
+            submit.assert_called_once_with(self.store)
+
 
 class RelaySignatureTests(unittest.TestCase):
     @patch.dict(os.environ, {'OPENAI_RELAY_URL': 'http://127.0.0.1:18779',

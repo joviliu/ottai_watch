@@ -84,7 +84,7 @@ public final class CloudActivity extends Activity {
     private void analyzeRecent() {
         if(analyzing||analysisUnconfirmed)return;
         analyzing=true;analysisStarted=System.currentTimeMillis();render();
-        call=CloudActions.request(this,"POST","/api/v1/analysis",new JSONObject(),(result,code,error)-> {
+        call=CloudActions.request(this,"POST","/api/v1/analysis",null,(result,code,error)-> {
             if(isDestroyed())return;
             if(error!=null) { analysisUnconfirmed=result==null;analyzing=false;toast(result!=null&&!result.optString("reason").isEmpty()?result.optString("reason"):error); }
             fetchDashboard(true);

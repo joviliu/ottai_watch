@@ -45,6 +45,10 @@ final class CloudActions {
                         if(data.length>1_500_000)throw new IOException();
                         connection.setRequestProperty("Content-Type","application/json");connection.setDoOutput(true);connection.setFixedLengthStreamingMode(data.length);
                         try(OutputStream output=connection.getOutputStream()) { output.write(data); }
+                    } else if("POST".equals(method)) {
+                        // The analysis endpoint requires no body, including through the HTTPS proxy.
+                        connection.setDoOutput(true);connection.setFixedLengthStreamingMode(0);
+                        connection.getOutputStream().close();
                     }
                     code=connection.getResponseCode();InputStream source=code>=200&&code<300?connection.getInputStream():connection.getErrorStream();
                     if(source!=null)try(InputStream input=source;ByteArrayOutputStream bytes=new ByteArrayOutputStream()) {
