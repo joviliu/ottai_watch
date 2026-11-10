@@ -20,7 +20,7 @@ import java.util.Locale;
 
 public final class CloudActivity extends Activity {
     private EditText endpoint, token;
-    private TextView status, metrics, reportTime, summary, latest, latestInfo, activitySummary;
+    private TextView status, metrics, reportTime, summary, latest, latestInfo, activitySummary, graphNotes;
     private LinearLayout connection;
     private LinearLayout sections;
     private CloudGraph graph;
@@ -46,12 +46,13 @@ public final class CloudActivity extends Activity {
         retry.setOnClickListener(v-> { v.animate().rotationBy(360).setDuration(450).start();CloudSync.retryNow(this);CloudSync.requestActivity(this,true,true); });
         latestInfo=MobileStyle.text(current,"mmol/L",13,MobileStyle.MUTED,false);
         status=MobileStyle.text(current,"",13,MobileStyle.MUTED,false);
-        graph=new CloudGraph(this);current.addView(graph,new LinearLayout.LayoutParams(-1,MobileStyle.dp(this,225)));
+        graph=new CloudGraph(this);current.addView(graph,new LinearLayout.LayoutParams(-1,MobileStyle.dp(this,365)));
+        graphNotes=MobileStyle.text(current,"",11,MobileStyle.MUTED,false);
         metrics=MobileStyle.text(current,"",15,MobileStyle.INK,false);
         LinearLayout health=MobileStyle.card(box);
-        MobileStyle.text(health,"运动与心率",18,MobileStyle.INK,true);
+        MobileStyle.text(health,"活动数据",18,MobileStyle.INK,true);
         activitySummary=MobileStyle.text(health,"",14,MobileStyle.MUTED,false);
-        MobileStyle.button(health,"Health Connect 连接与权限  →",()->startActivity(new Intent().setClassName(this,getPackageName()+".HealthActivity")));
+        MobileStyle.button(health,"活动来源与权限  →",()->startActivity(new Intent().setClassName(this,getPackageName()+".HealthActivity")));
         LinearLayout report=MobileStyle.card(box);
         MobileStyle.text(report,"每日观察",20,MobileStyle.VIOLET,true);
         reportTime=MobileStyle.text(report,"",12,MobileStyle.MUTED,false);summary=MobileStyle.text(report,"",17,MobileStyle.INK,true);
@@ -105,6 +106,23 @@ public final class CloudActivity extends Activity {
         if(values!=null)for(int i=0;i<values.length();i++)if(target.equals(values.optString(i)))return true;
         return false;
     }
+    private static JSONObject kindState(JSONObject activity,String kind) {
+        JSONObject availability=activity.optJSONObject("kindAvailability");
+        JSONObject state=availability==null?null:availability.optJSONObject(kind);
+        if(state!=null)return state;
+        JSONObject sources=activity.optJSONObject("sourceByKind"),states=activity.optJSONObject("sourceStates");
+        return sources==null||states==null?null:states.optJSONObject(sources.optString(kind,""));
+    }
+    private static boolean kindReadable(JSONObject activity,String kind) {
+        JSONObject state=kindState(activity,kind);
+        return state!=null?"available".equals(state.optString("status",""))
+                &&(state.has("readable")?state.optBoolean("readable",false):contains(state.optJSONArray("readableKinds"),kind))
+            :"available".equals(activity.optString("status",""))&&contains(activity.optJSONArray("readableKinds"),kind);
+    }
+    private static boolean kindStale(JSONObject activity,String kind) {
+        JSONObject state=kindState(activity,kind);
+        return state!=null?state.optBoolean("stale",true):activity.optBoolean("stale",true);
+    }
     private String at(long value) { return value<=0?"尚无":new SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date(value)); }
     private String number(JSONObject object,String key,String unit) {
         double n=object.optDouble(key,Double.NaN);return Double.isFinite(n)?String.format(Locale.CHINA,"%.1f%s",n,unit):"--";
@@ -112,29 +130,51 @@ public final class CloudActivity extends Activity {
     private void render() {
         android.content.SharedPreferences p=CloudConfig.prefs(this);
         status.setText(CloudSync.status(this)+"\n待上传 "+p.getInt("pending",0)+" 条 · 最近上传 "+at(p.getLong("lastUpload",0)));
-        activitySummary.setText(HealthConnectBridge.statusText(this));
+        String localActivity=HealthConnectBridge.statusText(this)+(PhoneStepsBridge.isEnabled(this)?"\n\n"+PhoneStepsBridge.statusText(this):"");
+        activitySummary.setText(localActivity);
         try {
             String raw=p.getString("dashboard","");
             if(raw.isEmpty()) {
                 latest.setText("--");latestInfo.setText("mmol/L · 等待读数");metrics.setText("");reportTime.setText("");sections.removeAllViews();
-                graph.setData(null,null);graph.setActivity(null);
+                graph.setData(null,null);graph.setActivity(null);graphNotes.setText(graph.legend());
                 summary.setText("等待服务器数据。完成连接后会先展示统计，积累超过 3 天后生成每日分析。");return;
             }
-            JSONObject dashboard=new JSONObject(raw);graph.setData(dashboard.optJSONArray("readings"),dashboard.optJSONObject("comparison"));
+            JSONObject dashboard=new JSONObject(raw);graph.setData(dashboard.optJSONArray("readings"),dashboard.optJSONObject("comparison"),dashboard.optLong("serverAt",0));
             JSONObject value=dashboard.optJSONObject("latest");
             latest.setText(value==null?"--":number(value,"value","")+" "+value.optString("trend",""));
             latestInfo.setText(value==null?"mmol/L · 等待读数":"mmol/L · 更新 "+at(value.optLong("sourceAt",0)));
-            JSONObject activity=dashboard.optJSONObject("activity");graph.setActivity(activity);
+            JSONObject activity=dashboard.optJSONObject("activity");graph.setActivity(activity);graphNotes.setText(graph.legend());
             if(activity!=null) {
                 JSONObject stats=activity.optJSONObject("summary");if(stats==null)stats=new JSONObject();
-                JSONArray kinds=activity.optJSONArray("readableKinds");
-                boolean available="available".equals(activity.optString("status",""));
-                String collected="运动 "+(available&&contains(kinds,"exercise")?stats.optLong("recordedExerciseCount",0)+" 段":"未同步")
-                    +" · 心率 "+(available&&contains(kinds,"heart_rate")?stats.optLong("heartRateSampleCount",0)+" 个采样":"未同步")
-                    +"\n步数记录 "+(available&&contains(kinds,"steps")?stats.optLong("stepRecordCount",0)+" 条":"未同步");
-                activitySummary.setText(HealthConnectBridge.statusText(this)+"\n最近 24 小时："+collected
-                    +(activity.optBoolean("stale",false)?"\n活动数据待更新":"")
-                    +(activity.optBoolean("exerciseSessionsTruncated",false)?"\n色带仅显示前 128 段已记录运动":"\n曲线下方色带表示已记录的运动时段。"));
+                JSONObject sourceByKind=activity.optJSONObject("sourceByKind");
+                String stepSource=sourceByKind==null?activity.optString("source",""):sourceByKind.optString("steps","");
+                boolean phone="phone_steps".equals(stepSource);
+                String stepsLabel=phone?"手机系统计步":"health_connect".equals(stepSource)?"小米共享步数":"步数来源待连接";
+                String collected="已记录运动 "+(kindReadable(activity,"exercise")?stats.optLong("recordedExerciseCount",0)+" 段":"未同步")
+                    +" · 小米共享心率 "+(kindReadable(activity,"heart_rate")?stats.optLong("heartRateSampleCount",0)+" 个采样":"未同步")
+                    +"\n"+stepsLabel+"："+(kindReadable(activity,"steps")?stats.optLong("stepRecordCount",0)+" 条区间记录":"未同步");
+                String total=kindReadable(activity,"steps")&&!stats.isNull("observedStepTotal")?stats.optLong("observedStepTotal",0)+" 步":"--（暂不汇总）";
+                StringBuilder notes=new StringBuilder(localActivity).append("\n最近 24 小时：").append(collected)
+                    .append("\n已记录步数：").append(total);
+                boolean energyReadable=kindReadable(activity,"active_calories");
+                String energy=energyReadable&&!stats.isNull("observedActiveKcal")?number(stats,"observedActiveKcal"," kcal"):"--（暂不汇总）";
+                notes.append("\n活动热量（小米共享，估算）：")
+                    .append(energyReadable?stats.optLong("activeCalorieRecordCount",0)+" 条区间 · "+energy:"未同步");
+                JSONObject energyState=kindState(activity,"active_calories");
+                if(energyState!=null) {
+                    long first=energyState.optLong("firstRecordStartAt",0),last=energyState.optLong("lastRecordEndAt",0);
+                    if(first>0&&last>0)notes.append("\n热量原始区间范围：").append(at(first)).append(" 至 ").append(at(last))
+                        .append(last>System.currentTimeMillis()?"（源区间终点尚未到达）":"");
+                }
+                notes.append("\n热量为设备估算，来源设备未确认；不折算为步数或持续运动时长。");
+                if(kindStale(activity,"heart_rate"))notes.append("\n心率资料待更新。");
+                if(kindStale(activity,"steps"))notes.append("\n步数资料待更新。");
+                if(kindStale(activity,"active_calories"))notes.append("\n活动热量资料待更新。");
+                notes.append("\n淡紫色带：已记录的运动时段。");
+                if(phone)notes.append("\n绿色计步柱仅反映手机被携带时系统提供的短批记录，不代表已确认运动。");
+                if(activity.optBoolean("exerciseSessionsTruncated",false))notes.append("\n图中仅显示前 128 段运动记录。");
+                if(phone&&activity.optBoolean("stepIntervalsTruncated",false))notes.append("\n原始区间明细仅保留最近 288 条；计步图汇总全部符合条件的短区间，统计保留完整记录。");
+                activitySummary.setText(notes.toString());
             }
             JSONObject m=dashboard.optJSONObject("metrics");if(m==null)m=new JSONObject();
             metrics.setText("平均 "+number(m,"mean"," mmol/L")

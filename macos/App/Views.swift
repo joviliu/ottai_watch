@@ -37,7 +37,7 @@ struct DashboardView: View {
                 }.foregroundStyle(model.stale ? Color.gray : MirrorPalette.blue)
                     .mirrorCard(padding: compact ? 14 : 20)
                 if let dashboard = model.snapshot?.dashboard {
-                    GlucoseChart(dashboard: dashboard, compact: compact).frame(height: compact ? 134 : 210)
+                    GlucoseChart(dashboard: dashboard, compact: compact).frame(height: dashboard.activity == nil ? (compact ? 134 : 210) : (compact ? 270 : 360))
                         .mirrorCard(padding: compact ? 12 : 20)
                     let metrics = dashboard.metrics
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: compact ? 2 : 4), spacing: compact ? 10 : 14) {

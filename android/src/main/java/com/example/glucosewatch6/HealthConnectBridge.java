@@ -12,6 +12,7 @@ import android.health.connect.HealthConnectManager;
 import android.health.connect.ReadRecordsRequestUsingFilters;
 import android.health.connect.ReadRecordsResponse;
 import android.health.connect.TimeInstantRangeFilter;
+import android.health.connect.datatypes.ActiveCaloriesBurnedRecord;
 import android.health.connect.datatypes.DataOrigin;
 import android.health.connect.datatypes.Device;
 import android.health.connect.datatypes.ExerciseSessionRecord;
@@ -43,10 +44,12 @@ public final class HealthConnectBridge {
     public static final String READ_HEART_RATE = "android.permission.health.READ_HEART_RATE";
     public static final String READ_STEPS = "android.permission.health.READ_STEPS";
     public static final String READ_EXERCISE = "android.permission.health.READ_EXERCISE";
+    public static final String READ_ACTIVE_CALORIES = "android.permission.health.READ_ACTIVE_CALORIES_BURNED";
     public static final String READ_BACKGROUND = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND";
     public static final String READ_HISTORY = "android.permission.health.READ_HEALTH_DATA_HISTORY";
-    private static final String[] KINDS = {"exercise", "heart_rate", "steps"};
-    private static final String[] PERMISSIONS = {READ_EXERCISE, READ_HEART_RATE, READ_STEPS};
+    private static final String[] KINDS = {"exercise", "heart_rate", "steps", "active_calories"};
+    private static final String[] PERMISSIONS = {READ_EXERCISE, READ_HEART_RATE, READ_STEPS, READ_ACTIVE_CALORIES};
+    private static final String[] LABELS = {"运动", "心率", "步数", "活动热量"};
     private static final AtomicBoolean INSTALLED = new AtomicBoolean(), ACTIVE = new AtomicBoolean();
     private static final AtomicInteger VISIBLE = new AtomicInteger();
     private static final AtomicLong VISIBILITY_EPOCH = new AtomicLong();
@@ -153,7 +156,7 @@ public final class HealthConnectBridge {
         if (!available(context)) return "此手机暂不支持平台 Health Connect（需 Android 14 或更新版本）。";
         if (!isEnabled(context)) return "运动辅助分析尚未启用。";
         StringBuilder text = new StringBuilder("只读取小米运动健康写入的数据\n");
-        for (int i = 0; i < KINDS.length; i++) text.append(new String[]{"运动", "心率", "步数"}[i])
+        for (int i = 0; i < KINDS.length; i++) text.append(LABELS[i])
                 .append(granted(context, PERMISSIONS[i]) ? "：已授权  " : "：未授权  ");
         text.append("\n").append(canReadInBackground(context) ? "后台读取：已授权" : extendedReadsSupported()
                 ? "后台读取：未授权；仅应用在前台时读取" : "后台读取：系统版本暂不支持；仅前台读取");
@@ -178,7 +181,7 @@ public final class HealthConnectBridge {
         WORKER.execute(() -> {
             if (!isEnabled(app)) { failBeforeScan(app, callback, "disabled", "运动辅助分析尚未启用。"); return; }
             if (!available(app)) { failBeforeScan(app, callback, "unavailable", "系统 Health Connect 暂不可用。"); return; }
-            if (!hasReadPermissions(app)) { failBeforeScan(app, callback, "permission_denied", "请先授权读取运动、心率或步数。"); return; }
+            if (!hasReadPermissions(app)) { failBeforeScan(app, callback, "permission_denied", "请先授权读取运动、心率、步数或活动热量。"); return; }
             if (!canReadInBackground(app) && (!foreground || VISIBLE.get() == 0)) {
                 failBeforeScan(app, callback, "foreground_only", "后台读取未授权，请在运动数据页面保持应用打开后同步。"); return;
             }
@@ -222,7 +225,8 @@ public final class HealthConnectBridge {
                 int kind = kinds.get(kindIndex);
                 if (kind == 0) readPage(ExerciseSessionRecord.class, -1);
                 else if (kind == 1) readPage(HeartRateRecord.class, -1);
-                else readPage(StepsRecord.class, -1);
+                else if (kind == 2) readPage(StepsRecord.class, -1);
+                else readPage(ActiveCaloriesBurnedRecord.class, -1);
             } catch (Exception error) { failed(error); }
         }
         <T extends IntervalRecord> void readPage(Class<T> type, long token) {
@@ -255,7 +259,8 @@ public final class HealthConnectBridge {
         void append(IntervalRecord record) throws Exception {
             Metadata metadata = record.getMetadata();
             if (!HealthPolicy.ORIGIN.equals(metadata.getDataOrigin().getPackageName())) throw new SecurityException("unexpected_origin");
-            String kind = record instanceof ExerciseSessionRecord ? "exercise" : record instanceof HeartRateRecord ? "heart_rate" : "steps";
+            String kind = record instanceof ExerciseSessionRecord ? "exercise" : record instanceof HeartRateRecord ? "heart_rate"
+                    : record instanceof ActiveCaloriesBurnedRecord ? "active_calories" : "steps";
             JSONObject value = new JSONObject().put("id", metadata.getId()).put("kind", kind).put("origin", HealthPolicy.ORIGIN)
                     .put("startAt", record.getStartTime().toEpochMilli()).put("endAt", record.getEndTime().toEpochMilli())
                     .put("modifiedAt", metadata.getLastModifiedTime().toEpochMilli()).put("recordingMethod", metadata.getRecordingMethod());
@@ -281,6 +286,12 @@ public final class HealthConnectBridge {
                         .put("time", sample.getTime().toEpochMilli()).put("bpm", sample.getBeatsPerMinute()));
                 value.put("samples", points);
             } else if (record instanceof StepsRecord) value.put("count", ((StepsRecord) record).getCount());
+            else if (record instanceof ActiveCaloriesBurnedRecord) {
+                // Framework Energy uses calories (cal), unlike AndroidX's kilocalorie convenience
+                // API. Preserve the estimate and original interval, converting only the unit.
+                // https://developer.android.com/reference/android/health/connect/datatypes/units/Energy
+                value.put("energyKcal", HealthPolicy.activeKilocalories(((ActiveCaloriesBurnedRecord) record).getEnergy().getInCalories()));
+            }
             else value.put("exerciseType", ((ExerciseSessionRecord) record).getExerciseType());
             // No notes, title, exercise route/GPS, or invented minute-by-minute step distribution.
             budget.record(kind, metadata.getId(), sampleCount, value.toString().getBytes(StandardCharsets.UTF_8).length);

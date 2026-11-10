@@ -52,3 +52,9 @@ The endpoint claims before spawning bounded work and immediately returns 202. Cl
 ## Optional Health Connect activity (0.4.0)
 
 The device-only `/api/v1/activity` endpoint ingests atomic, bounded Mi Fitness-origin snapshots; `dashboard.activity` supplies compact original periods and explicit sample summaries. Reports add observed activity context without inferring exercise from heart rate or causation from timing. Manual snapshot identity includes activity corrections while fixed daily reports remain independent. See [ACTIVITY.md](ACTIVITY.md) for the native START-time reconciliation contract, availability/deletion rules, client limits, provenance, scientific boundaries and tests.
+
+The 0.4.1 hybrid fallback keeps HC heart rate/exercise and optionally accepts Xiaomi system-provider `phone_steps`. Step selection is source-specific per requested window, never additive; `sourceByKind`, `sourceStates` and `kindAvailability` expose provenance and independent freshness. See [ACTIVITY.md](ACTIVITY.md) before deploying its source-scoped SQLite migration.
+
+HC optional `active_calories` (0.4.2) adds estimated active kilocalories with original provenance, complete bounded time grouping and nullable non-overlap totals. It excludes basal/total energy and food intake; it is neither a step substitute nor independent confirmation of HR. See [ACTIVITY.md](ACTIVITY.md) for units, source boundaries and payload tests.
+
+`dashboard.activity.plot` provides complete bounded15-minute START-grouped short-batch step/active-energy tracks for phone and Mac, independently of truncated raw examples. Coarse daily energy is excluded from time bars to prevent false midnight peaks; source/state/cross-boundary limits remain explicit.

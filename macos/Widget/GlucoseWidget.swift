@@ -53,11 +53,11 @@ struct GlucoseWidgetView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: family == .systemLarge ? 10 : 6) {
-            VStack(alignment: .leading, spacing: family == .systemLarge ? 10 : 6) {
+        VStack(alignment: .leading, spacing: family == .systemLarge ? 8 : 4) {
+            VStack(alignment: .leading, spacing: family == .systemLarge ? 6 : 4) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(entry.snapshot?.dashboard.latest?.display ?? "—")
-                        .font(.system(size: family == .systemLarge ? 38 : 28, weight: .semibold, design: .rounded)).monospacedDigit()
+                        .font(.system(size: family == .systemLarge ? 32 : 24, weight: .semibold, design: .rounded)).monospacedDigit()
                     Text(entry.snapshot?.dashboard.latest?.displayTrend ?? "→").font(.title2)
                     Text("mmol/L").font(.caption2).foregroundStyle(MirrorPalette.muted)
                     Spacer()
@@ -69,7 +69,8 @@ struct GlucoseWidgetView: View {
                     }
                 }.foregroundStyle(stale ? Color.gray : MirrorPalette.blue)
                 if let dashboard = entry.snapshot?.dashboard {
-                    GlucoseChart(dashboard: dashboard, compact: true).frame(maxHeight: .infinity)
+                    GlucoseChart(dashboard: dashboard, compact: true, miniature: true)
+                        .frame(height: dashboard.activity == nil ? (family == .systemLarge ? 150 : 70) : (family == .systemLarge ? 180 : 84)).layoutPriority(1)
                     HStack(spacing: 12) {
                         Text("区间 \(metricText(dashboard.metrics?.inRangePercent, suffix: "%", decimals: 0))").foregroundStyle(MirrorPalette.blue)
                         Text("均值 \(metricText(dashboard.metrics?.mean))").foregroundStyle(MirrorPalette.violet)
@@ -82,20 +83,14 @@ struct GlucoseWidgetView: View {
                         .font(.caption2).foregroundStyle(MirrorPalette.muted)
                     Spacer()
                 }
-            }.mirrorCard(padding: family == .systemLarge ? 12 : 8)
+            }.mirrorCard(padding: family == .systemLarge ? 10 : 6)
             if let dashboard = entry.snapshot?.dashboard {
                 if family == .systemLarge {
-                    VStack(alignment: .leading, spacing: 7) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("血糖观察 · \(dashboard.analysis?.reportDate ?? "未生成") · \(dashboard.analysis?.displayStatus ?? "积累数据中")")
-                            .font(.caption.weight(.semibold)).lineLimit(1).foregroundStyle(MirrorPalette.violet)
-                        if !reportSummary.isEmpty { Text(reportSummary).font(.caption).lineLimit(3) }
-                        if let limitation = dashboard.analysis?.limitations?.first, !limitation.isEmpty {
-                            Text(limitation).font(.caption2).foregroundStyle(MirrorPalette.muted).lineLimit(2)
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading).mirrorCard(padding: 12)
-                } else {
-                    Text("日报 \(dashboard.analysis?.reportDate ?? "未生成") · \(dashboard.analysis?.displayStatus ?? "积累数据中")\(reportSummary.isEmpty ? "" : " · " + reportSummary)")
-                        .font(.caption2).lineLimit(2).foregroundStyle(MirrorPalette.muted).padding(.horizontal, 4)
+                            .font(.system(size: 10, weight: .semibold)).lineLimit(1).foregroundStyle(MirrorPalette.violet)
+                        if !reportSummary.isEmpty { Text(reportSummary).font(.system(size: 11)).lineLimit(2) }
+                    }.frame(maxWidth: .infinity, alignment: .leading).mirrorCard(padding: 9)
                 }
             }
         }

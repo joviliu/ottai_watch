@@ -13,27 +13,37 @@ import org.json.JSONObject;
 
 /** Optional independent, bounded activity snapshot channel. No sensors or wake locks. */
 final class ActivityCloud {
-    private static ActivityCloud instance;
+    private static ActivityCloud healthInstance, phoneInstance;
     private final Context context;
+    private final boolean phone;
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS,
         new ArrayBlockingQueue<Runnable>(4));
     private final AtomicBoolean busy = new AtomicBoolean();
     private final AtomicFile pending;
     private volatile long generation;
 
-    private ActivityCloud(Context c) {
-        context=c.getApplicationContext();
-        pending=new AtomicFile(new File(context.getFilesDir(), "health-connect-outbox.json"));
+    private ActivityCloud(Context c, boolean phone) {
+        context=c.getApplicationContext();this.phone=phone;
+        pending=new AtomicFile(new File(context.getFilesDir(), phone?"phone-steps-outbox.json":"health-connect-outbox.json"));
     }
-    private static synchronized ActivityCloud get(Context c) {
-        if(instance==null) instance=new ActivityCloud(c); return instance;
+    private static synchronized ActivityCloud get(Context c, boolean phone) {
+        if(phone) { if(phoneInstance==null)phoneInstance=new ActivityCloud(c,true);return phoneInstance; }
+        if(healthInstance==null)healthInstance=new ActivityCloud(c,false);return healthInstance;
     }
     static String status(Context c) {
-        return CloudConfig.prefs(c).getString("activityStatus", "活动同步尚未启用");
+        String text="";
+        if(HealthConnectBridge.isEnabled(c)) text="小米共享："+get(c,false).prefs().getString("activityStatus","尚未同步");
+        if(PhoneStepsBridge.isEnabled(c)) text+=(text.isEmpty()?"":"\n")+"手机计步："+get(c,true).prefs().getString("activityStatus","尚未同步");
+        return text.isEmpty()?"活动同步尚未启用":text;
     }
-    static void request(Context c, boolean foreground, boolean force) { get(c).request(foreground,force); }
+    static void request(Context c, boolean foreground, boolean force) {
+        get(c,false).request(foreground,force);get(c,true).request(foreground,force);
+    }
     static void configured(Context c) {
-        ActivityCloud cloud=get(c);
+        get(c,false).reset();get(c,true).reset();
+    }
+    private void reset() {
+        ActivityCloud cloud=this;
         cloud.generation++;
         cloud.submit(() -> {
             cloud.pending.delete();
@@ -42,14 +52,17 @@ final class ActivityCloud {
             cloud.request(false,true);
         });
     }
-    private SharedPreferences prefs() { return CloudConfig.prefs(context); }
+    private SharedPreferences prefs() { return phone?context.getSharedPreferences("phone_activity_cloud",0):CloudConfig.prefs(context); }
     private void status(String value) { prefs().edit().putString("activityStatus",value).apply(); }
+    private boolean enabled() { return phone?PhoneStepsBridge.isEnabled(context):HealthConnectBridge.isEnabled(context); }
+    private boolean hasPermission() { return phone?PhoneStepsBridge.hasPermission(context):HealthConnectBridge.hasReadPermissions(context); }
+    private String source() { return phone?"phone_steps":"health_connect"; }
     private void submit(Runnable task) {
         try { worker.execute(task); }
         catch(RejectedExecutionException error) { busy.set(false); status("活动同步忙，稍后重试"); }
     }
     private void request(boolean foreground, boolean force) {
-        if(!HealthConnectBridge.isEnabled(context)) return;
+        if(!enabled()) return;
         if(!CloudConfig.configured(context)) { status("请先配置云同步，再上传活动资料"); return; }
         long now=System.currentTimeMillis();
         if(!force && (prefs().getBoolean("activityPermanent",false)
@@ -69,7 +82,8 @@ final class ActivityCloud {
                     catch(Exception invalidCache) { pending.delete(); }
                     if(envelope!=null) {
                         JSONObject snapshot=envelope.optJSONObject("snapshot");
-                        if(snapshot!=null && endpoint.equals(envelope.optString("endpoint")) && permissionsStillGranted(snapshot))
+                        if(snapshot!=null && source().equals(snapshot.optString("source"))
+                                && endpoint.equals(envelope.optString("endpoint")) && permissionsStillGranted(snapshot))
                             upload(snapshot,endpoint,expected);
                     }
                     pending.delete();
@@ -78,20 +92,20 @@ final class ActivityCloud {
                     busy.set(false); return;
                 }
                 prefs().edit().putLong("activityAttempt",System.currentTimeMillis()).apply();
-                if(!HealthConnectBridge.hasReadPermissions(context)) {
-                    JSONObject snapshot=new JSONObject().put("source","health_connect").put("status","permission_denied")
-                        .put("syncedAt",System.currentTimeMillis()).put("windowStart",System.currentTimeMillis()-86400000L)
+                if(!hasPermission()) {
+                    JSONObject snapshot=new JSONObject().put("source",source()).put("status","permission_denied")
+                        .put("syncedAt",System.currentTimeMillis()).put("windowStart",System.currentTimeMillis()-HealthPolicy.WINDOW_MILLIS)
                         .put("windowEnd",System.currentTimeMillis()).put("readableKinds",new JSONArray()).put("records",new JSONArray());
                     savePending(snapshot,endpoint); upload(snapshot,endpoint,expected); pending.delete();
                     status("尚未授予活动读取权限；云端保留已有历史"); busy.set(false); return;
                 }
-                status("正在读取小米运动健康已共享的活动记录…");
-                HealthConnectBridge.collectRecent(context,foreground,new HealthConnectBridge.Callback() {
+                status(phone?"正在读取手机系统计步区间…":"正在读取小米运动健康已共享的活动记录…");
+                HealthConnectBridge.Callback callback=new HealthConnectBridge.Callback() {
                     public void onSuccess(JSONObject snapshot) {
                         submit(() -> {
                             try {
                                 if(expected!=generation || !endpoint.equals(CloudConfig.endpoint(context))
-                                        || !HealthConnectBridge.isEnabled(context)) return;
+                                        || !enabled() || !source().equals(snapshot.optString("source"))) return;
                                 savePending(snapshot,endpoint); upload(snapshot,endpoint,expected); pending.delete();
                             } catch(Exception error) { failed(error); }
                             finally { busy.set(false); }
@@ -100,7 +114,9 @@ final class ActivityCloud {
                     public void onError(String code,String message) {
                         status(message); busy.set(false);
                     }
-                });
+                };
+                if(phone)PhoneStepsBridge.collectRecent(context,callback);
+                else HealthConnectBridge.collectRecent(context,foreground,callback);
             } catch(Exception error) { failed(error); busy.set(false); }
         });
     }
@@ -123,7 +139,7 @@ final class ActivityCloud {
         }
     }
     private void upload(JSONObject snapshot,String endpoint,long expected) throws Exception {
-        if(expected!=generation || !HealthConnectBridge.isEnabled(context)) return;
+        if(expected!=generation || !enabled()) return;
         if(!permissionsStillGranted(snapshot))throw new SecurityException("Permissions changed");
         CloudConfig.Connection credentials=CloudConfig.connection(context);
         if(!endpoint.equals(credentials.endpoint))throw new IOException("Configuration changed");
@@ -152,11 +168,13 @@ final class ActivityCloud {
             prefs().edit().putLong("activityLastUpload",System.currentTimeMillis()).putInt("activityFailures",0)
                 .putLong("activityNextAttempt",0).putBoolean("activityPermanent",false).apply();
             int count=snapshot.optJSONArray("records")==null?0:snapshot.getJSONArray("records").length();
-            status(count>0 ? "活动资料已同步，"+count+" 条来源记录" : "已同步；小米运动健康尚未共享可读记录");
+            status(count>0 ? "活动资料已同步，"+count+" 条来源记录" : phone
+                ? "已同步；手机系统暂未提供计步记录" : "已同步；小米运动健康尚未共享可读记录");
         } finally { connection.disconnect(); }
     }
     private boolean permissionsStillGranted(JSONObject snapshot) {
         if(!"available".equals(snapshot.optString("status")))return true;
+        if(phone)return PhoneStepsBridge.hasPermission(context);
         JSONArray previous=snapshot.optJSONArray("readableKinds");
         JSONArray current=HealthConnectBridge.status(context).optJSONArray("readableKinds");
         if(previous==null || current==null)return false;

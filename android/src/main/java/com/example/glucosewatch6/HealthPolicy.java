@@ -22,6 +22,20 @@ public final class HealthPolicy {
         return start > 0 && end > start && end - start <= WINDOW_MILLIS;
     }
 
+    /**
+     * Platform Energy is in cal. AndroidX UnitConverters.toSdkEnergy uses
+     * Energy.calories(platform.inCalories); its Energy.Type.KILOCALORIES sets caloriesPerUnit=1000.
+     * https://android.googlesource.com/platform/frameworks/support/+/androidx-main/health/connect/connect-client/src/main/java/androidx/health/connect/client/impl/platform/records/UnitConverters.kt
+     * https://android.googlesource.com/platform/frameworks/support/+/androidx-main/health/connect/connect-client/src/main/java/androidx/health/connect/client/units/Energy.kt
+     * The agreed upload bound is 100000 kcal per source interval.
+     */
+    public static double activeKilocalories(double nativeCalories) {
+        double kcal = nativeCalories / 1000.0;
+        if (!Double.isFinite(nativeCalories) || nativeCalories < 0 || kcal > 100000)
+            throw new IllegalArgumentException("invalid_active_energy");
+        return kcal;
+    }
+
     /** Failing a limit invalidates the entire snapshot; never trim or emit a partial scan. */
     public static final class Budget {
         private int records, samples, bytes = 4096, pages;

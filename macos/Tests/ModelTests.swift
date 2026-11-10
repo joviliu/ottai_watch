@@ -60,6 +60,40 @@ struct ModelTests {
             do { _ = try Dashboard.decode(Data(malformed.utf8)); fatalError("invalid response accepted") }
             catch MirrorError.invalidResponse {}
         }
+        assert(dashboard.activity == nil, "old dashboard/cache must decode without new activity fields")
+        let hr = HeartRateBin(startAt: fresh.sourceAt-300000, endAt: fresh.sourceAt+1,
+            mean: 210, min: 200, max: 220, sampleCount: 3,
+            firstSampleAt: fresh.sourceAt-200000, lastSampleAt: fresh.sourceAt)
+        let step = ActivityPlotBin(startAt: fresh.sourceAt-900000, endAt: fresh.sourceAt,
+            count: 120, recordCount: 2, potentialOverlap: false)
+        let calories = ActivityPlotBin(startAt: step.startAt, endAt: step.endAt,
+            energyKcal: 7.4, recordCount: 1)
+        var combined = dashboard
+        combined.activity = ActivityData(heartRate: [hr], plot: ActivityPlot(intervalMinutes: 15,
+            steps: [step], activeCalories: [calories], coarseActiveCalorieRecordCount: 1))
+        let activityJSON = try JSONEncoder().encode(combined)
+        let activityDecoded = try Dashboard.decode(activityJSON)
+        assert(activityDecoded.activity?.heartRate?.first?.sampleCount == 3)
+        assert(activityDecoded.activity?.plot?.steps?.first?.count == 120)
+        assert(activityDecoded.activity?.plot?.activeCalories?.first?.energyKcal == 7.4)
+        assert(activityDecoded.activity?.plot?.omittedRecordCount == 1)
+        assert(activityDecoded.glucosePlotUpperBound == dashboard.glucosePlotUpperBound,
+            "HR values must never compress the glucose axis")
+        assert(activityDecoded.activity!.heartRateRange.lowerBound <= 200
+            && activityDecoded.activity!.heartRateRange.upperBound >= 220)
+        assert(activityDecoded.activity!.heartRate!.count == 1,
+            "sparse HR observations must not generate connecting samples")
+        var invalidActivity = combined
+        invalidActivity.activity!.plot!.steps![0] = ActivityPlotBin(startAt: step.startAt, endAt: step.endAt,
+            count: -1, recordCount: 1)
+        do { _ = try Dashboard.decode(JSONEncoder().encode(invalidActivity)); fatalError("negative activity accepted") }
+        catch MirrorError.invalidResponse {}
+        invalidActivity = combined
+        invalidActivity.activity!.heartRate![0] = HeartRateBin(startAt: hr.startAt, endAt: hr.endAt,
+            mean: 350, min: 350, max: 350, sampleCount: 1,
+            firstSampleAt: hr.firstSampleAt, lastSampleAt: hr.lastSampleAt)
+        do { _ = try Dashboard.decode(JSONEncoder().encode(invalidActivity)); fatalError("invalid HR accepted") }
+        catch MirrorError.invalidResponse {}
         let cached = CachedDashboard(fetchedAt: now, dashboard: dashboard)
         let restored = try JSONDecoder().decode(CachedDashboard.self, from: JSONEncoder().encode(cached))
         assert(restored.fetchedAt == now && restored.dashboard.latest?.sourceAt == dashboard.latest?.sourceAt)

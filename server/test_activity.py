@@ -27,6 +27,7 @@ def record(kind, identifier='one', start=None, end=None, modified=None):
                  startOffsetSeconds=28800,endOffsetSeconds=28800,
                  device={'manufacturer':'Xiaomi','model':'Synthetic Watch','type':1})
     if kind == 'exercise': value['exerciseType'] = 56
+    if kind == 'active_calories': value['energyKcal'] = 12.5
     if kind == 'steps': value['count'] = 1200
     if kind == 'heart_rate': value['samples'] = [{'time':start,'bpm':80},{'time':end,'bpm':120}] if start < end else [{'time':start,'bpm':80}]
     return value
@@ -99,6 +100,8 @@ class ActivityStorageTests(unittest.TestCase):
         data=self.store.activity_snapshot(NOW-DAY,NOW)
         view=dashboard_activity(data,NOW-DAY,NOW,NOW)
         self.assertEqual(view['summary']['heartRateSampleCount'],2)
+        self.assertEqual(view['kindAvailability']['heart_rate']['lastObservedEndAt'],NOW-5*MINUTE)
+        self.assertEqual(view['kindAvailability']['heart_rate']['recordWindowOverlapEndAt'],NOW)
         self.assertEqual(sum(bin['sampleCount'] for bin in view['heartRate']),2)
         self.assertTrue(all(bin['lastSampleAt'] <= NOW for bin in view['heartRate']))
         invalid=copy.deepcopy(item);invalid['samples'].append({'time':NOW+90001,'bpm':80})
@@ -181,7 +184,10 @@ class ActivityStorageTests(unittest.TestCase):
             self.assertEqual(len(context['heartRateTimeline']['rows']),96)
             self.assertEqual(sum(row[7] for row in context['heartRateTimeline']['rows']),86400)
             self.assertEqual(len(context['recordedSessions']),24)
-            self.assertEqual(len(context['shortStepIntervals']),288)
+            self.assertEqual(len(context['shortStepIntervals']),32)
+            self.assertTrue(context['shortStepIntervalsTruncated'])
+            self.assertEqual(context['stepTimeline']['recordCount'],288)
+            self.assertEqual(sum(row[5] for row in context['stepTimeline']['rows']),288)
         self.assertGreater(len(observations['candidateExcursions']['events']),0)
 
     def test_native_unordered_duplicate_and_empty_hr_samples(self):
@@ -364,6 +370,327 @@ class ActivityHttpTests(unittest.TestCase):
         view=self.fetch('/api/v1/dashboard','r'*32)[1]['activity']
         self.assertEqual(view['originApp']['versionCode'],359002)
         self.assertEqual(view['summary']['heartRateSampleCount'],1)
+
+
+
+
+def phone_snapshot(rows=None, synced=NOW, status='available'):
+    rows=[] if rows is None else copy.deepcopy(rows)
+    for row in rows:
+        row.update(origin='com.miui.rom',modifiedAt=synced,providerMode=2)
+    return dict(source='phone_steps',syncedAt=synced,windowStart=NOW-2*DAY,windowEnd=NOW,
+                status=status,readableKinds=['steps'] if status=='available' else [],records=rows,
+                revisionBasis='collection_time',originApp={'packageName':'com.miui.rom','versionName':'test','versionCode':1})
+
+
+class HybridActivityTests(unittest.TestCase):
+    setUp=ActivityStorageTests.setUp
+    tearDown=ActivityStorageTests.tearDown
+    ingest=ActivityStorageTests.ingest
+
+    def test_hybrid_preserves_hc_heart_and_exercise_without_mixing_steps(self):
+        hr=record('heart_rate','same-id')
+        session=record('exercise','workout')
+        self.ingest(snapshot([hr,session]))
+        phone=record('steps','same-id',NOW-10*MINUTE,NOW-5*MINUTE);phone['count']=200
+        self.ingest(phone_snapshot([phone],NOW+1000))
+        result=self.store.activity_snapshot(NOW-DAY,NOW,NOW+1000)
+        view=dashboard_activity(result,NOW-DAY,NOW,NOW+1000)
+        self.assertEqual(view['source'],'mixed')
+        self.assertIsNone(view['origin'])
+        self.assertEqual(view['sourceByKind'],{'exercise':'health_connect','heart_rate':'health_connect','steps':'phone_steps','active_calories':'health_connect'})
+        self.assertEqual((view['summary']['heartRateSampleCount'],view['summary']['recordedExerciseCount'],view['summary']['observedStepTotal']),(2,1,200))
+        self.assertEqual(view['stepIntervals'][0]['origin'],'com.miui.rom')
+        self.assertEqual(view['stepIntervals'][0]['providerMode'],2)
+        self.assertEqual(view['kindAvailability']['heart_rate']['lastSampleAt'],hr['samples'][-1]['time'])
+        context=analysis_context(result,[],NOW-DAY,NOW,NOW+1000)
+        self.assertEqual(context['recordedSessions'][0]['origin'],'com.mi.health')
+        self.assertEqual(context['shortStepIntervals'][0]['origin'],'com.miui.rom')
+        self.assertEqual(context['sourceByKind']['steps'],'phone_steps')
+        self.assertEqual(sum(row[7] for row in context['heartRateTimeline']['rows']),2)
+
+    def test_fresh_fine_hc_steps_win_but_phone_wins_over_only_coarse_hc(self):
+        hc=record('steps','hc',NOW-10*MINUTE,NOW-5*MINUTE);hc['count']=100
+        phone=record('steps','phone',NOW-10*MINUTE,NOW-5*MINUTE);phone['count']=200
+        self.ingest(snapshot([hc]));self.ingest(phone_snapshot([phone],NOW+1000))
+        selected=self.store.activity_snapshot(NOW-DAY,NOW,NOW+1000)
+        self.assertEqual(selected['sourceByKind']['steps'],'health_connect')
+        self.assertEqual(dashboard_activity(selected,NOW-DAY,NOW,NOW+1000)['summary']['observedStepTotal'],100)
+        hc['startAt']=NOW-DAY;hc['endAt']=NOW;hc['count']=4384;hc['modifiedAt']=NOW+2000
+        self.ingest(snapshot([hc],synced=NOW+2000))
+        selected=self.store.activity_snapshot(NOW-DAY,NOW,NOW+2000)
+        self.assertEqual(selected['sourceByKind']['steps'],'phone_steps')
+        self.assertEqual(selected['sourceByKindReason']['steps'],'health_connect_coarse_phone_intervals')
+        self.assertEqual(dashboard_activity(selected,NOW-DAY,NOW,NOW+2000)['summary']['observedStepTotal'],200)
+        # Coarse phone summaries do not displace a fresh native HC total.
+        phone['startAt']=NOW-DAY;phone['endAt']=NOW
+        self.ingest(phone_snapshot([phone],NOW+3000))
+        self.assertEqual(self.store.activity_snapshot(NOW-DAY,NOW,NOW+3000)['sourceByKind']['steps'],'health_connect')
+
+    def test_fresh_phone_fallback_does_not_mask_stale_or_denied_hc_kind(self):
+        hc=record('steps','hc',NOW-10*MINUTE,NOW-5*MINUTE)
+        hr=record('heart_rate','hr')
+        self.ingest(snapshot([hc,hr]))
+        phone=record('steps','phone',NOW-10*MINUTE,NOW-5*MINUTE)
+        self.ingest(phone_snapshot([phone],NOW+31*MINUTE))
+        selected=self.store.activity_snapshot(NOW-DAY,NOW,NOW+31*MINUTE)
+        view=dashboard_activity(selected,NOW-DAY,NOW,NOW+31*MINUTE)
+        self.assertEqual(view['sourceByKind']['steps'],'phone_steps')
+        self.assertFalse(view['kindAvailability']['steps']['stale'])
+        self.assertTrue(view['kindAvailability']['heart_rate']['stale'])
+        self.assertEqual(view['kindAvailability']['heart_rate']['lastSampleAt'],hr['samples'][-1]['time'])
+        self.ingest(snapshot([],synced=NOW+32*MINUTE,kinds=[],status='permission_denied'))
+        view=dashboard_activity(self.store.activity_snapshot(NOW-DAY,NOW,NOW+32*MINUTE),NOW-DAY,NOW,NOW+32*MINUTE)
+        self.assertEqual(view['sourceByKind']['steps'],'phone_steps')
+        self.assertFalse(view['kindAvailability']['heart_rate']['readable'])
+        self.assertEqual(view['sourceStates']['health_connect']['status'],'permission_denied')
+        self.ingest(phone_snapshot([],NOW+33*MINUTE,status='permission_denied'))
+        view=dashboard_activity(self.store.activity_snapshot(NOW-DAY,NOW,NOW+33*MINUTE),NOW-DAY,NOW,NOW+33*MINUTE)
+        self.assertIsNone(view['summary']['observedStepTotal'])
+        self.assertTrue(view['kindAvailability']['steps']['stale'])
+
+    def test_collection_timestamp_only_is_not_new_semantic_phone_snapshot(self):
+        self.ingest(snapshot([record('heart_rate','hc')]))
+        phone=record('steps','phone',NOW-10*MINUTE,NOW-5*MINUTE)
+        self.ingest(phone_snapshot([phone]))
+        before=self.store.activity_identity(NOW-2*DAY,NOW,NOW)
+        self.assertEqual(self.ingest(phone_snapshot([phone],NOW+1000))['unchanged'],1)
+        self.assertEqual(self.store.activity_identity(NOW-2*DAY,NOW,NOW+1000),before)
+        phone['count']+=1
+        self.assertEqual(self.ingest(phone_snapshot([phone],NOW+2000))['updated'],1)
+        self.assertNotEqual(self.store.activity_identity(NOW-2*DAY,NOW,NOW+2000),before)
+        # Deleting phone records cannot delete same-ID HC data.
+        self.ingest(phone_snapshot([],NOW+3000))
+        with self.store.connect() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM activity_records WHERE source='health_connect'").fetchone()[0],1)
+
+    def test_two_day_analysis_keeps_one_step_source_for_both_contexts(self):
+        hc=record('steps','coarse',NOW-2*DAY,NOW)
+        self.ingest(snapshot([hc],start=NOW-2*DAY))
+        previous=record('steps','previous',NOW-DAY-10*MINUTE,NOW-DAY-5*MINUTE)
+        current=record('steps','current',NOW-10*MINUTE,NOW-5*MINUTE)
+        self.ingest(phone_snapshot([previous,current],NOW+1000))
+        selected=self.store.activity_snapshot(NOW-2*DAY,NOW,NOW+1000)
+        latest=analysis_context(selected,[],NOW-DAY,NOW,NOW+1000)
+        prior=analysis_context(selected,[],NOW-2*DAY,NOW-DAY,NOW+1000)
+        self.assertEqual(latest['sourceByKind']['steps'],prior['sourceByKind']['steps'])
+        self.assertEqual(latest['sourceByKind']['steps'],'phone_steps')
+        self.assertEqual(len(latest['shortStepIntervals']),1)
+        self.assertEqual(len(prior['shortStepIntervals']),1)
+        self.assertEqual(selected['digest'],self.store.activity_identity(NOW-2*DAY,NOW,NOW+1000))
+
+    def test_phone_contract_and_hc_metadata_remain_separate(self):
+        good=phone_snapshot([record('steps','phone')])
+        self.ingest(good)
+        self.assertEqual(self.store.activity_snapshot(NOW-DAY,NOW)['sourceStates']['phone_steps']['revisionBasis'],'collection_time')
+        packets=[]
+        wrong=phone_snapshot([record('exercise','not-a-phone-sensor')]);packets.append(wrong)
+        wrong=copy.deepcopy(good);wrong['records'][0]['origin']='com.mi.health';packets.append(wrong)
+        wrong=copy.deepcopy(good);wrong['revisionBasis']='source_modified_at';packets.append(wrong)
+        wrong=copy.deepcopy(good);wrong['readableKinds']=['steps','heart_rate'];packets.append(wrong)
+        wrong=copy.deepcopy(good);wrong['records'][0]['providerMode']=True;packets.append(wrong)
+        for packet in packets:
+            with self.assertRaises(ValueError):validate_activity(packet,NOW)
+
+    def test_phone_batch_timeline_keeps_all_352_rows_and_latest_raw_examples(self):
+        self.ingest(snapshot([record('heart_rate','hr')]))
+        records=[]
+        for index in range(352):
+            begin=NOW-DAY+index*4*MINUTE
+            item=record('steps','phone-step:%03d'%index,begin,begin+(1 if index%2==0 else 30000))
+            item['count']=10 if index%2==0 else 50
+            records.append(item)
+        self.ingest(phone_snapshot(records,NOW+1000))
+        snapshot_data=self.store.activity_snapshot(NOW-DAY,NOW,NOW+1000)
+        public=dashboard_activity(snapshot_data,NOW-DAY,NOW,NOW+1000)
+        self.assertEqual(len(public['stepIntervals']),288)
+        self.assertEqual(public['stepIntervals'][-1]['id'],'phone-step:351')
+        self.assertEqual(public['stepIntervals'][0]['id'],'phone-step:064')
+        self.assertTrue(public['stepIntervalsTruncated'])
+        self.assertEqual(public['stepIntervalTotalCount'],352)
+        self.assertEqual(sum(row['recordCount'] for row in public['plot']['steps']),352)
+        self.assertEqual(sum(row['count'] for row in public['plot']['steps']),176*60)
+        self.assertLessEqual(len(public['plot']['steps']),96)
+        self.assertEqual(public['plot']['steps'][-1]['lastRecordEndAt'],records[-1]['endAt'])
+        self.assertEqual(public['summary']['observedStepTotal'],176*60)
+        context=analysis_context(snapshot_data,[],NOW-DAY,NOW,NOW+1000)
+        timeline=context['stepTimeline']
+        self.assertLessEqual(len(timeline['rows']),96)
+        self.assertFalse(timeline['truncated'])
+        self.assertEqual((timeline['recordCount'],timeline['groupedRecordCount'],timeline['rawCountSum']),(352,352,176*60))
+        self.assertEqual(sum(row[4] for row in timeline['rows']),176*60)
+        self.assertEqual(sum(row[5] for row in timeline['rows']),352)
+        self.assertEqual(context['shortStepIntervals'][-1]['startAt'],records[-1]['startAt'])
+        self.assertEqual(len(context['shortStepIntervals']),32)
+        self.assertTrue(context['shortStepIntervalsTruncated'])
+        self.assertIn('不能推导步频',timeline['meaning'])
+        self.assertFalse(timeline['potentialOverlap'])
+
+    def test_step_timeline_flags_cross_bin_period_future_and_overlap(self):
+        first=record('steps','before-start',NOW-DAY-MINUTE,NOW-DAY+MINUTE)
+        second=record('steps','cross-bin',NOW-DAY+14*MINUTE,NOW-DAY+16*MINUTE)
+        third=record('steps','overlap',NOW-DAY+15*MINUTE,NOW-DAY+17*MINUTE)
+        future=record('steps','future-end',NOW-MINUTE,NOW+MINUTE)
+        self.ingest(phone_snapshot([first,second,third,future],NOW+1000))
+        context=analysis_context(self.store.activity_snapshot(NOW-DAY,NOW,NOW+1000),[],NOW-DAY,NOW,NOW+1000)
+        timeline=context['stepTimeline']
+        self.assertEqual(timeline['recordCount'],4)
+        self.assertEqual(timeline['groupedRecordCount'],3)
+        self.assertEqual(timeline['outsideStartWindowRecordCount'],1)
+        self.assertEqual(timeline['outsideStartWindowRawCountSum'],1200)
+        self.assertEqual(timeline['crossPeriodRecordCount'],2)
+        self.assertEqual(timeline['futureEndRecordCount'],1)
+        self.assertTrue(timeline['potentialOverlap'])
+        self.assertIsNone(timeline['observedStepTotal'])
+        self.assertGreaterEqual(sum(row[6] for row in timeline['rows']),2)
+
+    def test_legacy_single_source_migration_preserves_actual_data_and_reports(self):
+        from server.activity import canonical
+        self.store.ingest([reading(NOW)],NOW)
+        self.store.ingest([reading(NOW,6.5)],NOW+1000)
+        self.store.claim_report('2026-11-09',NOW)
+        self.store.finish_report('2026-11-09',NOW,body={'summary':'preserved'})
+        hr=record('heart_rate','legacy',NOW-DAY,NOW+DAY)
+        hr['samples']=[{'time':NOW-MINUTE,'bpm':70}]
+        with self.store.connect() as db:
+            db.executescript("DROP TABLE activity_records; DROP TABLE activity_coverage; DROP TABLE activity_state; "
+                "CREATE TABLE activity_records(record_id TEXT PRIMARY KEY,kind TEXT NOT NULL,start_at INTEGER NOT NULL,end_at INTEGER NOT NULL,modified_at INTEGER NOT NULL,body TEXT NOT NULL); "
+                "CREATE INDEX activity_interval ON activity_records(start_at,end_at); "
+                "CREATE TABLE activity_coverage(kind TEXT NOT NULL,start_at INTEGER NOT NULL,end_at INTEGER NOT NULL,PRIMARY KEY(kind,start_at)); "
+                "CREATE TABLE activity_state(source TEXT PRIMARY KEY,synced_at INTEGER NOT NULL,digest TEXT NOT NULL,status TEXT NOT NULL,readable_kinds TEXT NOT NULL,window_start INTEGER NOT NULL,window_end INTEGER NOT NULL,last_success_at INTEGER,origin_app TEXT);")
+            db.execute('INSERT INTO activity_records VALUES (?,?,?,?,?,?)',(hr['id'],hr['kind'],hr['startAt'],hr['endAt'],hr['modifiedAt'],canonical(hr)))
+            db.execute('INSERT INTO activity_coverage VALUES (?,?,?)',('heart_rate',NOW-DAY,NOW))
+            db.execute('INSERT INTO activity_state VALUES (?,?,?,?,?,?,?,?,?)',('health_connect',NOW,'legacy-digest','available','["heart_rate"]',NOW-DAY,NOW,NOW,None))
+        migrated=Store(self.store.path)
+        value=migrated.activity_snapshot(NOW-DAY,NOW,NOW)
+        self.assertEqual(value['records'][0],hr)
+        self.assertEqual(value['coverage']['heart_rate'],[[NOW-DAY,NOW]])
+        self.assertEqual(migrated.latest()['value'],6.5)
+        self.assertEqual(migrated.latest_ready_report(),{'summary':'preserved'})
+        with migrated.connect() as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM revisions').fetchone()[0],1)
+            self.assertEqual([r[2] for r in db.execute('PRAGMA index_info(activity_interval)')],['source','start_at','end_at'])
+        self.assertEqual(Store(self.store.path).activity_snapshot(NOW-DAY,NOW,NOW)['records'][0],hr)
+
+
+
+
+class ActiveCalorieTests(unittest.TestCase):
+    setUp=ActivityStorageTests.setUp
+    tearDown=ActivityStorageTests.tearDown
+    ingest=ActivityStorageTests.ingest
+    kinds=['exercise','heart_rate','steps','active_calories']
+
+    def test_hc_active_energy_is_optional_distinct_and_preserves_provenance(self):
+        self.ingest(snapshot([record('heart_rate','hr')]))
+        missing=dashboard_activity(self.store.activity_snapshot(NOW-DAY,NOW),NOW-DAY,NOW,NOW)
+        self.assertIsNone(missing['summary']['observedActiveKcal'])
+        self.assertIsNone(missing['summary']['rawActiveKcalSum'])
+        self.assertFalse(missing['kindAvailability']['active_calories']['readable'])
+        first=record('active_calories','energy1',NOW-10*MINUTE,NOW-5*MINUTE);first['energyKcal']=25.5
+        second=record('active_calories','energy2',NOW-5*MINUTE,NOW);second['energyKcal']=34.5
+        self.ingest(snapshot([record('heart_rate','hr'),first,second],synced=NOW+1000,kinds=self.kinds))
+        self.ingest(phone_snapshot([record('steps','phone',NOW-10*MINUTE,NOW-5*MINUTE)],NOW+2000))
+        saved=self.store.activity_snapshot(NOW-DAY,NOW,NOW+2000)
+        view=dashboard_activity(saved,NOW-DAY,NOW,NOW+2000)
+        self.assertEqual(view['sourceByKind']['active_calories'],'health_connect')
+        self.assertEqual((view['summary']['activeCalorieRecordCount'],view['summary']['observedActiveKcal'],view['summary']['rawActiveKcalSum']),(2,60,60))
+        self.assertEqual(view['activeCalorieIntervals'][0]['origin'],'com.mi.health')
+        self.assertEqual(view['activeCalorieIntervals'][0]['device'],first['device'])
+        self.assertEqual(view['summary']['heartRateSampleCount'],2)
+        self.assertEqual(view['summary']['stepsSource'],'phone_steps')
+        context=analysis_context(saved,[],NOW-DAY,NOW,NOW+2000)
+        self.assertEqual(context['activeCalorieTimeline']['recordCount'],2)
+        self.assertEqual(context['activeCalorieTimeline']['rawEnergyKcalSum'],60)
+        self.assertEqual(context['activeCalorieTimeline']['source'],'health_connect')
+        # Revoking only energy access retains cached history but never turns it into a current total.
+        self.ingest(snapshot([record('heart_rate','hr')],synced=NOW+3000))
+        cached=dashboard_activity(self.store.activity_snapshot(NOW-DAY,NOW,NOW+3000),NOW-DAY,NOW,NOW+3000)
+        self.assertEqual(cached['summary']['activeCalorieRecordCount'],2)
+        self.assertIsNone(cached['summary']['observedActiveKcal'])
+        self.assertFalse(cached['kindAvailability']['active_calories']['readable'])
+
+    def test_energy_bounds_and_source_scope_do_not_admit_total_or_basal(self):
+        for value in [True,-1,100000.01,float('nan'),float('inf'),'12.5']:
+            item=record('active_calories');item['energyKcal']=value
+            with self.assertRaises(ValueError):validate_activity(snapshot([item],kinds=self.kinds),NOW)
+        item=record('active_calories');item['energyKcal']=0
+        self.assertEqual(validate_activity(snapshot([item],kinds=self.kinds),NOW)['records'][0]['energyKcal'],0)
+        with self.assertRaises(ValueError):validate_activity(phone_snapshot([item]),NOW)
+        for kind in ('total_calories','basal_metabolic_rate'):
+            item=record('active_calories');item['kind']=kind
+            with self.assertRaises(ValueError):validate_activity(snapshot([item],kinds=self.kinds),NOW)
+
+    def test_energy_overlap_future_and_cross_boundary_are_not_precise_totals(self):
+        day=record('active_calories','future-container',NOW-DAY,NOW+DAY);day['energyKcal']=1000
+        overlap=record('active_calories','overlap',NOW-MINUTE,NOW);overlap['energyKcal']=10
+        self.ingest(snapshot([day,overlap],kinds=self.kinds))
+        view=dashboard_activity(self.store.activity_snapshot(NOW-DAY,NOW),NOW-DAY,NOW,NOW)
+        self.assertIsNone(view['summary']['observedActiveKcal'])
+        self.assertEqual(view['summary']['rawActiveKcalSum'],1010)
+        self.assertTrue(view['summary']['potentialActiveCalorieOverlap'])
+        context=analysis_context(self.store.activity_snapshot(NOW-DAY,NOW),[],NOW-DAY,NOW,NOW)
+        timeline=context['activeCalorieTimeline']
+        self.assertEqual((timeline['futureEndRecordCount'],timeline['crossPeriodRecordCount']),(1,1))
+        self.assertTrue(timeline['potentialOverlap'])
+        self.assertIsNone(timeline['observedActiveKcal'])
+
+    def test_public_plot_excludes_coarse_daily_energy_and_keeps_short_start_groups(self):
+        coarse=record('active_calories','daily',NOW-DAY,NOW);coarse['energyKcal']=500
+        short=record('active_calories','short',NOW-10*MINUTE,NOW-9*MINUTE);short['energyKcal']=5
+        cross=record('active_calories','cross-bin',NOW-DAY+14*MINUTE,NOW-DAY+16*MINUTE);cross['energyKcal']=7
+        instant=record('active_calories','point',NOW-MINUTE,NOW-MINUTE);instant['energyKcal']=1
+        future=record('active_calories','future',NOW-MINUTE,NOW+MINUTE);future['energyKcal']=2
+        self.ingest(snapshot([coarse,short,cross,instant,future],kinds=self.kinds))
+        public=dashboard_activity(self.store.activity_snapshot(NOW-DAY,NOW),NOW-DAY,NOW,NOW)
+        plot=public['plot']
+        self.assertEqual(plot['intervalMinutes'],15)
+        self.assertEqual(plot['coarseActiveCalorieRecordCount'],1)
+        self.assertEqual(plot['instantActiveCalorieRecordCount'],1)
+        self.assertEqual(plot['futureEndActiveCalorieRecordCount'],1)
+        self.assertEqual(sum(row['energyKcal'] for row in plot['activeCalories']),12,'daily total never becomes a fake midnight spike')
+        self.assertEqual(sum(row['recordCount'] for row in plot['activeCalories']),2)
+        self.assertEqual(sum(row['crossBinRecordCount'] for row in plot['activeCalories']),1)
+        self.assertTrue(all(row['source']=='health_connect' for row in plot['activeCalories']))
+        self.assertTrue(all(row['lastRecordEndAt']<=NOW for row in plot['activeCalories']))
+        self.assertIn('非精确15分钟',plot['meaning'])
+        self.assertTrue(any('步频' in text for text in plot['limitations']))
+
+    def test_dense_energy_context_preserves_full_sums_and_model_body_bound(self):
+        from server.analysis import _report_body
+        records=[]
+        for day in range(2):
+            start=NOW-(day+1)*DAY
+            hr=record('heart_rate','hr'+str(day),start,start+DAY)
+            hr['samples']=[{'time':start+i*1000,'bpm':70+i%40} for i in range(86400)]
+            records.append(hr)
+            for index in range(24):records.append(record('exercise','ex-%d-%d'%(day,index),start+index*60*MINUTE,start+(index*60+45)*MINUTE))
+            for index in range(1440):
+                energy=record('active_calories','energy-%d-%d'%(day,index),start+index*MINUTE,start+(index+1)*MINUTE)
+                energy['energyKcal']=0.25;records.append(energy)
+            for index in range(288):records.append(record('steps','step-%d-%d'%(day,index),start+index*5*MINUTE,start+(index+1)*5*MINUTE))
+        activity={'state':{'status':'available','readableKinds':self.kinds,'lastSyncedAt':NOW},
+                  'records':records,'coverage':{k:[[NOW-2*DAY,NOW]] for k in self.kinds}}
+        values=[6.0]*8+[6.3,6.8,7.3,7.9,8.4,8.6,8.4,7.8,7.1,6.5,6.2,6.1,6.0,6.0]+[6.0]*14
+        readings=[reading(NOW-365*DAY+i*5*MINUTE,values[i%len(values)]) for i in range(365*288+1)]
+        captured=[]
+        _report_body(readings,NOW,'manual24h','2026-11-10',NOW,lambda payload,_:captured.append(payload) or response_payload(),'energy-test',activity)
+        self.assertLess(len(json.dumps(captured[0],ensure_ascii=False,separators=(',',':')).encode()),262144)
+        data=json.loads(captured[0]['input'][1]['content'][0]['text'])['observations']
+        for name in ('latest24h','previous24h'):
+            context=data['activity'][name]
+            timeline=context['activeCalorieTimeline']
+            self.assertEqual(len(timeline['rows']),96)
+            self.assertEqual(timeline['recordCount'],1440)
+            self.assertEqual(timeline['rawEnergyKcalSum'],360)
+            self.assertEqual(sum(row[4] for row in timeline['rows']),360)
+            self.assertEqual(context['summary']['observedActiveKcal'],360)
+            self.assertEqual(len(context['activeCalorieExamples']),32)
+            self.assertTrue(context['activeCalorieExamplesTruncated'])
+        public=dashboard_activity(activity,NOW-DAY,NOW,NOW)
+        self.assertLess(len(json.dumps(public,ensure_ascii=False,separators=(',',':')).encode()),512*1024)
+        self.assertEqual(len(public['activeCalorieIntervals']),32)
+        self.assertTrue(public['activeCalorieIntervalsTruncated'])
 
 
 if __name__ == '__main__': unittest.main()

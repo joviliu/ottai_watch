@@ -37,9 +37,9 @@ public final class MainActivity extends Activity {
         cloudStatus=MobileStyle.text(cloud,"",14,MobileStyle.MUTED,false);
         button(cloud,"云同步 / 每日血糖观察  →",()->startActivity(new Intent(this,CloudActivity.class)));
         LinearLayout health=MobileStyle.card(box);
-        MobileStyle.text(health,"运动与心率",19,MobileStyle.INK,true);
+        MobileStyle.text(health,"活动数据",19,MobileStyle.INK,true);
         healthStatus=MobileStyle.text(health,"",14,MobileStyle.MUTED,false);
-        button(health,"Health Connect 连接与权限  →",()->startActivity(new Intent().setClassName(this,getPackageName()+".HealthActivity")));
+        button(health,"活动来源与权限  →",()->startActivity(new Intent().setClassName(this,getPackageName()+".HealthActivity")));
         LinearLayout watch=MobileStyle.card(box);
         MobileStyle.text(watch,"手表连接",19,MobileStyle.INK,true);
         button(watch,"启动 / 重新连接",()->BridgeService.start(this,false));
@@ -66,7 +66,7 @@ public final class MainActivity extends Activity {
     private void button(LinearLayout box,String label,Runnable action) { MobileStyle.button(box,label,action); }
     private void render() {
         cloudStatus.setText(CloudSync.status(this));
-        healthStatus.setText(HealthConnectBridge.statusText(this));
+        healthStatus.setText(HealthConnectBridge.statusText(this)+(PhoneStepsBridge.isEnabled(this)?"\n\n"+PhoneStepsBridge.statusText(this):""));
         try {
             String raw = ReadingStore.frame(this);
             String info = "等待真实数据";

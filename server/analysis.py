@@ -213,7 +213,7 @@ def generate_daily(store, now=None, invoke=None):
         rows = store.readings(end-365*DAY-300000, end)
         with store.analysis_lock():
             body = _report_body(rows, end, 'scheduled_daily', date, now, invoke, 'daily:'+date,
-                                store.activity_snapshot(end-2*DAY,end))
+                                store.activity_snapshot(end-2*DAY,end,now))
         store.finish_report(date, now_ms(), body=body)
         return {'status': 'ready', 'reportDate': date}
     except Exception as error:
@@ -247,7 +247,7 @@ def manual_status(store, now=None, points=None, activity=None):
     quality = day_quality(points, end)
     if now-end > 10*60000:
         quality.update(ready=False, latestFresh=False, reason=quality['reason']+' 请先恢复最新读数同步。')
-    activity_digest = activity['digest'] if activity is not None else store.activity_identity(end-2*DAY,end)
+    activity_digest = activity['digest'] if activity is not None else store.activity_identity(end-2*DAY,end,now)
     key = _snapshot_id(points, end, activity_digest)
     same = store.manual_report(key)
     last = store.manual_report()
@@ -273,7 +273,7 @@ def generate_manual(store, key, end, rows, now, invoke=None, activity=None):
     try:
         with store.analysis_lock():
             body = _report_body(rows, end, 'manual24h', date, now, invoke, 'manual:'+key,
-                                activity if activity is not None else store.activity_snapshot(end-2*DAY,end))
+                                activity if activity is not None else store.activity_snapshot(end-2*DAY,end,now))
         store.finish_manual(key, now_ms(), body=body)
     except Exception as error:
         code = str(error) if isinstance(error, AnalysisError) else 'analysis_internal_error'
@@ -284,7 +284,7 @@ def request_manual(store, now=None, launch=None):
     now = now if now is not None else now_ms()
     rows = store.readings(now-366*DAY, now)
     end = rows[-1]['sourceAt'] if rows else now
-    activity = store.activity_snapshot(end-2*DAY,end)
+    activity = store.activity_snapshot(end-2*DAY,end,now)
     status = manual_status(store, now, points=rows, activity=activity)
     if not status['eligible']:
         return (200 if status['status'] in ('ready', 'running') else 409), status

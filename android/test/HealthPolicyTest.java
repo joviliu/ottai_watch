@@ -16,6 +16,16 @@ public final class HealthPolicyTest {
         check(!HealthPolicy.validWindow(0, 1000));
         check(!HealthPolicy.validWindow(1000, 1000));
         check(!HealthPolicy.validWindow(1000, 1000 + HealthPolicy.WINDOW_MILLIS + 1));
+        check(HealthPolicy.activeKilocalories(0) == 0);
+        check(HealthPolicy.activeKilocalories(1000) == 1);
+        check(HealthPolicy.activeKilocalories(335330) == 335.33); // Unit conversion, not335330kcal.
+        check(HealthPolicy.activeKilocalories(100000000) == 100000);
+        reject(() -> HealthPolicy.activeKilocalories(100000001));
+        reject(() -> HealthPolicy.activeKilocalories(-1));
+        reject(() -> HealthPolicy.activeKilocalories(-Double.MIN_VALUE));
+        reject(() -> HealthPolicy.activeKilocalories(Double.NaN));
+        reject(() -> HealthPolicy.activeKilocalories(Double.POSITIVE_INFINITY));
+        reject(() -> HealthPolicy.activeKilocalories(Double.NEGATIVE_INFINITY));
 
         HealthPolicy.Budget paging = new HealthPolicy.Budget();
         paging.page(-1); paging.page(12); paging.page(19);
@@ -43,6 +53,6 @@ public final class HealthPolicyTest {
         HealthPolicy.Budget records = new HealthPolicy.Budget();
         for (int i = 0; i < HealthPolicy.MAX_RECORDS; i++) records.record("steps", Integer.toString(i), 0, 1);
         reject(() -> records.record("steps", "overflow", 0, 1));
-        System.out.println("Health policy: extension availability, rolling window, repeated tokens, total page/record/sample/UTF8 byte bounds passed");
+        System.out.println("Health policy: extension availability, rolling window, repeated tokens, cal-to-kcal conversion/energy bounds, total page/record/sample/UTF8 byte bounds passed");
     }
 }

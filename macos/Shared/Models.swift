@@ -124,6 +124,83 @@ struct ManualAnalysisState: Codable {
     var cooldownSeconds: Double?
 }
 
+struct HeartRateBin: Codable, Identifiable {
+    let startAt: Double
+    let endAt: Double
+    let mean: Double
+    let min: Double
+    let max: Double
+    let sampleCount: Int
+    let firstSampleAt: Double
+    let lastSampleAt: Double
+    var id: Double { startAt }
+    var date: Date { Date(timeIntervalSince1970: (firstSampleAt + lastSampleAt) / 2000) }
+    var valid: Bool {
+        [startAt, endAt, mean, min, max, firstSampleAt, lastSampleAt].allSatisfy(\.isFinite)
+            && startAt > 0 && startAt < endAt && firstSampleAt >= startAt && lastSampleAt <= endAt
+            && firstSampleAt <= lastSampleAt && sampleCount > 0 && sampleCount <= 100000
+            && min > 0 && min <= mean && mean <= max && max <= 300
+    }
+}
+
+struct ActivityPlotBin: Codable, Identifiable {
+    let startAt: Double
+    let endAt: Double
+    var count: Double?
+    var energyKcal: Double?
+    var recordCount: Int?
+    var firstRecordStartAt: Double?
+    var lastRecordEndAt: Double?
+    var crossBinRecordCount: Int?
+    var source: String?
+    var potentialOverlap: Bool?
+    var id: Double { startAt }
+    var start: Date { Date(timeIntervalSince1970: startAt / 1000) }
+    var end: Date { Date(timeIntervalSince1970: endAt / 1000) }
+    var valid: Bool {
+        startAt.isFinite && endAt.isFinite && startAt > 0 && endAt > startAt && endAt - startAt <= 900001
+            && [count, energyKcal].compactMap { $0 }.allSatisfy { $0.isFinite && $0 >= 0 && $0 <= 1e12 }
+    }
+}
+
+struct ActivityPlot: Codable {
+    var periodStart: Double?
+    var periodEnd: Double?
+    var intervalMinutes: Int?
+    var steps: [ActivityPlotBin]?
+    var activeCalories: [ActivityPlotBin]?
+    var coarseStepRecordCount: Int?
+    var coarseActiveCalorieRecordCount: Int?
+    var futureEndStepRecordCount: Int?
+    var futureEndActiveCalorieRecordCount: Int?
+    var crossPeriodStepRecordCount: Int?
+    var crossPeriodActiveCalorieRecordCount: Int?
+    var instantStepRecordCount: Int?
+    var instantActiveCalorieRecordCount: Int?
+    var omittedRecordCount: Int {
+        [coarseStepRecordCount, coarseActiveCalorieRecordCount, futureEndStepRecordCount,
+         futureEndActiveCalorieRecordCount, crossPeriodStepRecordCount, crossPeriodActiveCalorieRecordCount,
+         instantStepRecordCount, instantActiveCalorieRecordCount].compactMap { $0 }.reduce(0,+)
+    }
+}
+
+struct ActivityData: Codable {
+    var heartRate: [HeartRateBin]?
+    var plot: ActivityPlot?
+    var sourceByKind: [String: String]?
+    var valid: Bool {
+        (heartRate?.count ?? 0) <= 288 && (heartRate ?? []).allSatisfy(\.valid)
+            && (plot?.steps?.count ?? 0) <= 96 && (plot?.steps ?? []).allSatisfy(\.valid)
+            && (plot?.activeCalories?.count ?? 0) <= 96 && (plot?.activeCalories ?? []).allSatisfy(\.valid)
+    }
+    var heartRateRange: ClosedRange<Double> {
+        let points = heartRate ?? []
+        let lower = Swift.max(0, floor(((points.map(\.min).min() ?? 55) - 5) / 10) * 10)
+        let upper = Swift.max(lower + 20, ceil(((points.map(\.max).max() ?? 75) + 5) / 10) * 10)
+        return lower...upper
+    }
+}
+
 struct Dashboard: Codable {
     let schemaVersion: Int
     let serverAt: Double
@@ -135,13 +212,16 @@ struct Dashboard: Codable {
     var dailyAnalysis: Analysis?
     var rollingAnalysis: Analysis?
     var manualAnalysis: ManualAnalysisState?
+    var activity: ActivityData?
+    var glucosePlotUpperBound: Double { max(12, (readings.map(\.value).max() ?? 10) + 1) }
 
     static func decode(_ data: Data) throws -> Dashboard {
         let result = try JSONDecoder().decode(Dashboard.self, from: data)
-        guard result.schemaVersion == 1,
+        guard result.schemaVersion == 1, result.serverAt.isFinite && result.serverAt > 0,
               result.readings.count <= 10000,
               result.readings.allSatisfy({ $0.value.isFinite && $0.value > 0 && $0.value <= 60 && $0.sourceAt.isFinite }),
-              result.latest.map({ $0.value.isFinite && $0.value > 0 && $0.value <= 60 && $0.sourceAt.isFinite }) ?? true
+              result.latest.map({ $0.value.isFinite && $0.value > 0 && $0.value <= 60 && $0.sourceAt.isFinite }) ?? true,
+              result.activity?.valid ?? true
         else { throw MirrorError.invalidResponse }
         return result
     }
