@@ -18,7 +18,7 @@ final class CloudGraph extends View {
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private long periodEnd=System.currentTimeMillis();
     private boolean hasActivity,stepOverlap,energyOverlap;
-    private int coarseSteps,coarseEnergy;
+    private int coarseSteps,coarseEnergy,energyMinutes=15;
     private static final class HeartBin {
         long first,last;double mean,min,max;
         HeartBin(long first,long last,double mean,double min,double max) { this.first=first;this.last=last;this.mean=mean;this.min=min;this.max=max; }
@@ -55,7 +55,7 @@ final class CloudGraph extends View {
     }
     void setActivity(JSONObject activity) {
         hasActivity=activity!=null;exercise.clear();heart.clear();steps.clear();energy.clear();
-        stepOverlap=false;energyOverlap=false;coarseSteps=0;coarseEnergy=0;
+        stepOverlap=false;energyOverlap=false;coarseSteps=0;coarseEnergy=0;energyMinutes=15;
         JSONArray sessions=activity==null?null:activity.optJSONArray("exerciseSessions");
         if(sessions!=null)for(int i=0;i<Math.min(sessions.length(),128);i++) {
             JSONObject r=sessions.optJSONObject(i);if(r==null)continue;
@@ -71,19 +71,22 @@ final class CloudGraph extends View {
         }
         JSONObject plot=activity==null?null:activity.optJSONObject("plot");
         if(plot!=null) {
-            stepOverlap=amounts(plot.optJSONArray("steps"),"count",steps);
-            energyOverlap=amounts(plot.optJSONArray("activeCalories"),"energyKcal",energy);
-            coarseSteps=Math.max(0,plot.optInt("coarseStepRecordCount",0));coarseEnergy=Math.max(0,plot.optInt("coarseActiveCalorieRecordCount",0));
+            stepOverlap=amounts(plot.optJSONArray("steps"),"count",steps,900000);
+            JSONArray halfHourly=plot.optJSONArray("activeCalories30m");
+            if(halfHourly!=null)energyMinutes=30;
+            energyOverlap=amounts(halfHourly!=null?halfHourly:plot.optJSONArray("activeCalories"),"energyKcal",energy,energyMinutes*60000L);
+            coarseSteps=Math.max(0,plot.optInt("coarseStepRecordCount",0));
+            coarseEnergy=Math.max(0,plot.optInt(halfHourly!=null?"activeCalories30mOmittedRecordCount":"coarseActiveCalorieRecordCount",0));
         }
         setContentDescription("过去 24 小时：蓝色为血糖；粉紫色心率竖线为真实样本范围，点为样本均值，缺口不连接；绿色步数和琥珀色热量为各自相对记录量，按区间起点分组，不代表运动强度。粗粒度记录不画成时间柱。");
         invalidate();
     }
-    private boolean amounts(JSONArray rows,String key,List<AmountBin> output) {
+    private boolean amounts(JSONArray rows,String key,List<AmountBin> output,long maxInterval) {
         boolean overlap=false;
         if(rows!=null)for(int i=0;i<Math.min(rows.length(),96);i++) {
             JSONObject r=rows.optJSONObject(i);if(r==null)continue;
             long a=r.optLong("startAt",0),b=r.optLong("endAt",0);double value=r.optDouble(key,Double.NaN);
-            if(a>=periodEnd-DAY&&a<b&&b<=periodEnd&&b-a<=900000&&Double.isFinite(value)&&value>=0) {
+            if(a>=periodEnd-DAY&&a<b&&b<=periodEnd&&b-a<=maxInterval&&Double.isFinite(value)&&value>=0) {
                 output.add(new AmountBin(a,b,value));overlap|=r.optBoolean("potentialOverlap",false);
             }
         }
@@ -91,8 +94,8 @@ final class CloudGraph extends View {
     }
     String legend() {
         if(!hasActivity)return "缺测超过 10 分钟不连接。";
-        String text="心率竖线为样本范围，点为均值；空白不补线。活动柱按原始记录起点每 15 分钟分组，各自缩放；不表示精确时段发生量、持续时长或运动强度。";
-        if(coarseSteps+coarseEnergy>0)text+=" 粗粒度记录（步数 "+coarseSteps+" 条、热量 "+coarseEnergy+" 条）仅列摘要。";
+        String text="心率点与竖线为实测均值和范围，空白不补线。按记录起点分组：步数 15 分钟、能量 "+energyMinutes+" 分钟；各自缩放，不表示精确时段发生量、持续时长或运动强度。";
+        if(coarseSteps+coarseEnergy>0)text+=" 另有汇总或跨时段记录（步数 "+coarseSteps+" 条、热量 "+coarseEnergy+" 条）仅列摘要。";
         if(stepOverlap||energyOverlap)text+=" 标有重叠的柱为原始记录和，不能当作独立总量。";
         return text;
     }
@@ -114,7 +117,7 @@ final class CloudGraph extends View {
                 canvas.drawRect(x(Math.max(periodEnd-DAY,row[0]),left,right),183*d,x(Math.min(periodEnd,row[1]),left,right),186*d,paint);
             }
             drawHeart(canvas,left,right,209*d,250*d,d);
-            text(canvas,"相对记录量，非运动强度",0,271*d,10*d,MobileStyle.MUTED,Paint.Align.LEFT);
+            text(canvas,"活动线索 · 步 15 分 / 热量 "+energyMinutes+" 分",0,271*d,10*d,MobileStyle.MUTED,Paint.Align.LEFT);
             drawAmounts(canvas,steps,"步",STEPS,left,right,282*d,299*d,d,stepOverlap);
             drawAmounts(canvas,energy,"kcal",ENERGY,left,right,312*d,329*d,d,energyOverlap);
         }

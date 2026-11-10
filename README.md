@@ -1,5 +1,7 @@
 # Ottai → Redmi Watch 6 血糖镜像
 
+2026-11-10：[0.4.3真实能量图](releases/cloud-0.4.3/README.md)按实际资料提供30分钟能量柱，手机/Mac/组件与15分钟步数、独立心率、血糖共用时间轴；保留旧客户端与AI原始区间语义。授权和真机验收见[活动接续](docs/HEALTH_CONNECT.md)。
+
 
 2026-11-10：[0.4.2手机与Mac](releases/cloud-0.4.2/README.md)加入共享横轴的血糖/心率/活动多轨图；HC心率与估算活动能量、官方手机计步按独立来源处理，不共用纵轴、不合并不同单位。新版API和AI时序保留原始区间、缺测与分辨率信息。原官方运动健康和手表保持，完整实测状态见[接续记录](docs/HEALTH_CONNECT.md)。
 
@@ -59,7 +61,7 @@ git clone git@github.com:joviliu/ottai_watch.git
 cd ottai_watch
 ```
 
-**直接安装**：手机 APK 使用[0.4.2时序图版](releases/cloud-0.4.2/README.md)，Signal 使用 [0.1.17](releases/0.1.17/README.md)，Meridian 使用 [0.1.16](releases/0.1.16/README.md)，Ultra 沿用 0.1.14，手表应用为 [RPK 0.1.12](releases/watch-0.1.12/README.md)。先核对各目录 SHA256SUMS，按 [安装文档](docs/install.md) 和 [交接记录](docs/HANDOFF.md) 确认实际版本，勿重复清除已有数据。表盘通过 [SPP 临时安装器](tools/spp-installer/README.md) 上传，使用自己设备的合法配对凭据，结束卸载。官方版曾通过日常同步，但本轮上传在其环境下中断；修改版对照已完成三款上传，不能把这项结果直接解释为官方禁止表盘安装。修改版已确认可覆盖升级 RPK；官方 RPK 侧载入口仍未验。
+**直接安装**：手机 APK 使用[0.4.3时序图版](releases/cloud-0.4.3/README.md)，Signal 使用 [0.1.17](releases/0.1.17/README.md)，Meridian 使用 [0.1.16](releases/0.1.16/README.md)，Ultra 沿用 0.1.14，手表应用为 [RPK 0.1.12](releases/watch-0.1.12/README.md)。先核对各目录 SHA256SUMS，按 [安装文档](docs/install.md) 和 [交接记录](docs/HANDOFF.md) 确认实际版本，勿重复清除已有数据。表盘通过 [SPP 临时安装器](tools/spp-installer/README.md) 上传，使用自己设备的合法配对凭据，结束卸载。官方版曾通过日常同步，但本轮上传在其环境下中断；修改版对照已完成三款上传，不能把这项结果直接解释为官方禁止表盘安装。修改版已确认可覆盖升级 RPK；官方 RPK 侧载入口仍未验。
 
 **继续开发**：需要 Python 3、Node.js ≥18、JDK ≥17、Android SDK Platform 35 / Build Tools 35.0.0、OpenSSL。先运行不依赖 Android SDK 的测试：
 

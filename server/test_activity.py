@@ -656,6 +656,48 @@ class ActiveCalorieTests(unittest.TestCase):
         self.assertIn('非精确15分钟',plot['meaning'])
         self.assertTrue(any('步频' in text for text in plot['limitations']))
 
+    def test_half_hour_energy_plot_preserves_cadence_and_old_client_contract(self):
+        half=record('active_calories','half-hour',NOW-60*MINUTE,NOW-30*MINUTE-1000)
+        short=record('active_calories','short',NOW-10*MINUTE,NOW-5*MINUTE)
+        crossing_bin=record('active_calories','cross-bin',NOW-DAY+29*MINUTE,NOW-DAY+31*MINUTE)
+        coarse=record('active_calories','too-coarse',NOW-180*MINUTE,NOW-149*MINUTE)
+        instant=record('active_calories','instant',NOW-MINUTE,NOW-MINUTE)
+        future=record('active_calories','future',NOW-MINUTE,NOW+MINUTE)
+        crossing_period=record('active_calories','cross-period',NOW-DAY-10*MINUTE,NOW-DAY+10*MINUTE)
+        records=[half,short,crossing_bin,coarse,instant,future,crossing_period]
+        self.ingest(snapshot(records,start=NOW-2*DAY,kinds=self.kinds))
+        saved=self.store.activity_snapshot(NOW-DAY,NOW)
+        plot=dashboard_activity(saved,NOW-DAY,NOW,NOW)['plot']
+        self.assertEqual(plot['intervalMinutes'],15)
+        self.assertTrue(all(row['endAt']-row['startAt']<=15*MINUTE for row in plot['activeCalories']))
+        self.assertEqual(sum(row['recordCount'] for row in plot['activeCalories']),2,'old clients retain their15m contract')
+        self.assertEqual(plot['activeCalories30mIntervalMinutes'],30)
+        self.assertFalse(plot['activeCalories30mTruncated'])
+        self.assertEqual(plot['activeCalories30mOmittedRecordCount'],4,'future/cross-period record counted only once')
+        rows=plot['activeCalories30m']
+        self.assertEqual(sum(row['recordCount'] for row in rows),3)
+        self.assertEqual(sum(row['energyKcal'] for row in rows),3*12.5)
+        self.assertEqual(sum(row['crossBinRecordCount'] for row in rows),1)
+        half_row=next(row for row in rows if row['firstRecordStartAt']==half['startAt'])
+        self.assertEqual((half_row['startAt'],half_row['endAt']),(NOW-60*MINUTE,NOW-30*MINUTE))
+        self.assertEqual(half_row['lastRecordEndAt'],half['endAt'])
+        self.assertEqual(half_row['energyKcal'],half['energyKcal'],'original amount is not split across15m bins')
+        context=analysis_context(saved,[],NOW-DAY,NOW,NOW)
+        self.assertEqual(context['activeCalorieTimeline']['recordCount'],len(records),'AI retains all original intervals')
+        self.assertIn('half-hour',[r['id'] for r in context['activeCalorieExamples']])
+
+    def test_half_hour_energy_plot_is_complete_and_bounded_across_full_day(self):
+        records=[record('active_calories','half-%d'%i,NOW-DAY+i*30*MINUTE,NOW-DAY+(i+1)*30*MINUTE-1000)
+                 for i in range(48)]
+        self.ingest(snapshot(records,kinds=self.kinds))
+        plot=dashboard_activity(self.store.activity_snapshot(NOW-DAY,NOW),NOW-DAY,NOW,NOW)['plot']
+        self.assertEqual(plot['activeCalories'],[])
+        self.assertEqual(len(plot['activeCalories30m']),48)
+        self.assertEqual(sum(row['recordCount'] for row in plot['activeCalories30m']),48)
+        self.assertEqual(sum(row['energyKcal'] for row in plot['activeCalories30m']),48*12.5)
+        self.assertEqual(plot['activeCalories30mOmittedRecordCount'],0)
+        self.assertFalse(plot['activeCalories30mTruncated'])
+
     def test_dense_energy_context_preserves_full_sums_and_model_body_bound(self):
         from server.analysis import _report_body
         records=[]
@@ -689,6 +731,9 @@ class ActiveCalorieTests(unittest.TestCase):
             self.assertTrue(context['activeCalorieExamplesTruncated'])
         public=dashboard_activity(activity,NOW-DAY,NOW,NOW)
         self.assertLess(len(json.dumps(public,ensure_ascii=False,separators=(',',':')).encode()),512*1024)
+        self.assertEqual(len(public['plot']['activeCalories30m']),48)
+        self.assertEqual(sum(row['recordCount'] for row in public['plot']['activeCalories30m']),1440)
+        self.assertEqual(sum(row['energyKcal'] for row in public['plot']['activeCalories30m']),360)
         self.assertEqual(len(public['activeCalorieIntervals']),32)
         self.assertTrue(public['activeCalorieIntervalsTruncated'])
 

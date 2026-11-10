@@ -157,8 +157,9 @@ struct ActivityPlotBin: Codable, Identifiable {
     var id: Double { startAt }
     var start: Date { Date(timeIntervalSince1970: startAt / 1000) }
     var end: Date { Date(timeIntervalSince1970: endAt / 1000) }
-    var valid: Bool {
-        startAt.isFinite && endAt.isFinite && startAt > 0 && endAt > startAt && endAt - startAt <= 900001
+    var valid: Bool { valid(maxIntervalMillis: 900001) }
+    func valid(maxIntervalMillis: Double) -> Bool {
+        startAt.isFinite && endAt.isFinite && startAt > 0 && endAt > startAt && endAt - startAt <= maxIntervalMillis
             && [count, energyKcal].compactMap { $0 }.allSatisfy { $0.isFinite && $0 >= 0 && $0 <= 1e12 }
     }
 }
@@ -169,6 +170,12 @@ struct ActivityPlot: Codable {
     var intervalMinutes: Int?
     var steps: [ActivityPlotBin]?
     var activeCalories: [ActivityPlotBin]?
+    var activeCalories30m: [ActivityPlotBin]?
+    var activeCalories30mIntervalMinutes: Int?
+    var activeCalories30mOmittedRecordCount: Int?
+    var activeCalories30mTruncated: Bool?
+    var energyBins: [ActivityPlotBin] { activeCalories30m ?? activeCalories ?? [] }
+    var energyIntervalMinutes: Int { activeCalories30m == nil ? 15 : 30 }
     var coarseStepRecordCount: Int?
     var coarseActiveCalorieRecordCount: Int?
     var futureEndStepRecordCount: Int?
@@ -178,9 +185,13 @@ struct ActivityPlot: Codable {
     var instantStepRecordCount: Int?
     var instantActiveCalorieRecordCount: Int?
     var omittedRecordCount: Int {
-        [coarseStepRecordCount, coarseActiveCalorieRecordCount, futureEndStepRecordCount,
-         futureEndActiveCalorieRecordCount, crossPeriodStepRecordCount, crossPeriodActiveCalorieRecordCount,
-         instantStepRecordCount, instantActiveCalorieRecordCount].compactMap { $0 }.reduce(0,+)
+        let steps = [coarseStepRecordCount, futureEndStepRecordCount, crossPeriodStepRecordCount,
+                     instantStepRecordCount].compactMap { $0 }.reduce(0,+)
+        let energy = activeCalories30m == nil
+            ? [coarseActiveCalorieRecordCount, futureEndActiveCalorieRecordCount,
+               crossPeriodActiveCalorieRecordCount, instantActiveCalorieRecordCount].compactMap { $0 }.reduce(0,+)
+            : activeCalories30mOmittedRecordCount ?? 0
+        return steps + energy
     }
 }
 
@@ -192,6 +203,9 @@ struct ActivityData: Codable {
         (heartRate?.count ?? 0) <= 288 && (heartRate ?? []).allSatisfy(\.valid)
             && (plot?.steps?.count ?? 0) <= 96 && (plot?.steps ?? []).allSatisfy(\.valid)
             && (plot?.activeCalories?.count ?? 0) <= 96 && (plot?.activeCalories ?? []).allSatisfy(\.valid)
+            && (plot?.activeCalories30m?.count ?? 0) <= 48
+            && (plot?.activeCalories30m ?? []).allSatisfy { $0.valid(maxIntervalMillis: 1800001) }
+            && (plot?.activeCalories30mIntervalMinutes == nil || plot?.activeCalories30mIntervalMinutes == 30)
     }
     var heartRateRange: ClosedRange<Double> {
         let points = heartRate ?? []

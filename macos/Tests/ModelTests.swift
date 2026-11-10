@@ -83,6 +83,36 @@ struct ModelTests {
             && activityDecoded.activity!.heartRateRange.upperBound >= 220)
         assert(activityDecoded.activity!.heartRate!.count == 1,
             "sparse HR observations must not generate connecting samples")
+        assert(activityDecoded.activity?.plot?.energyBins.first?.energyKcal == 7.4
+            && activityDecoded.activity?.plot?.energyIntervalMinutes == 15,
+            "legacy energy bins must remain available without the new field")
+        let halfHourEnergy = ActivityPlotBin(startAt: fresh.sourceAt-1800000, endAt: fresh.sourceAt,
+            energyKcal: 12, recordCount: 1)
+        var halfHourly = combined
+        halfHourly.activity!.plot!.activeCalories30m = [halfHourEnergy]
+        halfHourly.activity!.plot!.activeCalories30mIntervalMinutes = 30
+        halfHourly.activity!.plot!.activeCalories30mOmittedRecordCount = 0
+        let halfHourlyDecoded = try Dashboard.decode(JSONEncoder().encode(halfHourly))
+        assert(halfHourlyDecoded.activity?.plot?.energyBins.first?.energyKcal == 12
+            && halfHourlyDecoded.activity?.plot?.energyIntervalMinutes == 30)
+        assert(halfHourlyDecoded.activity?.plot?.omittedRecordCount == 0,
+            "30-minute records included in new energy track must not count as omitted legacy energy")
+        halfHourly.activity!.plot!.activeCalories30m = []
+        assert(halfHourly.activity!.plot!.energyBins.isEmpty,
+            "present empty30m field must not fall back to old15m bins")
+        halfHourly.activity!.plot!.activeCalories30m = [ActivityPlotBin(startAt: halfHourEnergy.startAt,
+            endAt: halfHourEnergy.endAt+2, energyKcal: 12)]
+        do { _ = try Dashboard.decode(JSONEncoder().encode(halfHourly)); fatalError("energy bin over30min accepted") }
+        catch MirrorError.invalidResponse {}
+        halfHourly = combined
+        halfHourly.activity!.plot!.activeCalories = [halfHourEnergy]
+        do { _ = try Dashboard.decode(JSONEncoder().encode(halfHourly)); fatalError("legacy15m energy accepted30m bin") }
+        catch MirrorError.invalidResponse {}
+        halfHourly = combined
+        halfHourly.activity!.plot!.steps = [ActivityPlotBin(startAt: halfHourEnergy.startAt,
+            endAt: halfHourEnergy.endAt, count: 120)]
+        do { _ = try Dashboard.decode(JSONEncoder().encode(halfHourly)); fatalError("15m steps accepted30m bin") }
+        catch MirrorError.invalidResponse {}
         var invalidActivity = combined
         invalidActivity.activity!.plot!.steps![0] = ActivityPlotBin(startAt: step.startAt, endAt: step.endAt,
             count: -1, recordCount: 1)

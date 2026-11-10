@@ -448,30 +448,34 @@ def analysis_context(snapshot, readings, start, end, now, excursions=None):
 def _activity_plot(view, start, end, now):
     """Complete bounded START-grouped short batches, not redistributed activity."""
     cutoff=min(end,now)
-    def groups(records, value_key, source):
-        eligible=[r for r in records if 0 < r['endAt']-r['startAt'] <= 15*MINUTE
+    def groups(records, value_key, source, minutes=15, limit=96):
+        eligible=[r for r in records if 0 < r['endAt']-r['startAt'] <= minutes*MINUTE
                   and start<=r['startAt']<end and r['endAt']<=cutoff]
         ordered=sorted(eligible,key=lambda r:(r['startAt'],r['endAt']))
         overlap=any(a['endAt']>b['startAt'] for a,b in zip(ordered,ordered[1:]))
         bins={}
         for record in eligible:
-            index=int((record['startAt']-start)//(15*MINUTE))
+            index=int((record['startAt']-start)//(minutes*MINUTE))
             bins.setdefault(index,[]).append(record)
         rows=[]
         for index,members in sorted(bins.items()):
-            a=start+index*15*MINUTE;b=min(end,a+15*MINUTE)
+            a=start+index*minutes*MINUTE;b=min(end,a+minutes*MINUTE)
             value=sum(r[value_key] for r in members) if value_key=='count' else round(math.fsum(r[value_key] for r in members),4)
             rows.append(dict(startAt=a,endAt=b,**{value_key:value},recordCount=len(members),
                              firstRecordStartAt=min(r['startAt'] for r in members),
                              lastRecordEndAt=max(r['endAt'] for r in members),
                              crossBinRecordCount=sum(r['endAt']>b for r in members),
                              source=source,potentialOverlap=overlap))
-        return rows[:96],len(rows)>96
+        return rows[:limit],len(rows)>limit
     steps=view['stepIntervals'];energy=view['activeCalorieIntervals']
     step_bins,step_truncated=groups(steps,'count',view['sourceByKind']['steps'])
     energy_bins,energy_truncated=groups(energy,'energyKcal',view['sourceByKind']['active_calories'])
+    energy_30m,energy_30m_truncated=groups(energy,'energyKcal',view['sourceByKind']['active_calories'],30,48)
     return {'periodStart':start,'periodEnd':end,'intervalMinutes':15,
             'steps':step_bins,'activeCalories':energy_bins,
+            'activeCalories30m':energy_30m,'activeCalories30mIntervalMinutes':30,
+            'activeCalories30mTruncated':energy_30m_truncated,
+            'activeCalories30mOmittedRecordCount':len(energy)-sum(r['recordCount'] for r in energy_30m),
             'stepsTruncated':step_truncated,'activeCaloriesTruncated':energy_truncated,
             'coarseStepRecordCount':sum(r['endAt']-r['startAt']>15*MINUTE for r in steps),
             'coarseActiveCalorieRecordCount':sum(r['endAt']-r['startAt']>15*MINUTE for r in energy),
@@ -481,8 +485,8 @@ def _activity_plot(view, start, end, now):
             'crossPeriodActiveCalorieRecordCount':sum(r['startAt']<start or r['endAt']>end for r in energy),
             'futureEndStepRecordCount':sum(r['endAt']>cutoff for r in steps),
             'futureEndActiveCalorieRecordCount':sum(r['endAt']>cutoff for r in energy),
-            'meaning':'按完整短批记录起点分组，非精确15分钟发生量；不均摊、插值或代表连续运动。',
-            'limitations':['只绘制0<原始区间<=15分钟且完整落在观察窗口的批记录；粗汇总、瞬时、跨界或未完成区间不作时间柱。',
+            'meaning':'按完整短批记录起点分组，非精确15分钟发生量；新增30分钟能量数组同样只按起点分组，不均摊、插值或代表连续运动。',
+            'limitations':['旧数组只绘制0<原始区间<=15分钟的批记录；activeCalories30m接受<=30分钟，均须完整落在观察窗口。粗汇总、瞬时、跨界或未完成区间不作时间柱。',
                            '批边界不代表行走时长；计数和能量不能推导步频、速度或强度，重叠标记时原始和不是独立总量。',
                            '空白表示没有可用于该图的区间，不表示零活动；心率和活动能量估计可能不是独立证据。']}
 

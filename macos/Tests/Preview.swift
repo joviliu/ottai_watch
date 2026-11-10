@@ -25,11 +25,15 @@ struct PreviewTool {
             let at = end - Double(96-i)*900000
             return ActivityPlotBin(startAt: at, endAt: at+900000, count: Double(30 + i%9*25), recordCount: 3)
         }
-        let energyBins = stepBins.enumerated().map { i, bin in
-            ActivityPlotBin(startAt: bin.startAt, endAt: bin.endAt, energyKcal: Double(3+i%6), recordCount: 2)
+        let energyBins: [ActivityPlotBin] = (0..<48).compactMap { i in
+            guard (10..<15).contains(i) || (31..<35).contains(i) || (41..<44).contains(i) else { return nil }
+            let at = end - Double(48-i)*1800000
+            return ActivityPlotBin(startAt: at, endAt: at+1800000, energyKcal: Double(4+i%6), recordCount: 1)
         }
         let activity = ActivityData(heartRate: heart, plot: ActivityPlot(periodStart: end-86400000,
-            periodEnd: end, intervalMinutes: 15, steps: stepBins, activeCalories: energyBins),
+            periodEnd: end, intervalMinutes: 15, steps: stepBins, activeCalories: [],
+            activeCalories30m: energyBins, activeCalories30mIntervalMinutes: 30,
+            activeCalories30mOmittedRecordCount: 0, activeCalories30mTruncated: false),
             sourceByKind: ["heart_rate":"health_connect", "steps":"phone_steps", "active_calories":"health_connect"])
         let dashboard = Dashboard(schemaVersion: 1, serverAt: now.timeIntervalSince1970 * 1000,
             latest: readings.last, readings: readings,

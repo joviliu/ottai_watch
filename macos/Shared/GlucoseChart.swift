@@ -17,7 +17,8 @@ struct GlucoseChart: View {
     }
     private var heartRange: ClosedRange<Double> { dashboard.activity?.heartRateRange ?? 40...100 }
     private var steps: [ActivityPlotBin] { (dashboard.activity?.plot?.steps ?? []).filter { $0.start >= start && $0.start < end && $0.count != nil } }
-    private var energy: [ActivityPlotBin] { (dashboard.activity?.plot?.activeCalories ?? []).filter { $0.start >= start && $0.start < end && $0.energyKcal != nil } }
+    private var energy: [ActivityPlotBin] { (dashboard.activity?.plot?.energyBins ?? []).filter { $0.start >= start && $0.start < end && $0.energyKcal != nil } }
+    private var energyInterval: Int { dashboard.activity?.plot?.energyIntervalMinutes ?? 15 }
     private var coarse: Int { dashboard.activity?.plot?.omittedRecordCount ?? 0 }
     private var overlap: Bool { (steps + energy).contains { $0.potentialOverlap == true } }
     private var ticks: [Date] { (compact ? [0.0,12,24] : [0.0,6,12,18,24]).map { start.addingTimeInterval($0 * 3600) } }
@@ -63,7 +64,7 @@ struct GlucoseChart: View {
                     heartTrack.frame(height: trackHeight * 0.20)
                     VStack(spacing: 1) {
                         activityTrack(steps, value: { $0.count ?? 0 }, color: stepColor, unit: "步")
-                        activityTrack(energy, value: { $0.energyKcal ?? 0 }, color: energyColor, unit: "kcal")
+                        activityTrack(energy, value: { $0.energyKcal ?? 0 }, color: energyColor, unit: "kcal", intervalMinutes: energyInterval)
                     }.frame(height: trackHeight * 0.25)
                     timeAxis.frame(height: 10)
                 }
@@ -77,12 +78,12 @@ struct GlucoseChart: View {
                     activityTitle.frame(height: header)
                     VStack(spacing: 2) {
                         activityTrack(steps, value: { $0.count ?? 0 }, color: stepColor, unit: "步")
-                        activityTrack(energy, value: { $0.energyKcal ?? 0 }, color: energyColor, unit: "kcal")
+                        activityTrack(energy, value: { $0.energyKcal ?? 0 }, color: energyColor, unit: "kcal", intervalMinutes: energyInterval)
                     }.frame(height: max(22, activityHeight))
                 }
                 timeAxis.frame(height: footer)
                 if extended && !miniature {
-                    Text(overlap ? "相对原始记录量，非运动强度 · 含可能重叠记录" : coarse > 0 ? "相对记录量，非运动强度 · 另有粗粒度／跨时段汇总" : "相对记录量，非运动强度 · 空白不代表静止")
+                    Text(dashboard.activity?.plot?.activeCalories30mTruncated == true ? "活动分组较多，仅显示部分 · 非运动强度" : overlap ? "相对原始记录量，非运动强度 · 含可能重叠记录" : coarse > 0 ? "相对记录量，非运动强度 · 另有粗粒度／跨时段汇总" : "相对记录量，非运动强度 · 空白不代表静止")
                         .font(.system(size: 9)).foregroundStyle(MirrorPalette.muted).lineLimit(1).frame(height: note)
                 }
               }
@@ -104,9 +105,9 @@ struct GlucoseChart: View {
     private var activityTitle: some View {
         HStack(spacing: miniature ? 5 : 8) {
             Text(miniature ? "相对活动线索" : "活动线索").foregroundStyle(MirrorPalette.muted)
-            Text("● 步数").foregroundStyle(stepColor)
-            Text("● 活动能量").foregroundStyle(energyColor)
-            if !miniature { Text("15分钟分组").foregroundStyle(MirrorPalette.muted) }
+            Text("● 步数15分").foregroundStyle(stepColor)
+            Text("● 能量\(energyInterval)分").foregroundStyle(energyColor)
+            if !miniature { Text("起点分组").foregroundStyle(MirrorPalette.muted) }
             Spacer()
         }.font(.system(size: miniature ? 8 : 10, weight: .medium)).lineLimit(1)
     }
@@ -161,7 +162,7 @@ struct GlucoseChart: View {
             }
         }
     }
-    private func activityTrack(_ bins: [ActivityPlotBin], value: @escaping (ActivityPlotBin) -> Double, color: Color, unit: String) -> some View {
+    private func activityTrack(_ bins: [ActivityPlotBin], value: @escaping (ActivityPlotBin) -> Double, color: Color, unit: String, intervalMinutes: Int? = nil) -> some View {
         let highest = max(1, bins.map(value).max() ?? 1)
         return HStack(spacing: 4) {
             Chart {
@@ -181,7 +182,8 @@ struct GlucoseChart: View {
                             .font(.system(size: miniature ? 6 : 9)).foregroundStyle(MirrorPalette.muted.opacity(0.7)).padding(.leading, 5)
                     }
                 }
-            Text(unit).font(.system(size: miniature ? 7 : 9)).foregroundStyle(color).frame(width: axisWidth, alignment: .leading)
+            Text(miniature && intervalMinutes != nil ? "\(unit)·\(intervalMinutes!)m" : unit)
+                .font(.system(size: miniature ? 7 : 9)).foregroundStyle(color).frame(width: axisWidth, alignment: .leading)
         }
     }
     private func axis(_ values: [Double], range: ClosedRange<Double>) -> some View {
