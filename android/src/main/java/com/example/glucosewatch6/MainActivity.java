@@ -35,7 +35,7 @@ public final class MainActivity extends Activity {
         LinearLayout cloud=MobileStyle.card(box);
         MobileStyle.text(cloud,"趋势与观察",19,MobileStyle.INK,true);
         cloudStatus=MobileStyle.text(cloud,"",14,MobileStyle.MUTED,false);
-        button(cloud,"云同步 / 每日血糖观察  →",()->startActivity(new Intent(this,CloudActivity.class)));
+        button(cloud,"血糖曲线 / 24h分析  →",()->startActivity(new Intent(this,CloudActivity.class)));
         LinearLayout health=MobileStyle.card(box);
         MobileStyle.text(health,"活动数据",19,MobileStyle.INK,true);
         healthStatus=MobileStyle.text(health,"",14,MobileStyle.MUTED,false);

@@ -26,6 +26,15 @@ final class CloudConfig {
         return new String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), java.nio.charset.StandardCharsets.UTF_8);
     }
     static boolean configured(Context c) { return !endpoint(c).isEmpty() && !prefs(c).getString("token", "").isEmpty(); }
+    static synchronized org.json.JSONObject cacheDashboard(Context c,org.json.JSONObject next,Connection expected) throws Exception {
+        Connection current=connection(c);
+        if(!expected.endpoint.equals(current.endpoint)||!expected.token.equals(current.token))throw new IllegalStateException();
+        if(next.optInt("schemaVersion",0)!=1||next.optLong("serverAt",0)<=0||!next.has("analysis"))throw new IllegalArgumentException();
+        org.json.JSONObject previous=null;
+        try { previous=new org.json.JSONObject(prefs(c).getString("dashboard","")); }catch(Exception ignored) { }
+        if(previous!=null&&previous.optLong("serverAt",0)>next.optLong("serverAt",0))return previous;
+        prefs(c).edit().putString("dashboard",next.toString()).putLong("lastFetch",System.currentTimeMillis()).apply();return next;
+    }
     static final class Connection {
         final String endpoint, token;
         Connection(String endpoint,String token) { this.endpoint=endpoint;this.token=token; }

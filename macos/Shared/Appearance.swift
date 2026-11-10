@@ -1,5 +1,30 @@
 import SwiftUI
 
+extension LifestyleEventKind {
+    var tint: Color {
+        switch self {
+        case .meal: return Color(red: 0.79, green: 0.49, blue: 0.22)
+        case .sleep: return MirrorPalette.violet
+        case .wake: return Color(red: 0.74, green: 0.59, blue: 0.19)
+        case .exercise: return Color(red: 0.23, green: 0.56, blue: 0.43)
+        case .note: return MirrorPalette.muted
+        }
+    }
+}
+
+extension AnalysisHighlight {
+    var tint: Color {
+        switch severity {
+        case "watch": return Color(red: 0.74, green: 0.39, blue: 0.16)
+        case "positive": return Color(red: 0.20, green: 0.52, blue: 0.39)
+        default: return MirrorPalette.blue
+        }
+    }
+    var symbol: String {
+        severity == "watch" ? "exclamationmark.circle.fill" : severity == "positive" ? "checkmark.circle.fill" : "lightbulb.fill"
+    }
+}
+
 enum MirrorPalette {
     static let blue = Color(red: 0.18, green: 0.43, blue: 0.88)
     static let violet = Color(red: 0.48, green: 0.37, blue: 0.74)

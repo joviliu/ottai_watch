@@ -3,6 +3,8 @@ package com.example.glucosewatch6;
 import android.content.Context;
 import android.graphics.*;
 import android.view.View;
+import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.*;
@@ -15,6 +17,17 @@ final class CloudGraph extends View {
     private final List<long[]> exercise=new ArrayList<>();
     private final List<HeartBin> heart=new ArrayList<>();
     private final List<AmountBin> steps=new ArrayList<>(),energy=new ArrayList<>();
+    interface TimeSelection { void selected(long at,JSONObject event); }
+    private TimeSelection timeSelection;
+    private final List<JSONObject> events=new ArrayList<>();
+    private long cursor;
+    private float touchX,touchY;
+    private boolean dragging,cancelled;
+    void setTimeSelection(TimeSelection listener) { timeSelection=listener;setClickable(listener!=null); }
+    void setEvents(JSONArray rows) {
+        events.clear();if(rows!=null)for(int i=0;i<Math.min(rows.length(),500);i++) { JSONObject row=rows.optJSONObject(i);if(row!=null&&row.optLong("at",0)>=periodEnd-DAY&&row.optLong("at",0)<=periodEnd)events.add(row); }
+        invalidate();
+    }
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private long periodEnd=System.currentTimeMillis();
     private boolean hasActivity,stepOverlap,energyOverlap;
@@ -94,9 +107,8 @@ final class CloudGraph extends View {
     }
     String legend() {
         if(!hasActivity)return "缺测超过 10 分钟不连接。";
-        String text="心率点与竖线为实测均值和范围，空白不补线。按记录起点分组：步数 15 分钟、能量 "+energyMinutes+" 分钟；各自缩放，不表示精确时段发生量、持续时长或运动强度。";
-        if(coarseSteps+coarseEnergy>0)text+=" 另有汇总或跨时段记录（步数 "+coarseSteps+" 条、热量 "+coarseEnergy+" 条）仅列摘要。";
-        if(stepOverlap||energyOverlap)text+=" 标有重叠的柱为原始记录和，不能当作独立总量。";
+        String text="心率为实测点与范围。步数按 15 分钟、能量按 "+energyMinutes+" 分钟分组。点按图表标记进餐等时间。";
+        if(coarseSteps+coarseEnergy>0)text+=" 另有较粗时间汇总未画成分时柱。";
         return text;
     }
     private float x(long at,float left,float right) { return (float)(left+(at-(periodEnd-DAY))/(double)DAY*(right-left)); }
@@ -121,6 +133,8 @@ final class CloudGraph extends View {
             drawAmounts(canvas,steps,"步",STEPS,left,right,282*d,299*d,d,stepOverlap);
             drawAmounts(canvas,energy,"kcal",ENERGY,left,right,312*d,329*d,d,energyOverlap);
         }
+        drawMarkers(canvas,left,right,d);
+        if(cursor>=periodEnd-DAY&&cursor<=periodEnd)drawCursor(canvas,left,right,d);
         float axis=hasActivity?350*d:getHeight()-9*d;
         java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("HH:mm",Locale.CHINA);
         for(int tick=0;tick<3;tick++) {
@@ -182,6 +196,49 @@ final class CloudGraph extends View {
             c.drawRect(a+inset,(float)(bottom-p.value/max*(bottom-top)),b-inset,bottom,paint);
         }
         paint.setAlpha(255);c.restoreToCount(clip);
+    }
+    private void drawMarkers(Canvas c,float left,float right,float d) {
+        int saved=c.save();c.clipRect(left-7*d,16*d,right+7*d,40*d);
+        for(JSONObject event:events) {
+            float xx=x(event.optLong("at"),left,right);paint.setStyle(Paint.Style.FILL);paint.setColor(0xfff2ecff);paint.setAlpha(255);c.drawCircle(xx,27*d,7*d,paint);
+            text(c,EventPolicy.marker(event.optString("type")),xx,30*d,8*d,MobileStyle.VIOLET,Paint.Align.CENTER);
+        }
+        c.restoreToCount(saved);
+    }
+    private void drawCursor(Canvas c,float left,float right,float d) {
+        float xx=x(cursor,left,right);paint.setColor(0xff8292ad);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(.8f*d);paint.setPathEffect(new DashPathEffect(new float[]{3*d,3*d},0));
+        c.drawLine(xx,54*d,xx,hasActivity?178*d:getHeight()-30*d,paint);
+        if(hasActivity) { c.drawLine(xx,209*d,xx,250*d,paint);c.drawLine(xx,282*d,xx,299*d,paint);c.drawLine(xx,312*d,xx,329*d,paint); }paint.setPathEffect(null);
+        String time=new java.text.SimpleDateFormat("HH:mm",Locale.CHINA).format(new Date(cursor));float pillWidth=48*d;
+        float a=Math.max(left,Math.min(right-pillWidth,xx-pillWidth/2));paint.setStyle(Paint.Style.FILL);paint.setColor(0xffe9effa);c.drawRoundRect(a,36*d,a+pillWidth,54*d,8*d,8*d,paint);
+        text(c,time,a+pillWidth/2,49*d,10*d,MobileStyle.INK,Paint.Align.CENTER);
+    }
+    @Override public boolean onTouchEvent(MotionEvent event) {
+        if(timeSelection==null)return super.onTouchEvent(event);
+        float d=getResources().getDisplayMetrics().density,left=34*d,right=getWidth()-10*d;
+        switch(event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                if(event.getX()<left||event.getX()>right)return false;
+                touchX=event.getX();touchY=event.getY();dragging=false;cancelled=false;cursor=EventPolicy.timeAt(touchX,left,right,periodEnd);invalidate();return true;
+            case MotionEvent.ACTION_MOVE:
+                float dx=event.getX()-touchX,dy=event.getY()-touchY;int slop=ViewConfiguration.get(getContext()).getScaledTouchSlop();
+                if(!dragging&&EventPolicy.vertical(dx,dy,slop)) { cancelled=true;cursor=0;invalidate();return false; }
+                if(EventPolicy.horizontal(dx,dy,slop)) { dragging=true;getParent().requestDisallowInterceptTouchEvent(true); }
+                if(dragging) { cursor=EventPolicy.timeAt(event.getX(),left,right,periodEnd);invalidate(); }return true;
+            case MotionEvent.ACTION_UP:
+                getParent().requestDisallowInterceptTouchEvent(false);
+                if(cancelled)return false;
+                JSONObject nearest=null;float distance=10*d;
+                if(!dragging&&event.getY()<42*d)for(JSONObject row:events) { float diff=Math.abs(x(row.optLong("at"),left,right)-event.getX());if(diff<distance) { distance=diff;nearest=row; } }
+                if(nearest!=null) { cursor=nearest.optLong("at");timeSelection.selected(cursor,nearest);invalidate(); }
+                else performClick();return true;
+            case MotionEvent.ACTION_CANCEL:
+                cancelled=true;cursor=0;getParent().requestDisallowInterceptTouchEvent(false);invalidate();return false;
+        }
+        return true;
+    }
+    @Override public boolean performClick() {
+        super.performClick();if(timeSelection!=null)timeSelection.selected(cursor>0?cursor:Math.min(periodEnd,System.currentTimeMillis()),null);return true;
     }
     private String compact(double value) {
         if(value>=10000)return String.format(Locale.CHINA,"%.1f万",value/10000);

@@ -55,4 +55,39 @@ class Tests(unittest.TestCase):
             self.assertIn('error', outputs[-1])
 
 
+    def test_food_budget_is_independent_and_large_image_request_is_bounded(self):
+        class Response:
+            code=200
+            def read(self,n):return b'{"ok":true}'
+        class Opener:
+            calls=0
+            def open(self,request,timeout):self.calls+=1;return Response()
+        with tempfile.TemporaryDirectory() as directory:
+            worker=module.Worker.__new__(module.Worker);worker.state=Path(directory)/'food.json';worker.daily_limit=30
+            for i in range(30):self.assertTrue(worker.reserve('food-'+str(i)))
+            self.assertFalse(worker.reserve('food-over'))
+            worker.state=Path(directory)/'vision.json';worker.key='test';worker.opener=Opener();outputs=[]
+            worker.relay=lambda action,value:outputs.append(value)
+            headers={'X-AI-Provider-'+k:v for k,v in {'Job':'d'*64,'Lease':'e'*48,'Request':'f'*64,'Path':'/v1/responses','Type':'application/json','Deadline':str(int(time.time()*1000)+30000)}.items()}
+            body=json.dumps({'store':False,'input':'x'*(300*1024)}).encode()
+            worker.execute(headers,body)
+            self.assertEqual(worker.opener.calls,1)
+            self.assertIn('body',outputs[-1])
+
+    def test_provider_errors_do_not_echo_private_image_or_request_details(self):
+        class Response:
+            code=400
+            def read(self,n):return b'{"error":{"message":"private-image-data-or-key"}}'
+        class Opener:
+            def open(self,*args,**kwargs):return Response()
+        with tempfile.TemporaryDirectory() as directory:
+            worker=module.Worker.__new__(module.Worker);worker.state=Path(directory)/'worker.json';worker.key='test';worker.opener=Opener();outputs=[]
+            worker.relay=lambda action,value:outputs.append(value)
+            headers={'X-AI-Provider-'+k:v for k,v in {'Job':'d'*64,'Lease':'e'*48,'Request':'f'*64,'Path':'/v1/responses','Type':'application/json','Deadline':str(int(time.time()*1000)+30000)}.items()}
+            worker.execute(headers,b'{"store":false}')
+            raw=__import__('base64').b64decode(outputs[-1]['body'])
+            self.assertNotIn(b'private-image',raw)
+            self.assertEqual(json.loads(raw)['error']['code'],'provider_http_400')
+
+
 if __name__ == '__main__': unittest.main()

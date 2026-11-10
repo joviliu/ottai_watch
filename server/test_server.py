@@ -140,8 +140,8 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(calls[0]['text']['format']['type'], 'json_schema')
         report = report_view(self.store)
         self.assertEqual(report['status'], 'ready')
-        self.assertTrue(any('14天' in item for item in report['limitations']))
-        self.assertEqual(report['sources'][-1]['url'], 'https://pubmed.ncbi.nlm.nih.gov/31127824/')
+        self.assertFalse(any('14天' in item for item in report['limitations']))
+        self.assertEqual(report['sources'], [])
 
     @patch.dict(os.environ, {'ANALYSIS_ENABLED': 'true'})
     def test_timeout_does_not_retry_and_preserves_previous_report(self):

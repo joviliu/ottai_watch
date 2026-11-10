@@ -716,7 +716,9 @@ class ActiveCalorieTests(unittest.TestCase):
         values=[6.0]*8+[6.3,6.8,7.3,7.9,8.4,8.6,8.4,7.8,7.1,6.5,6.2,6.1,6.0,6.0]+[6.0]*14
         readings=[reading(NOW-365*DAY+i*5*MINUTE,values[i%len(values)]) for i in range(365*288+1)]
         captured=[]
-        _report_body(readings,NOW,'manual24h','2026-11-10',NOW,lambda payload,_:captured.append(payload) or response_payload(),'energy-test',activity)
+        markers=[{'id':'unicode-meal-%d'%i,'type':'meal','at':NOW-i*60*MINUTE,'note':'😀'*1000,
+                  'meal':{'foods':'🍽'*1000,'estimatedKcalMin':400,'estimatedKcalMax':700,'source':'manual'}} for i in range(48)]
+        _report_body(readings,NOW,'manual24h','2026-11-10',NOW,lambda payload,_:captured.append(payload) or response_payload(),'energy-test',activity,events=markers)
         self.assertLess(len(json.dumps(captured[0],ensure_ascii=False,separators=(',',':')).encode()),262144)
         data=json.loads(captured[0]['input'][1]['content'][0]['text'])['observations']
         for name in ('latest24h','previous24h'):

@@ -1,5 +1,7 @@
 # Private Ottai collection service
 
+Current concise-report v4, user lifestyle annotations and explicit meal-photo recognition are documented in [FOOD_EVENTS.md](FOOD_EVENTS.md). New food calls have a separate30/day relay/worker budget and do not consume the daily/manual analysis49budget.
+
 Python 3.6+ standard library only. One intended adult's readings are stored in a dedicated SQLite database, independent of other applications. The API binds loopback and is exposed by the existing validated HTTPS reverse proxy; clients must verify TLS normally. Credentials remain in a root-owned EnvironmentFile and each client's private configuration.
 
 ## API
@@ -8,7 +10,7 @@ Use `Authorization: Bearer <token>`. `INGEST_TOKEN` may upload and read; the sep
 
 - `POST /api/v1/readings`: JSON `{"readings":[{"sourceAt":1794200000000,"value":6.2,"trend":"→"}]}`. The timestamp/example value is synthetic. Maximum 1,000 points and 256 KiB. Values follow the existing Android validator: finite, greater than zero and at most 60 mmol/L; timestamp is an integer greater than zero and at most 90 seconds into the future. Trend accepts `?` or up to 32 glyphs from the phone parser's arrow set, preserving repeated arrows without inventing a different trend; other strings are rejected. Whole batches are validated before one atomic SQLite transaction.
 - Success returns `{"ok":true,"serverAt":...,"accepted":N,"inserted":... ,"corrected":...,"unchanged":...}`. `accepted` includes all valid rows, including duplicate/resend rows; the uploader may acknowledge the exact batch. `sourceAt` is the idempotency key. Later value/trend corrections update the current row and append an audit revision. An optional boolean `historical:true` inserts missing history but never overwrites an existing row with unknown trend.
-- `GET /api/v1/dashboard`: `{schemaVersion,serverAt,latest,readings,metrics,comparison,analysis}`. `latest` is null before the first reading. `readings` contains the latest 24-hour raw curve. Missing numeric statistics are null, not zero. `metrics` is the latest rolling 24 hours; `comparison.points` is historical same-time-of-day median/p25/p75, using earlier 28 days and excluding the latest 24 hours. `analysis` is waiting/ready/error with summary, sections, limitations and fixed scientific sources. An old ready report remains visible if a later daily attempt fails, with its original report date.
+- `GET /api/v1/dashboard`: `{schemaVersion,serverAt,latest,readings,metrics,comparison,analysis}`. `latest` is null before the first reading. `readings` contains the latest 24-hour raw curve. Missing numeric statistics are null, not zero. `metrics` is the latest rolling 24 hours; `comparison.points` is historical same-time-of-day median/p25/p75, using earlier 28 days and excluding the latest 24 hours. `analysis` is waiting/ready/error with summary, optional highlights/evidence, backward-compatible sections and only actually cited scientific sources. An old ready report remains visible if a later daily attempt fails, with its original report date.
 - `GET /health`: unauthenticated non-sensitive liveness only. It does not call a model.
 
 For the public reverse-proxy mount `/ottai/`, clients append `/api/v1/...` to their base URL; the proxy strips the mount prefix before reaching this service.
@@ -21,7 +23,7 @@ Historical display buckets are 30 minutes: calculate each day's within-bucket me
 
 ## Daily analysis
 
-`python3 -m server.app run-daily` is a separate bounded oneshot, invoked by a systemd timer at 08:15 Asia/Shanghai, covering the previous local calendar day 00:00–24:00. There is no weekly model job. Every report considers 24-hour, 7-day, 14-day and older comparisons where available; insufficient or incomparable windows must be called out.
+`python3 -m server.app run-daily` is a separate bounded oneshot, invoked by a systemd timer at 08:15 Asia/Shanghai, covering the previous local calendar day 00:00–24:00. There is no weekly model job. Every report considers 24-hour, 7-day, 14-day and older comparisons where available; incomparable windows are not interpreted as improvements, and only conclusion-changing deficits are mentioned.
 
 `ANALYSIS_ENABLED` defaults false. The adult's data span must exceed 72 hours before a scheduled request is made; three days is a provisional reporting threshold, not evidence that the dataset represents a stable longer-term pattern. If no source point falls within the latest 24 hours, the job returns `no_recent_data` without a model request or claiming the day; cached values/reports remain explicitly historical. A unique SQLite report-date claim is committed before network I/O. At most one scheduled model attempt per calendar report-date is automatically made, even after timeout/restart; unknown results are not retried. Failed reports do not interrupt ingestion or reading. No synthetic history is mixed into the live database to satisfy the threshold.
 
@@ -32,7 +34,7 @@ The database, WAL, audit rows, reports and upstream replies are private health d
 ## Run and test
 
 ```sh
-python3 -m unittest server.test_server server.test_activity -v
+python3 -m unittest server.test_server server.test_activity server.test_lifestyle -v
 # With private environment loaded and database directory owned by the service user:
 python3 -m server.app serve
 ```
@@ -41,7 +43,7 @@ Systemd service/timer and reverse-proxy examples are in [deploy](deploy). They u
 
 ## Rolling manual analysis (0.3.0)
 
-`POST /api/v1/analysis` has an empty body and accepts the separate `ANALYZE_TOKEN` capability (or device ingest token); `READ_TOKEN` is rejected. The capability cannot read the dashboard or upload readings. The Mac host holds both read and analysis capabilities; the sandboxed Widget only receives the read token. Do not reuse token values.
+`POST /api/v1/analysis` has an empty body and accepts the separate `ANALYZE_TOKEN` capability (or device ingest token); `READ_TOKEN` is rejected. The capability cannot read the dashboard or upload readings; it now may read/write lifestyle markers and request/read explicit food recognition. The Mac host holds both read and analysis capabilities; the sandboxed Widget only receives the read token. Do not reuse token values.
 
 Eligibility requires 24h of source span, >=95% observed coverage, no unobserved gap >15min and a source reading in the last 10min. These are explicit product completeness rules, not a validated clinical threshold. The rolling report ends at the latest source measurement, not an invented current value. It has its own `manual_reports` table and snapshot hash, separate from fixed calendar-day reports. A correction to the recent data changes its snapshot identity. A persistent SQLite transaction enforces at least 30min between attempts across clients/restarts; the same snapshot is not sent twice, including an uncertain/error result. There is no additional small daily manual limit; the rate implies at most 48 manual attempts/day. Relay/client/SG daily safety caps are 49 for these plus one scheduled report, with original counters preserved.
 

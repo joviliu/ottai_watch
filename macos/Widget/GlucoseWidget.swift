@@ -51,6 +51,10 @@ struct GlucoseWidgetView: View {
         if analysis?.status == "error" || analysis?.status == "failed" { return "本次分析暂未生成，原始曲线与统计仍可查看。" }
         return ""
     }
+    private var reportHighlight: AnalysisHighlight? {
+        let items = entry.snapshot?.dashboard.analysis?.highlights ?? []
+        return items.first(where: { $0.severity == "watch" }) ?? items.first
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: family == .systemLarge ? 8 : 4) {
@@ -89,7 +93,10 @@ struct GlucoseWidgetView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("血糖观察 · \(dashboard.analysis?.reportDate ?? "未生成") · \(dashboard.analysis?.displayStatus ?? "积累数据中")")
                             .font(.system(size: 10, weight: .semibold)).lineLimit(1).foregroundStyle(MirrorPalette.violet)
-                        if !reportSummary.isEmpty { Text(reportSummary).font(.system(size: 11)).lineLimit(2) }
+                        if let highlight = reportHighlight {
+                            (Text(highlight.title + " · ").bold().foregroundColor(highlight.tint) + Text(highlight.text))
+                                .font(.system(size: 11)).lineLimit(2)
+                        } else if !reportSummary.isEmpty { Text(reportSummary).font(.system(size: 11)).lineLimit(2) }
                     }.frame(maxWidth: .infinity, alignment: .leading).mirrorCard(padding: 9)
                 }
             }

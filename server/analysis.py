@@ -89,28 +89,33 @@ def report_view(store, now=None):
 
 def response_request(data, report_date, model):
     prompt = (Path(__file__).parent / 'daily_prompt.md').read_text(encoding='utf-8')
-    schema = {'type': 'object', 'additionalProperties': False,
-              'properties': {
-                  'summary': {'type': 'string'},
-                  'sections': {'type': 'array', 'items': {
-                      'type': 'object', 'additionalProperties': False,
-                      'properties': {'title': {'type': 'string'}, 'text': {'type': 'string'}},
-                      'required': ['title', 'text']}},
-                  'limitations': {'type': 'array', 'items': {'type': 'string'}}},
-              'required': ['summary', 'sections', 'limitations']}
-    return {'model': model, 'store': False, 'stream': False, 'background': False,
-            'max_output_tokens': 4800,
-            'input': [
-                {'role': 'system', 'content': [{'type': 'input_text', 'text': prompt}]},
-                {'role': 'user', 'content': [{'type': 'input_text', 'text': json.dumps(
-                    {'reportDate': report_date, 'observations': data}, ensure_ascii=False, separators=(',', ':'))}]}],
-            'text': {'format': {'type': 'json_schema', 'name': 'glucose_daily_observation', 'strict': True, 'schema': schema}}}
+    schema = {'type':'object','additionalProperties':False,'properties':{
+        'summary':{'type':'string','maxLength':120},
+        'highlights':{'type':'array','minItems':1,'maxItems':3,'items':{
+            'type':'object','additionalProperties':False,'properties':{
+                'title':{'type':'string','maxLength':24}, 'text':{'type':'string','maxLength':120},
+                'severity':{'type':'string','enum':['info','watch','positive']},
+                'action':{'type':'string','maxLength':60}},'required':['title','text','severity','action']}},
+        'evidence':{'type':'array','maxItems':1,'items':{
+            'type':'object','additionalProperties':False,'properties':{
+                'topic':{'type':'string','enum':['healthy_reference','meal_recovery','meal_composition','postmeal_activity','sleep_context','measurement_artifacts','personal_baseline','physiology_limits']},
+                'title':{'type':'string','maxLength':40},'text':{'type':'string','maxLength':160},
+                'sourceUrl':{'type':'string','enum':[r['url'] for r in SOURCES]}},
+            'required':['topic','title','text','sourceUrl']}},
+        'limitations':{'type':'array','maxItems':2,'items':{'type':'string','maxLength':100}}},
+        'required':['summary','highlights','evidence','limitations']}
+    return {'model':model,'store':False,'stream':False,'background':False,
+            'reasoning':{'effort':'low'},'max_output_tokens':2800,
+            'input':[{'role':'system','content':[{'type':'input_text','text':prompt}]},
+                     {'role':'user','content':[{'type':'input_text','text':json.dumps({'reportDate':report_date,'observations':data},ensure_ascii=False,separators=(',',':'))}]}],
+            'text':{'format':{'type':'json_schema','name':'glucose_daily_observation','strict':True,'schema':schema}}}
 
 
-def relay_post(payload, report_date):
-    base = os.environ.get('OPENAI_RELAY_URL', '').rstrip('/')
-    service_id = os.environ.get('OPENAI_RELAY_SERVICE_ID', '')
-    secret = os.environ.get('OPENAI_RELAY_CLIENT_SECRET', '')
+def relay_post(payload, report_date, food=False):
+    prefix = 'FOOD_OPENAI_RELAY_' if food else 'OPENAI_RELAY_'
+    base = os.environ.get(prefix+'URL', '').rstrip('/')
+    service_id = os.environ.get(prefix+'SERVICE_ID', '')
+    secret = os.environ.get(prefix+'CLIENT_SECRET', '')
     if not base or not service_id or len(secret) < 32:
         raise AnalysisError('relay_not_configured')
     endpoint = base if base.endswith('/v1/responses') else base + '/v1/responses'
@@ -142,35 +147,50 @@ def relay_post(payload, report_date):
 
 
 def parse_response(response):
-    if not isinstance(response, dict) or response.get('status') != 'completed':
+    if not isinstance(response,dict) or response.get('status')!='completed':
         raise AnalysisError('model_incomplete')
-    chunks = []
-    for item in response.get('output', []):
-        if isinstance(item, dict) and item.get('type') == 'message':
-            for part in item.get('content', []):
-                if isinstance(part, dict) and part.get('type') == 'output_text':
-                    chunks.append(part.get('text', ''))
+    chunks=[]
+    for item in response.get('output',[]):
+        if isinstance(item,dict) and item.get('type')=='message':
+            for part in item.get('content',[]):
+                if isinstance(part,dict) and part.get('type')=='output_text':
+                    chunks.append(part.get('text',''))
     try:
-        result = json.loads(''.join(chunks))
-    except (TypeError, ValueError):
+        result=json.loads(''.join(chunks))
+    except (TypeError,ValueError):
         raise AnalysisError('model_invalid_json') from None
-    if not isinstance(result, dict) or set(result) != {'summary', 'sections', 'limitations'}:
+    legacy={'summary','sections','limitations'}
+    modern={'summary','highlights','evidence','limitations'}
+    if not isinstance(result,dict) or set(result) not in (legacy,modern):
         raise AnalysisError('model_invalid_schema')
-    if not isinstance(result['summary'], str) or not 1 <= len(result['summary']) <= 3000:
+    is_modern=set(result)==modern
+    if not isinstance(result['summary'],str) or not 1<=len(result['summary'])<=(120 if is_modern else 3000):
         raise AnalysisError('model_invalid_summary')
-    sections, limitations = result['sections'], result['limitations']
-    if not isinstance(sections, list) or not 1 <= len(sections) <= 12:
-        raise AnalysisError('model_invalid_sections')
-    if any(not isinstance(item, dict) or set(item) != {'title', 'text'} or
-           not isinstance(item['title'], str) or not 1 <= len(item['title']) <= 100 or
-           not isinstance(item['text'], str) or not 1 <= len(item['text']) <= 5000 for item in sections):
-        raise AnalysisError('model_invalid_section')
-    if not isinstance(limitations, list) or len(limitations) > 15 or any(not isinstance(item, str) or len(item) > 1000 for item in limitations):
+    limitations=result['limitations']
+    if not isinstance(limitations,list) or len(limitations)>(2 if is_modern else 15) or any(not isinstance(x,str) or len(x)>(100 if is_modern else 1000) for x in limitations):
         raise AnalysisError('model_invalid_limitations')
+    if is_modern:
+        highlights=result['highlights'];evidence=result['evidence']
+        if not isinstance(highlights,list) or not 1<=len(highlights)<=3:
+            raise AnalysisError('model_invalid_highlights')
+        for item in highlights:
+            if not isinstance(item,dict) or set(item)!={'title','text','severity','action'} or item['severity'] not in ('info','watch','positive') or any(not isinstance(item[k],str) or not (0 if k=='action' else 1)<=len(item[k])<=limit for k,limit in (('title',24),('text',120),('action',60))):
+                raise AnalysisError('model_invalid_highlights')
+        topics={'healthy_reference','meal_recovery','meal_composition','postmeal_activity','sleep_context','measurement_artifacts','personal_baseline','physiology_limits'}
+        if not isinstance(evidence,list) or len(evidence)>1:
+            raise AnalysisError('model_invalid_evidence')
+        for item in evidence:
+            if not isinstance(item,dict) or set(item)!={'topic','title','text','sourceUrl'} or not isinstance(item['topic'],str) or item['topic'] not in topics or not isinstance(item['sourceUrl'],str) or item['sourceUrl'] not in {r['url'] for r in SOURCES} or any(not isinstance(item[k],str) or not 1<=len(item[k])<=limit for k,limit in (('title',40),('text',160))):
+                raise AnalysisError('model_invalid_evidence')
+        result['sections']=[{'title':item['title'],'text':item['text']+('\n'+item['action'] if item['action'] else '')} for item in highlights]
+    else:
+        sections=result['sections']
+        if not isinstance(sections,list) or not 1<=len(sections)<=12 or any(not isinstance(item,dict) or set(item)!={'title','text'} or not isinstance(item['title'],str) or not 1<=len(item['title'])<=100 or not isinstance(item['text'],str) or not 1<=len(item['text'])<=5000 for item in sections):
+            raise AnalysisError('model_invalid_section')
     return result
 
 
-def _report_body(readings, end, trigger, date, now, invoke, request_identity, activity=None):
+def _report_body(readings, end, trigger, date, now, invoke, request_identity, activity=None, events=None, explained_topics=None):
     data = analysis_input(readings, end)
     data['trigger'] = trigger
     data['periodMeaning'] = ('固定前一自然日00:00–24:00' if trigger == 'scheduled_daily' else '截至最新测量的滚动24小时')
@@ -178,19 +198,24 @@ def _report_body(readings, end, trigger, date, now, invoke, request_identity, ac
     data['previous24hQuality'] = day_quality([r for r in readings if r['sourceAt'] <= end-DAY], end-DAY)
     data['candidateExcursions'] = candidate_excursions(readings, end-DAY, end)
     data['previous24hExcursions'] = candidate_excursions(readings, end-2*DAY, end-DAY)
+    from .lifestyle import context as event_context
+    data['lifestyle'] = {'latest24h':event_context(events or [],end-DAY,end),'previous24h':event_context(events or [],end-2*DAY,end-DAY)}
+    data['recentlyExplainedTopics'] = explained_topics or []
     if activity is not None:
         data['activity'] = {
             'latest24h': analysis_context(activity, readings, end-DAY, end, now, data['candidateExcursions']),
             'previous24h': analysis_context(activity, readings, end-2*DAY, end-DAY, now, data['previous24hExcursions'])}
     request = response_request(data, date, os.environ.get('OPENAI_MODEL', 'gpt-6.1-terra'))
+    if len(json.dumps(request,ensure_ascii=False,separators=(',',':')).encode('utf-8')) > 262144:
+        raise AnalysisError('analysis_input_limit')
     result = parse_response((invoke or relay_post)(request, request_identity))
-    limits = list(result['limitations']) + data['windows']['latest24h']['limitations']
-    if data['historyStatus']['sourceSpanHours'] < 14*24:
-        limits.append('累计观察不足14天；当前为初步观察，不代表稳定长期模式。')
-    result.update(status='ready', generatedAt=now_ms(), reportDate=date,
-                  periodStart=end-DAY, periodEnd=end, limitations=list(dict.fromkeys(limits)),
-                  sources=SOURCES, methodVersion='cgm-observation-3', trigger=trigger,
-                  activityContextIncluded=activity is not None)
+    if 'evidence' in result:
+        result['evidence']=[e for e in result['evidence'] if e['topic'] not in (explained_topics or [])]
+    referenced={e['sourceUrl'] for e in result.get('evidence',[])}
+    result.update(status='ready',generatedAt=now_ms(),reportDate=date,
+                  periodStart=end-DAY,periodEnd=end,sources=[s for s in SOURCES if s['url'] in referenced],
+                  methodVersion='cgm-observation-4',trigger=trigger,activityContextIncluded=activity is not None,
+                  lifestyleContextIncluded=bool(events))
     return result
 
 
@@ -213,7 +238,8 @@ def generate_daily(store, now=None, invoke=None):
         rows = store.readings(end-365*DAY-300000, end)
         with store.analysis_lock():
             body = _report_body(rows, end, 'scheduled_daily', date, now, invoke, 'daily:'+date,
-                                store.activity_snapshot(end-2*DAY,end,now))
+                                store.activity_snapshot(end-2*DAY,end,now),
+                                store.events(end-2*DAY,end),store.recent_evidence_topics())
         store.finish_report(date, now_ms(), body=body)
         return {'status': 'ready', 'reportDate': date}
     except Exception as error:
@@ -222,9 +248,9 @@ def generate_daily(store, now=None, invoke=None):
         return {'status': 'error', 'reportDate': date, 'errorCode': code}
 
 
-def _snapshot_id(points, end, activity_digest=None):
+def _snapshot_id(points, end, activity_digest=None, event_digest=None):
     observed = [[r['sourceAt'],r['value'],r['trend']] for r in points if end-2*DAY-300000 <= r['sourceAt'] <= end]
-    return hashlib.sha256(json.dumps(['manual-v3', end, observed, activity_digest], separators=(',', ':')).encode()).hexdigest()
+    return hashlib.sha256(json.dumps(['manual-v4', end, observed, activity_digest, event_digest], separators=(',', ':')).encode()).hexdigest()
 
 
 def manual_report_view(store):
@@ -240,7 +266,7 @@ def manual_report_view(store):
     return body
 
 
-def manual_status(store, now=None, points=None, activity=None):
+def manual_status(store, now=None, points=None, activity=None, events=None):
     now = now if now is not None else now_ms()
     points = points if points is not None else store.readings(now-2*DAY-300000, now)
     end = points[-1]['sourceAt'] if points else now
@@ -248,7 +274,8 @@ def manual_status(store, now=None, points=None, activity=None):
     if now-end > 10*60000:
         quality.update(ready=False, latestFresh=False, reason=quality['reason']+' 请先恢复最新读数同步。')
     activity_digest = activity['digest'] if activity is not None else store.activity_identity(end-2*DAY,end,now)
-    key = _snapshot_id(points, end, activity_digest)
+    event_digest = events['digest'] if events is not None else store.event_identity(end-2*DAY,end)
+    key = _snapshot_id(points, end, activity_digest, event_digest)
     same = store.manual_report(key)
     last = store.manual_report()
     cooldown = max(0, (last['started_at']+30*60000-now)//1000) if last else 0
@@ -268,12 +295,13 @@ def manual_status(store, now=None, points=None, activity=None):
                 status=status, reason=reason, cooldownSeconds=cooldown, windowEnd=end, snapshotId=key)
 
 
-def generate_manual(store, key, end, rows, now, invoke=None, activity=None):
+def generate_manual(store, key, end, rows, now, invoke=None, activity=None, events=None):
     date = datetime.fromtimestamp(end/1000, timezone(timedelta(hours=8))).date().isoformat()
     try:
         with store.analysis_lock():
             body = _report_body(rows, end, 'manual24h', date, now, invoke, 'manual:'+key,
-                                activity if activity is not None else store.activity_snapshot(end-2*DAY,end,now))
+                                activity if activity is not None else store.activity_snapshot(end-2*DAY,end,now),
+                                events if events is not None else store.events(end-2*DAY,end),store.recent_evidence_topics())
         store.finish_manual(key, now_ms(), body=body)
     except Exception as error:
         code = str(error) if isinstance(error, AnalysisError) else 'analysis_internal_error'
@@ -285,7 +313,8 @@ def request_manual(store, now=None, launch=None):
     rows = store.readings(now-366*DAY, now)
     end = rows[-1]['sourceAt'] if rows else now
     activity = store.activity_snapshot(end-2*DAY,end,now)
-    status = manual_status(store, now, points=rows, activity=activity)
+    events = store.event_snapshot(end-2*DAY,end)
+    status = manual_status(store, now, points=rows, activity=activity, events=events)
     if not status['eligible']:
         return (200 if status['status'] in ('ready', 'running') else 409), status
     key, end = status['snapshotId'], status['windowEnd']
@@ -293,7 +322,7 @@ def request_manual(store, now=None, launch=None):
     if claimed != 'created':
         return (200 if claimed == 'existing' else 409), manual_status(store, now)
     def run():
-        generate_manual(store, key, end, rows, now, activity=activity)
+        generate_manual(store, key, end, rows, now, activity=activity, events=events['events'])
     try:
         if launch is None:
             threading.Thread(target=run, name='ottai-manual-analysis', daemon=True).start()

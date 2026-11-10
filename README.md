@@ -1,5 +1,9 @@
 # Ottai → Redmi Watch 6 血糖镜像
 
+2026-11-10：[手机、Mac 与服务端 0.5.0](releases/cloud-0.5.0/README.md)新增时间标记和餐食录入，手机补齐动态24h分析与固定日报切换。主报告改为简短摘要、最多三张彩色重点卡片；相关研究依据折叠并按主题去重。Mac图表可悬停看时间、点击记录，手机支持手填餐食及显式拍照/图库识别。两端0.5.0已覆盖安装，真实标记同步和新版报告已验证；照片识别实际用量与完整验收见[功能说明](docs/EVENTS_AND_MEAL_PHOTOS.md)。官方小米运动健康和现有手表保持。
+
+以下0.4.x及更早更新保留为历史记录，当前云功能与制品以0.5.0为准。
+
 2026-11-10：[Mac0.4.6](releases/cloud-0.4.6/README.md)去掉图标圆形描边，数字放大至14pt，保留淡色波形与仅图标范围警示。手机继续0.4.3。
 
 2026-11-10：[Mac0.4.5](releases/cloud-0.4.5/README.md)淡化状态栏圆圈与波形，让完整数字更突出，保留仅图标范围警示；手机继续0.4.3。
@@ -33,7 +37,9 @@
 | 项目 | 状态 |
 | --- | --- |
 | 手机蓝牙网关客户端 | 已还原国行官方 3.59.2；修改版已卸载，两轮非充电锁屏更新及最后屏显验收通过 |
-| Android 通知监听与蓝牙桥接 | 0.2.0 / code13，保留既有CPU投递/唤起冷却，增加独立云同步通路 |
+| Android 通知监听、蓝牙桥接与云界面 | 0.5.0 / code18，保留既有手表通路；新增生活标记、餐食录入和两类分析切换 |
+| Mac 与通知中心组件 | 0.5.0 / build18；保留当前状态栏样式，新增时间准星、标记编辑和重点报告 |
+| 云端与模型分析 | 方法v4，独立保存动态24h/固定日报与生活标记；餐食照片使用独立队列及限额 |
 | Vela 手表应用 | 0.1.12 / code 13，新增两条图表基准线；安装成功，细线目视已通过，非充电锁屏两轮新测量更新通过 |
 | 自定义血糖表盘 | 已安装并由用户确认正常绘制、自动返回及显示新读数；连续更新证据见 [验证记录](docs/validation.md) |
 | 更新策略 | Ottai 新通知触发；表盘自动同步开启时，8 秒未收到文件导出确认才短暂唤起手表应用，写入后自动返回 |
@@ -67,7 +73,7 @@ git clone git@github.com:joviliu/ottai_watch.git
 cd ottai_watch
 ```
 
-**直接安装**：手机 APK 使用[0.4.3时序图版](releases/cloud-0.4.3/README.md)，Signal 使用 [0.1.17](releases/0.1.17/README.md)，Meridian 使用 [0.1.16](releases/0.1.16/README.md)，Ultra 沿用 0.1.14，手表应用为 [RPK 0.1.12](releases/watch-0.1.12/README.md)。先核对各目录 SHA256SUMS，按 [安装文档](docs/install.md) 和 [交接记录](docs/HANDOFF.md) 确认实际版本，勿重复清除已有数据。表盘通过 [SPP 临时安装器](tools/spp-installer/README.md) 上传，使用自己设备的合法配对凭据，结束卸载。官方版曾通过日常同步，但本轮上传在其环境下中断；修改版对照已完成三款上传，不能把这项结果直接解释为官方禁止表盘安装。修改版已确认可覆盖升级 RPK；官方 RPK 侧载入口仍未验。
+**直接安装**：手机 APK 与 Mac 使用[0.5.0标记与重点报告版](releases/cloud-0.5.0/README.md)，Signal 使用 [0.1.17](releases/0.1.17/README.md)，Meridian 使用 [0.1.16](releases/0.1.16/README.md)，Ultra 沿用 0.1.14，手表应用为 [RPK 0.1.12](releases/watch-0.1.12/README.md)。先核对各目录 SHA256SUMS，按 [安装文档](docs/install.md) 和 [交接记录](docs/HANDOFF.md) 确认实际版本，勿重复清除已有数据。表盘通过 [SPP 临时安装器](tools/spp-installer/README.md) 上传，使用自己设备的合法配对凭据，结束卸载。官方版曾通过日常同步，但本轮上传在其环境下中断；修改版对照已完成三款上传，不能把这项结果直接解释为官方禁止表盘安装。修改版已确认可覆盖升级 RPK；官方 RPK 侧载入口仍未验。
 
 **继续开发**：需要 Python 3、Node.js ≥18、JDK ≥17、Android SDK Platform 35 / Build Tools 35.0.0、OpenSSL。先运行不依赖 Android SDK 的测试：
 
@@ -105,7 +111,10 @@ python3 -m venv .toolchain/watchface-venv
 
 ## 项目结构
 
-- `android/src/`：通知解析、缓存、前台蓝牙服务、手机界面及图标。
+- `android/src/`：通知解析、缓存、前台蓝牙服务、手机曲线/分析、生活标记和餐食照片。
+- `server/`：独立云API、SQLite、活动/生活标记、统计与每日/动态分析。
+- `macos/`：菜单栏应用、交互图表、标记编辑与WidgetKit通知中心组件。
+- `deploy/relay/`：隔离的血糖分析与餐食照片relay/worker部署模板。
 - `android/vendor/sdk/`：小米 Wearable SDK 源码，来源和修改见 `THIRD_PARTY_NOTICES.txt`。
 - `watch/src/`：Vela JS 应用，包含消息/曲线校验、串行文件发布、缓存、展示和自动返回。
 - `watchface/`：Lua 表盘、圆点字体素材生成、BIN/ZIP 打包及 Lua 模拟测试。
@@ -116,6 +125,6 @@ python3 -m venv .toolchain/watchface-venv
 
 ## 接续任务
 
-先读 [HANDOFF](docs/HANDOFF.md)，再看 [数据协议](docs/protocol.md) 与 [快捷查看调研](docs/quick-view-research.md)。不要把「SDK 发送成功」当作「手表已显示」；手机界面分别显示发送状态、当前帧首次回执和最近回执。
+云功能先读 [CLOUD_SYNC_HANDOFF](docs/CLOUD_SYNC_HANDOFF.md) 和 [标记与餐食照片](docs/EVENTS_AND_MEAL_PHOTOS.md)；手表功能先读 [HANDOFF](docs/HANDOFF.md)，再看 [数据协议](docs/protocol.md) 与 [快捷查看调研](docs/quick-view-research.md)。不要把「SDK 发送成功」当作「手表已显示」；手机界面分别显示发送状态、当前帧首次回执和最近回执。
 
 本公开仓库不存放签名私钥、蓝牙配对密钥、账号、真实血糖日志、第三方 APK 或原厂表盘素材。签名迁移见 [签名说明](docs/signing.md)。主项目采用 GPL-3.0，独立 SPP 安装器采用 AGPL-3.0；第三方代码、字体及其许可证见 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.txt)。

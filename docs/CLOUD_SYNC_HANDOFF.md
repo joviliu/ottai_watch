@@ -1,5 +1,37 @@
 # 云同步、Mac 与每日观察接续
 
+## 2026-11-10：重点报告、生活标记与餐食照片（0.5.0，当前）
+
+Android0.5.0/code18与Mac/Widget0.5.0/build18已覆盖安装；正式API已升级。官方小米运动健康3.59.2、绑定、手表RPK和三款表盘保持。状态栏沿用0.4.6的淡色波形、完整14pt数字和仅图标范围警示，本轮不改动其样式。制品见[0.5.0](../releases/cloud-0.5.0/README.md)，完整使用、照片用量和部署边界见[标记与餐食照片](EVENTS_AND_MEAL_PHOTOS.md)。
+
+- 报告方法升为`cgm-observation-4`：摘要＋最多三项重点，每项含现象、简短解释和可执行建议，颜色区分关注/一般/正向变化。移除机械逐段复述和固定免责段落，研究依据按相关主题折叠、已介绍主题持久去重。旧报告仍兼容折叠查看，不改写历史正文。
+- 手机补齐「血糖曲线 / 24h分析」入口、手动动态24h按钮，以及与Mac一致的动态/每日回顾切换。两类报告继续独立存储；动态分析仍按完整性门槛、30分钟最小间隔、同快照复用执行，固定日报仍于累计真实资料超过72h后每天08:15尝试前一自然日。
+- Mac主图悬停显示时间竖线和气泡，点击可选进餐、入睡、起床、运动、备注；手机点按/横拖选时并保留纵向滚动。已有记录可编辑和软删除，版本冲突保留草稿，不静默覆盖另一端。近似时间是用户确认的记录，曲线推测不是确认餐次。
+- 进餐可手填食物、未知热量留空；手机可拍照/选图，显式点击识别后才上传，识别结果可修改，确认保存才写入进餐。图片压缩去元数据，最长边1024px、JPEG最多1MiB；原图不进入数据库或日志。相机只获得单个临时URI，不增加全相册或直接相机运行时权限。
+
+### 已验证与剩余验收
+
+本地和Ali Python3.6的68项服务测试、4项worker测试、Android策略与Watch回归、Mac模型/网络交互检查及两端Release构建通过。正式库迁移前后原有表和记录保留，完整性检查通过，部署源码哈希已核对。
+
+Mac真实界面已验证时间准星、弹窗录入和保存；一条用户明确提供的进餐记录通过Mac写入，在手机显示为同一条标记，未知热量保持空值。真实动态24h报告已生成，确认包含活动和生活标记上下文，摘要与三项重点约291字，替代上一版超过1300字的展开段落；两端彩色重点卡片、手动入口与动态/每日回顾切换已核对。Android相机打开和取消通过，未拍摄或上传私人照片。
+
+照片识别的真实Ali→SG→提供方通路及Android图库完整流程已通过：公开咖啡样图回填餐食/可编辑热量范围，手机实际499输入＋42输出token、估算`$0.00071`。测试草稿取消，下载样图移除，正式进餐未增加。隔离纯灰图返回非食物；相同JPEG复用缓存无新增token，临时库完整且无CGM/事件/报告。原图与私人照片均未保存为正式资料，识别准确度尚未验证。合成预览及隔离样本不作为实际饮食或正式血糖资料。当前固定日报仍等待真实资料自然超过72h，不以滚动24h结果冒充固定日报验收。
+
+### 新增持久化与服务
+
+`lifestyle_events`、`evidence_topics`、`food_jobs`为增量表，保留旧CGM、活动与报告数据。生活标记进入分析快照身份，补记后不会错误复用不含该标记的结果；原始食物/备注完整保存，模型上下文有界并明确截断。
+
+- `GET/POST /api/v1/events`和`POST /api/v1/events/delete`：读能力可查询，仅上传/分析能力可写；编辑/删除含`expectedUpdatedAt`冲突保护和稳定ID幂等。
+- `POST /api/v1/meals/recognize`创建异步识别，`GET`带同一requestId查询；仅上传/分析能力可用。未知结果不自动重发付费请求，完成的相同图片可复用缓存，结果含实际usage与估算费用。
+- 食物独立Ali relay绑定loopback18781，SG受限SSH隧道本地18782，独立服务账户、HMAC身份和每日30次预算。原血糖relay18779、隧道18778及49次分析预算不受挤占；原教育服务保留。
+- 正式服务为`ottai-cloud.service`，新增`ottai-food-relay.service`、SG的`ottai-food-worker.service`/`ottai-food-tunnel.service`。提供方Key仍只在SG通过systemd credential读取；Ali、手机、Mac和仓库均不保存它。公开模板见[服务部署](../server/deploy)及[relay](../deploy/relay)。
+
+### 新环境接续顺序
+
+先保留/备份原正式库、签名和私密配置，阅读[接口与部署](../server/FOOD_EVENTS.md)。运行`sh tools/test.sh`和`sh macos/test.sh`，再核对新API及独立照片服务；不要让旧schema写入者与新版本竞争。升级手机需使用原签名，升级Mac继续覆盖同一路径并保持单实例。Widget只获得READ能力，不能写标记或触发付费任务。真实照片、报告、截图和数据库只能留在授权私密位置；公开预览必须使用合成资料。
+
+以下0.4.x与更早章节保留为历史，不覆盖本节当前版本与验收状态。
+
 ## 2026-11-10：移除描边、放大数字（Mac0.4.6）
 
 Mac/Widget0.4.6/build17已覆盖。去掉圆形描边，保留淡底色与波形；数字增至14pt，其余布局、透明隔离边、仅图标红/橙范围警示和旧值规则保持。原生边界、颜色、浅深外观、数字完整性与Release构建通过。[制品](../releases/cloud-0.4.6/README.md)无私密配置。手机、服务端、官方运动健康和手表不变。
@@ -69,19 +101,23 @@ Ottai 原通知
              ├─ SQLite 原始读数 / 更正审计 / 日报
              ├─ 手机云同步页：曲线、统计和同一份日报
              ├─ Mac：只读获取 → 菜单栏与详情；WidgetKit 在自己的沙盒独立读取
-             └─ 每日统计压缩 → Ali 隔离 relay → SG worker → Responses
+             └─ 每日/动态统计＋生活标记 → Ali分析relay → SG worker → Responses
+
+Mac/手机用户确认的生活标记 → events API → 原始标记＋分析上下文
+手机显式照片识别 → 独立Ali食物relay → 独立SG worker → 可编辑结果
+                      └─ 只有用户保存后才成为进餐记录
 ```
 
 云上传与手表通路独立。上传失败保留本机队列，采用有限重试/退避，不靠密集唤醒或轮询传感器补救。Ottai 的原刷新频率保持约五分钟；队列补传不等于传感器产生了新测量。最新数据的判断以原始 `sourceAt` 为准，不能用上传时间冒充采集时间。
 
 ## API 与配置契约
 
-当前服务 base URL 为 `https://47.113.117.247:8443/ottai`。客户端在该 base 下追加 `/api/v1/readings` 或 `/api/v1/dashboard`；已有 TLS 反向代理移除 `/ottai/` 前缀再转给 loopback API。不得关闭证书校验，也不得把带令牌的请求重定向到其他主机。
+实际服务base URL从所有者提供的私密配置取得，例如 `https://YOUR_HOST/ottai`。客户端在该base下追加 `/api/v1/readings` 或 `/api/v1/dashboard`；已有 TLS 反向代理移除 `/ottai/` 前缀再转给 loopback API。不得关闭证书校验，也不得把带令牌的请求重定向到其他主机。
 
-- `INGEST_TOKEN`：手机持有的独立上传令牌，也能读取本服务。`READ_TOKEN`：Mac 使用的独立只读令牌，不能上传。不能复用教育项目、SG 通道或 OpenAI 的凭据。服务与私密配置中的 token 必须匹配，不要将实际值写入 APK、Git、URL、诊断日志或命令行参数。
+- `INGEST_TOKEN`：手机持有的独立上传令牌，也能读取、写标记并请求分析/识别。`READ_TOKEN`：主应用读取与Widget使用的独立只读令牌，不能写标记或触发付费任务。`ANALYZE_TOKEN`：Mac主应用的独立分析能力，也可写生活标记和请求照片识别，不交给Widget。不能复用教育项目、SG通道或OpenAI的凭据。服务与私密配置中的 token 必须匹配，不要将实际值写入 APK、Git、URL、诊断日志或命令行参数。
 - `POST /api/v1/readings`：`{"readings":[{"sourceAt":...,"value":...,"trend":"..."}]}`，Bearer 鉴权。值为有限 `0 < value ≤ 60` mmol/L，时间最多允许 90 秒未来偏差；未知趋势用 `?`。整批校验后原子写入，`accepted` 包含幂等重复；只有精确 ACK 成功后才移除相应队列版本。
 - 同一 `sourceAt` 为幂等身份；数值/趋势更正更新当前记录并保留审计。`historical:true` 可插入缺少的历史，不会把既有真实趋势降级为未知。趋势合法集合与手机保持，长度有上限，不截断成不同语义。
-- `GET /api/v1/dashboard`：返回 `schemaVersion=1`、`latest`、24h `readings`、`metrics`、`comparison` 和 `analysis`。缺少统计用 null；没有记录时 `latest` 为 null。`comparison.timezone` 为 `Asia/Shanghai`，日内桶不能按 Mac 的其他本地时区错误平移。
+- `GET /api/v1/dashboard`：返回 `schemaVersion=1`、`latest`、24h `readings`、`metrics`、`comparison`、`activity`、`events`、`analysis`、`dailyAnalysis`、`rollingAnalysis`及`manualAnalysis`。缺少统计用null；没有记录时 `latest` 为 null。`comparison.timezone` 为 `Asia/Shanghai`，日内桶不能按 Mac 的其他本地时区错误平移。
 
 精确字段和限制见 [server/README.md](../server/README.md)。手机凭据通过应用私密配置导入并由 Android Keystore 保护；Mac 与组件使用各自的0600私密只读配置，不调用钥匙串；组件保留沙盒并独立获取HTTPS数据。导入完成应清理传递配置的临时副本，并保留服务端可安全轮换的原始配置。
 
@@ -92,7 +128,7 @@ Ottai 原通知
 指标由程序计算，模型只解释。每点最多向后覆盖五分钟，下一点更早则缩短；大缺口不插值、不算正常。均值、SD、CV 和范围内外占比按实际观察时间加权，另报覆盖率；不通过平滑删除真实峰谷，不推算 HbA1c/GMI 诊断。
 
 - 每天 08:15 尝试一份前一自然日00:00–24:00的固定日报，同时比较前一日、近 7d/前 7d、近 14d/前 14d和更早资料。没有单独周报或月报模型任务。
-- 数据源时间跨度超过 72h 才允许开始初步分析，跨度不代表三天完整资料。覆盖不足、只有零散点、窗口不齐时必须说明，不能捏造对照或确定改善。最近 24h 没有新点时返回 `no_recent_data`，不发模型请求，也不占用当天首次调用资格；旧值和旧报告仍按真实时间标注。
+- 自动固定日报要求数据源时间跨度超过72h，跨度不代表三天完整资料；手动动态24h使用本页上文的独立完整性门槛。覆盖不足、只有零散点、窗口不齐时必须说明，不能捏造对照或确定改善。最近 24h 没有新点时返回 `no_recent_data`，不发模型请求，也不占用当天首次调用资格；旧值和旧报告仍按真实时间标注。
 - 模型输入保留最近 24h 原始相对时间/数值，最近 56d 使用逐日统计；56d以前至365d按最多12个不重叠的28d块压缩，末块明确实际天数。每块含实际覆盖和观测时长，缺测月不当作完整月。原始长期资料仍在 Ali，不因输入压缩而删除。
 - 历史浅灰曲线使用此前 28d、排除最近 24h；每半小时先求各天中位数，再跨日求中位数与四分位区间，公开参与天数，不填补缺失桶。
 - 日级 claim 在网络调用前持久提交；同一天模型最多自动尝试一次。未知执行结果、超时和重启不触发自动付费重发。模型故障不阻断上传/查询，旧报告保留原日期和失败状态。
@@ -110,7 +146,7 @@ Ali API 为独立进程，配套模板见 [server/deploy](../server/deploy)。�
 ## 新环境继续工作
 
 1. 拉取本仓库，先读本页及 [原手表接续](HANDOFF.md)。保留现有官方运动健康、手机数据、RPK 和表盘；仅增加云通路，不解绑或重置。Android 升级需迁移原签名，见 [signing.md](signing.md)。
-2. 运行 `python3 -m unittest server.test_server server.test_activity -v`。Ali 当前运行环境面向 Python 3.6+ 标准库；安装 [服务和 timer 模板](../server/deploy)，通过私密 EnvironmentFile 设置独立读/写 token、数据库位置和 relay 业务凭据。实际凭据由所有者提供，不能生成新值后假定旧客户端会自动匹配。
+2. 运行 `python3 -m unittest server.test_server server.test_activity server.test_lifestyle -v`。Ali 当前运行环境面向 Python 3.6+ 标准库；安装 [服务和 timer 模板](../server/deploy)，通过私密 EnvironmentFile 设置独立读/写 token、数据库位置和 relay 业务凭据。实际凭据由所有者提供，不能生成新值后假定旧客户端会自动匹配。
 3. 核对现有 TLS 证书及 `/ottai/` 路由，先用独立合成数据库验证鉴权/更正/缺测/日报，不向正式数据库注入测试历史或虚构读数。确认 API、日报、备份和隔离 relay 的 systemd 状态；禁止把原教育服务停止当作安装步骤。
 4. 手机覆盖同签名安装包，保留通知访问、蓝牙与厂商后台无限制。在「云同步」页导入 base URL/设备上传令牌，先检查待上传队列与分阶段失败信息，再核对成功 ACK。失败时只记录阶段和错误类别，不公开 token、请求正文或健康值。
 5. 运行 `sh macos/test.sh`、`sh macos/build.sh`，通过 `sh macos/install.sh --import-config "$OTTAI_CONFIG_FILE"` 导入所有者提供的私密只读配置。Mac 安装位置、两个沙盒的独立只读配置和登录启动说明见 [macos/README.md](../macos/README.md)。开机后台形态为用户登录后菜单栏运行；不能声称未登录时已在用户桌面运行。
@@ -130,7 +166,7 @@ Ali API 为独立进程，配套模板见 [server/deploy](../server/deploy)。�
 - [ ] 第一个自然定时任务、长期网络恢复、跨机器签名与Widget系统预算，后续使用中确认。
 - [x] 代码、发布包及校验和已提交；最新CI以[Actions](https://github.com/joviliu/ottai_watch/actions)为准，不以本地测试代替线上结果。
 
-实际更新日期与当前制品见 [0.4.2云发布包](../releases/cloud-0.4.2/README.md)。正式资料截图、数据库、令牌及签名私钥不得进入公开制品。
+实际更新日期与当前制品见 [0.5.0云发布包](../releases/cloud-0.5.0/README.md)。正式资料截图、数据库、令牌及签名私钥不得进入公开制品。
 
 ## 2026-11-10 Health Connect 0.4.0
 

@@ -149,11 +149,12 @@ final class CloudSync {
                 prefs.edit().putLong("lastUpload",System.currentTimeMillis()).putInt("failures",0).putLong("nextAttempt",0).apply();
             }
             if (forceDashboard || !batch.ids.isEmpty() || System.currentTimeMillis()-lastDashboard>=300000) {
+                CloudConfig.Connection dashboardCredentials=CloudConfig.connection(context);
                 String dashboard=http("GET", "/api/v1/dashboard",null);
                 stage="dashboard_decode";
                 JSONObject json=new JSONObject(dashboard);
                 if (json.optInt("schemaVersion",0)!=1 || !json.has("analysis")) throw new IOException("Invalid dashboard");
-                prefs.edit().putString("dashboard",dashboard).putLong("lastFetch",System.currentTimeMillis()).apply();
+                CloudConfig.cacheDashboard(context,json,dashboardCredentials);
                 lastDashboard=System.currentTimeMillis();
             }
             prefs.edit().putInt("failures",0).putLong("nextAttempt",0).apply();

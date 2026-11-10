@@ -1,0 +1,24 @@
+[Unit]
+Description=Ottai dedicated food-image relay (Ali loopback)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ottai-food-relay
+Group=ottai-food-relay
+WorkingDirectory=/srv/ottai-cloud/app/deploy/relay
+EnvironmentFile=/etc/ottai-food-relay/service.env
+# Requires Node22+; set the owner-provided runtime path on deployment.
+ExecStart=/usr/bin/node /srv/ottai-cloud/app/deploy/relay/food-start.cjs
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/ottai-food-relay
+
+[Install]
+WantedBy=multi-user.target

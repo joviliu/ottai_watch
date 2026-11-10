@@ -130,6 +130,47 @@ struct ModelTests {
         let base = URL(string: "https://example.invalid/ottai")!
         assert(base.appendingPathComponent("api/v1/dashboard").path == "/ottai/api/v1/dashboard")
         assert(metricText(nil) == "—" && metricText(98, suffix: "%", decimals: 0) == "98%")
+        let start = now.addingTimeInterval(-86400)
+        assert(ChartSelection.date(at: 0, width: 300, start: start, end: now) == start)
+        assert(ChartSelection.date(at: 300, width: 300, start: start, end: now) == now)
+        assert(ChartSelection.date(at: 150, width: 300, start: start, end: now) == start.addingTimeInterval(43200))
+        assert(ChartSelection.date(at: -1, width: 300, start: start, end: now) == nil)
+        assert(ChartSelection.date(at: 301, width: 300, start: start, end: now) == nil)
+        assert(ChartSelection.date(at: .nan, width: 300, start: start, end: now) == nil)
+        assert(ChartSelection.date(at: 1, width: 0, start: start, end: now) == nil)
+        assert(ChartSelection.x(for: start.addingTimeInterval(43200), width: 300, start: start, end: now) == 150)
+        assert(ChartSelection.x(for: start.addingTimeInterval(-1), width: 300, start: start, end: now) == nil)
+        assert(ChartSelection.minuteDate(Date(timeIntervalSince1970: 3679)).timeIntervalSince1970 == 3660)
+        let photoMeal = MealDetails(foods: "米饭和青菜", estimatedKcalMin: 400, estimatedKcalMax: 550, source: "photo_estimate")
+        assert(MealDetails.recording(foods: photoMeal.foods, previous: photoMeal) == photoMeal)
+        assert(MealDetails.recording(foods: "加了一碗米饭", previous: photoMeal)?.estimatedKcalMax == nil)
+        assert(MealDetails.recording(foods: "加了一碗米饭", previous: photoMeal)?.source == "manual")
+        assert(MealDetails.recording(foods: "  ", previous: photoMeal) == nil)
+        var withEvents = dashboard
+        let event = LifestyleEvent(id: "meal-example-123", type: .meal, at: fresh.sourceAt, note: "大约时间", meal: photoMeal, updatedAt: fresh.sourceAt)
+        withEvents.events = [event]
+        withEvents.rollingAnalysis = Analysis(status: "ready", summary: "午餐后恢复较慢", highlights: [
+            AnalysisHighlight(title: "这次升高持续较久", text: "比昨天的相近时段恢复慢。", severity: "watch", action: "下次记录主食份量并比较。")],
+            evidence: [AnalysisEvidence(topic: "meal_order", title: "食物顺序", text: "不同进食顺序可能影响餐后上升。", sourceUrl: "https://pubmed.ncbi.nlm.nih.gov/26106234/")])
+        let decodedEvents = try Dashboard.decode(JSONEncoder().encode(withEvents))
+        assert(decodedEvents.events?.first?.meal == photoMeal && decodedEvents.rollingAnalysis?.highlights?.first?.severity == "watch")
+        assert(dashboard.events == nil, "old dashboard/cache must not require event records")
+        var invalidEvents = withEvents
+        invalidEvents.events = [event, event]
+        do { _ = try Dashboard.decode(JSONEncoder().encode(invalidEvents)); fatalError("duplicate event IDs accepted") }
+        catch MirrorError.invalidResponse {}
+        invalidEvents = withEvents
+        invalidEvents.events![0].meal!.estimatedKcalMin = 600
+        do { _ = try Dashboard.decode(JSONEncoder().encode(invalidEvents)); fatalError("reversed calorie range accepted") }
+        catch MirrorError.invalidResponse {}
+        invalidEvents = withEvents
+        invalidEvents.events![0].note = "bad\u{0000}note"
+        do { _ = try Dashboard.decode(JSONEncoder().encode(invalidEvents)); fatalError("control characters accepted") }
+        catch MirrorError.invalidResponse {}
+        invalidEvents = withEvents
+        invalidEvents.rollingAnalysis!.highlights![0] = AnalysisHighlight(title: "Invalid", text: "Value", severity: "unknown")
+        do { _ = try Dashboard.decode(JSONEncoder().encode(invalidEvents)); fatalError("unknown highlight severity accepted") }
+        catch MirrorError.invalidResponse {}
         print("Mac model checks passed: schema, missing-data semantics, staleness, chart gaps, cache round-trip, path prefix")
     }
 }

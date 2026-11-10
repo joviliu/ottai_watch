@@ -5,6 +5,14 @@ struct GlucoseChart: View {
     let dashboard: Dashboard
     var compact = false
     var miniature = false
+    var eventEditor: ((ChartEventSelection) -> AnyView)? = nil
+    @State private var hoverDate: Date?
+    @State private var selection: ChartEventSelection?
+    @State private var selectionAnchor = CGPoint.zero
+    private var interactive: Bool { eventEditor != nil && !miniature }
+    private var markers: [LifestyleEvent] {
+        (dashboard.events ?? []).filter { $0.date >= start && $0.date <= end }.sorted { $0.at < $1.at }
+    }
     private let heartColor = Color(red: 191/255, green: 145/255, blue: 189/255)
     private let stepColor = Color(red: 131/255, green: 189/255, blue: 166/255)
     private let energyColor = Color(red: 215/255, green: 170/255, blue: 100/255)
@@ -89,7 +97,7 @@ struct GlucoseChart: View {
               }
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: interactive ? .contain : .combine)
         .accessibilityLabel("过去24小时，共用时间轴。血糖为独立mmol/L刻度，心率为独立bpm刻度，仅显示实际采样。绿色步数和橙色估算活动热量分别缩放，表示记录线索，不能推断运动强度；缺测不补造数据。")
     }
 
@@ -113,7 +121,8 @@ struct GlucoseChart: View {
     }
 
     private func glucoseTrack(dense: Bool = false) -> some View {
-        HStack(spacing: 4) {
+        VStack(spacing: 3) {
+          HStack(spacing: 4) {
             Chart {
                 RectangleMark(xStart: .value("开始", start), xEnd: .value("结束", end),
                               yStart: .value("观察下界", 3.9), yEnd: .value("观察上界", 7.8))
@@ -128,6 +137,15 @@ struct GlucoseChart: View {
                 }
                 RuleMark(y: .value("下界", 3.9)).foregroundStyle(Color.gray.opacity(0.3)).lineStyle(StrokeStyle(lineWidth: 0.6, dash: [3,3]))
                 RuleMark(y: .value("上界", 7.8)).foregroundStyle(Color.gray.opacity(0.3)).lineStyle(StrokeStyle(lineWidth: 0.6, dash: [3,3]))
+                if interactive {
+                    ForEach(markers) { marker in
+                        RuleMark(x: .value("用户记录", marker.date))
+                            .foregroundStyle(marker.type.tint.opacity(0.16))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
+                        PointMark(x: .value("记录时间", marker.date), y: .value("记录", 0.55))
+                            .foregroundStyle(marker.type.tint).symbolSize(13)
+                    }
+                }
                 if let latest = dashboard.latest, latest.date >= start, latest.date <= end {
                     PointMark(x: .value("最新时间", latest.date), y: .value("最新值", latest.value))
                         .foregroundStyle(latest.isStale(at: Date()) ? Color.gray : MirrorPalette.blue).symbolSize(miniature ? 14 : 28)
@@ -135,8 +153,76 @@ struct GlucoseChart: View {
             }.chartXScale(domain: start...end, range: .plotDimension(startPadding: 4, endPadding: 4))
                 .chartYScale(domain: 0...dashboard.glucosePlotUpperBound).chartLegend(.hidden)
                 .chartXAxis(.hidden).chartYAxis(.hidden)
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        if interactive, let anchor = proxy.plotFrame {
+                            let frame = geometry[anchor]
+                            let cursorDate = selection?.date ?? hoverDate
+                            ZStack(alignment: .topLeading) {
+                                if let cursorDate, let position = proxy.position(forX: cursorDate) {
+                                    Path { path in
+                                        path.move(to: CGPoint(x: frame.minX + position, y: frame.minY))
+                                        path.addLine(to: CGPoint(x: frame.minX + position, y: frame.maxY))
+                                    }.stroke(MirrorPalette.ink.opacity(0.42), style: StrokeStyle(lineWidth: 0.8, dash: [3, 3]))
+                                    Text(DisplayTime.time(cursorDate))
+                                        .font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                                        .foregroundStyle(MirrorPalette.blue).padding(.horizontal, 7).padding(.vertical, 4)
+                                        .background(.white, in: Capsule()).shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+                                        .position(x: min(max(frame.minX + position, 28), geometry.size.width - 28), y: frame.minY + 10)
+                                        .allowsHitTesting(false)
+                                }
+                                Rectangle().fill(.clear).contentShape(Rectangle())
+                                    .onContinuousHover { phase in
+                                        switch phase {
+                                        case .active(let location): hoverDate = chartDate(at: location, proxy: proxy, frame: frame)
+                                        case .ended: hoverDate = nil
+                                        }
+                                    }
+                                    .onTapGesture(coordinateSpace: .local) { location in
+                                        guard let date = chartDate(at: location, proxy: proxy, frame: frame) else { return }
+                                        selectionAnchor = location
+                                        selection = ChartEventSelection(date: date, event: nil)
+                                    }
+                                    .accessibilityHidden(true)
+                                Color.clear.frame(width: 1, height: 1)
+                                    .popover(item: $selection, arrowEdge: .bottom) { selected in
+                                        if let eventEditor { eventEditor(selected) }
+                                    }
+                                    .position(selectionAnchor)
+                            }
+                        }
+                    }
+                }
             axis(dense ? [7.8] : glucoseTicks, range: 0...dashboard.glucosePlotUpperBound)
+          }
+          if interactive, let eventEditor {
+            HStack(spacing: 7) {
+                ChartEventChip(date: end, event: nil, editor: eventEditor)
+                if markers.isEmpty {
+                    Text("点击曲线，记录大约时间").font(.system(size: 9)).foregroundStyle(MirrorPalette.muted)
+                    Spacer()
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(markers) { marker in
+                                ChartEventChip(date: marker.date, event: marker, editor: eventEditor)
+                            }
+                        }
+                    }
+                    if dashboard.eventsTruncated == true {
+                        Image(systemName: "ellipsis.circle").font(.system(size: 10)).foregroundStyle(MirrorPalette.muted)
+                            .help("仅显示最近的时间标记，历史记录仍已保存")
+                    }
+                }
+            }.frame(height: 21)
+          }
         }
+    }
+
+    private func chartDate(at location: CGPoint, proxy: ChartProxy, frame: CGRect) -> Date? {
+        guard frame.contains(location), let left = proxy.position(forX: start), let right = proxy.position(forX: end), right > left else { return nil }
+        return ChartSelection.date(at: min(max(Double(location.x - frame.minX - left), 0), Double(right - left)),
+                                   width: Double(right - left), start: start, end: end)
     }
     private var heartTrack: some View {
         HStack(spacing: 4) {
@@ -206,5 +292,25 @@ struct GlucoseChart: View {
             }.padding(.horizontal, 4)
             Color.clear.frame(width: axisWidth)
         }
+    }
+}
+
+private struct ChartEventChip: View {
+    let date: Date
+    let event: LifestyleEvent?
+    let editor: (ChartEventSelection) -> AnyView
+    @State private var showing = false
+    var body: some View {
+        Button { showing = true } label: {
+            HStack(spacing: 4) {
+                Image(systemName: event?.type.symbol ?? "plus.circle.fill")
+                Text(event.map { DisplayTime.time($0.date) } ?? "记录").monospacedDigit()
+            }.font(.system(size: 9, weight: .medium)).padding(.horizontal, 6).padding(.vertical, 4)
+                .foregroundStyle(event?.type.tint ?? MirrorPalette.blue)
+                .background((event?.type.tint ?? MirrorPalette.blue).opacity(0.08), in: Capsule())
+        }.buttonStyle(.plain)
+            .help(event.map { $0.type.title + " · " + DisplayTime.dateTime($0.date) + ($0.note.isEmpty ? "" : " · " + $0.note) } ?? "记录进餐、睡眠或活动")
+            .accessibilityLabel(event.map { "编辑" + $0.type.title + DisplayTime.dateTime($0.date) } ?? "添加时间记录")
+            .popover(isPresented: $showing, arrowEdge: .bottom) { editor(ChartEventSelection(date: date, event: event)) }
     }
 }

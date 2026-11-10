@@ -15,8 +15,10 @@ import secrets
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 
 MAX_BODY = 256 * 1024
+MAX_JOB_BODY = 2 * 1024 * 1024
 ORIGIN = 'http://127.0.0.1:18778'
 PROVIDER = 'https://api.openai.com/v1/responses'
 
@@ -37,6 +39,13 @@ class Worker:
     def __init__(self):
         self.secret = os.environ['AI_RELAY_SECRET'].encode()
         self.identity = os.environ.get('AI_WORKER_ID', 'sg-ottai')
+        self.origin = os.environ.get('AI_RELAY_ORIGIN', ORIGIN).rstrip('/')
+        parsed = urllib.parse.urlparse(self.origin)
+        if parsed.scheme != 'http' or parsed.hostname not in ('127.0.0.1','::1','localhost') or parsed.path or parsed.query or parsed.fragment or parsed.username or parsed.password:
+            raise ValueError('invalid_relay_origin')
+        self.daily_limit = int(os.environ.get('AI_RELAY_DAILY_LIMIT','49'))
+        if not 1 <= self.daily_limit <= 100:
+            raise ValueError('invalid_daily_limit')
         self.key = pathlib.Path(os.environ['OPENAI_API_KEY_FILE']).read_text().strip()
         if not self.key.startswith('sk-') or len(self.secret) < 32:
             raise ValueError('invalid_private_configuration')
@@ -49,7 +58,7 @@ class Worker:
         saved = json.loads(self.state.read_text()) if self.state.exists() else {}
         if saved.get('day') != day:
             saved = {'day': day, 'seen': []}
-        if request_id in saved['seen'] or len(saved['seen']) >= 49:
+        if request_id in saved['seen'] or len(saved['seen']) >= getattr(self,'daily_limit',49):
             return False
         saved['seen'].append(request_id)
         tmp = self.state.with_suffix('.tmp')
@@ -66,11 +75,11 @@ class Worker:
                                protocol='provider-pull-v1', **extra), separators=(',', ':')).encode()
         at, nonce = str(int(time.time()*1000)), secrets.token_hex(16)
         sig = hmac.new(self.secret, (at+'\n'+nonce+'\n'+hashlib.sha256(body).hexdigest()).encode(), hashlib.sha256).hexdigest()
-        req = urllib.request.Request(ORIGIN+'/api/ai/worker/'+action, body, headers={
+        req = urllib.request.Request(getattr(self,'origin',ORIGIN)+'/api/ai/worker/'+action, body, headers={
             'Content-Type': 'application/json', 'X-AI-Timestamp': at,
             'X-AI-Nonce': nonce, 'X-AI-Signature': sig})
         response = self.opener.open(req, timeout=25)
-        return response.headers, bounded(response)
+        return response.headers, bounded(response, MAX_JOB_BODY if action=='poll' else MAX_BODY)
 
     def execute(self, headers, raw):
         names = ['Job', 'Lease', 'Request', 'Path', 'Type', 'Deadline']
@@ -79,7 +88,7 @@ class Worker:
             raise ValueError('invalid_job')
         result = {'jobId': job, 'leaseId': lease}
         try:
-            if path != '/v1/responses' or content_type != 'application/json' or len(raw) > MAX_BODY:
+            if path != '/v1/responses' or content_type != 'application/json' or len(raw) > MAX_JOB_BODY:
                 raise ValueError('invalid_job')
             remaining = int(deadline)/1000-time.time()
             payload = json.loads(raw)
@@ -94,6 +103,9 @@ class Worker:
             except urllib.error.HTTPError as error:
                 response = error
             data = bounded(response)
+            if response.code != 200:
+                # Upstream validation errors may echo image data or request details.
+                data = json.dumps({'error':{'code':'provider_http_'+str(response.code)}}).encode()
             if response.code != 200 and not 400 <= response.code <= 599:
                 raise ValueError('invalid_status')
             result.update(status=response.code, body=base64.b64encode(data).decode())

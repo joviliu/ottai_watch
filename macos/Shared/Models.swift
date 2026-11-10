@@ -91,6 +91,32 @@ struct AnalysisSource: Codable, Identifiable {
     var id: String { url }
 }
 
+struct AnalysisHighlight: Codable, Identifiable {
+    let title: String
+    let text: String
+    let severity: String
+    var action: String?
+    var id: String { title + text }
+    var valid: Bool {
+        title.count <= 24 && text.count <= 120 && (action?.count ?? 0) <= 60
+            && ["info", "watch", "positive"].contains(severity)
+    }
+}
+
+struct AnalysisEvidence: Codable, Identifiable {
+    let topic: String
+    let title: String
+    let text: String
+    let sourceUrl: String
+    var id: String { topic }
+    var valid: Bool {
+        guard topic.count <= 40, title.count <= 40, text.count <= 160,
+              let url = URL(string: sourceUrl), url.scheme == "https", url.host != nil,
+              url.user == nil, url.password == nil else { return false }
+        return true
+    }
+}
+
 struct Analysis: Codable {
     let status: String
     var generatedAt: Double?
@@ -103,6 +129,12 @@ struct Analysis: Codable {
     var periodStart: Double?
     var periodEnd: Double?
     var trigger: String?
+    var highlights: [AnalysisHighlight]?
+    var evidence: [AnalysisEvidence]?
+    var valid: Bool {
+        (highlights?.count ?? 0) <= 3 && (highlights ?? []).allSatisfy(\.valid)
+            && (evidence?.count ?? 0) <= 1 && (evidence ?? []).allSatisfy(\.valid)
+    }
     var periodDescription: String? {
         guard let start = periodStart, let end = periodEnd else { return nil }
         return DisplayTime.dateTime(Date(timeIntervalSince1970: start/1000))+" – "+DisplayTime.dateTime(Date(timeIntervalSince1970: end/1000))
@@ -114,6 +146,85 @@ struct Analysis: Codable {
         if status == "error" || status == "failed" { return (generatedAt != nil || reportDate != nil) ? "分析失败 · 旧报告" : "分析失败" }
         return (generatedAt != nil || reportDate != nil) ? "旧报告 · 待更新" : "积累数据中"
     }
+}
+
+enum LifestyleEventKind: String, Codable, CaseIterable, Identifiable {
+    case meal, sleep, wake, exercise, note
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .meal: return "进餐"
+        case .sleep: return "入睡"
+        case .wake: return "起床"
+        case .exercise: return "运动"
+        case .note: return "备注"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .meal: return "fork.knife"
+        case .sleep: return "moon.zzz.fill"
+        case .wake: return "sun.max.fill"
+        case .exercise: return "figure.walk"
+        case .note: return "text.bubble.fill"
+        }
+    }
+}
+
+struct MealDetails: Codable, Equatable {
+    var foods: String
+    var estimatedKcalMin: Double?
+    var estimatedKcalMax: Double?
+    var source: String
+    static func recording(foods: String, previous: MealDetails?) -> MealDetails? {
+        let text = foods.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        if text == previous?.foods { return previous }
+        return MealDetails(foods: text, source: "manual")
+    }
+    var valid: Bool {
+        guard validEventText(foods), ["manual", "photo_estimate"].contains(source) else { return false }
+        if estimatedKcalMin == nil && estimatedKcalMax == nil { return true }
+        guard let low = estimatedKcalMin, let high = estimatedKcalMax else { return false }
+        return low.isFinite && high.isFinite && low >= 0 && low <= high && high <= 20000
+    }
+}
+
+struct LifestyleEvent: Codable, Identifiable, Equatable {
+    let id: String
+    var type: LifestyleEventKind
+    var at: Double
+    var note: String
+    var meal: MealDetails?
+    var updatedAt: Double?
+    var date: Date { Date(timeIntervalSince1970: at / 1000) }
+    var valid: Bool {
+        (8...80).contains(id.utf8.count) && id.utf8.allSatisfy { (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) || $0 == 45 || $0 == 95 }
+            && at.isFinite && at > 0 && validEventText(note)
+            && (updatedAt.map { $0.isFinite && $0 > 0 } ?? true) && (meal?.valid ?? true)
+    }
+}
+
+struct ChartEventSelection: Identifiable {
+    let id = UUID()
+    let date: Date
+    let event: LifestyleEvent?
+}
+
+enum ChartSelection {
+    static func minuteDate(_ date: Date) -> Date { Date(timeIntervalSince1970: floor(date.timeIntervalSince1970 / 60) * 60) }
+    static func date(at x: Double, width: Double, start: Date, end: Date) -> Date? {
+        guard x.isFinite, width.isFinite, width > 0, end > start, x >= 0, x <= width else { return nil }
+        return start.addingTimeInterval(x / width * end.timeIntervalSince(start))
+    }
+    static func x(for date: Date, width: Double, start: Date, end: Date) -> Double? {
+        guard width.isFinite, width > 0, end > start, date >= start, date <= end else { return nil }
+        return date.timeIntervalSince(start) / end.timeIntervalSince(start) * width
+    }
+}
+
+private func validEventText(_ text: String) -> Bool {
+    text.unicodeScalars.count <= 1000 && text.unicodeScalars.allSatisfy { $0.value >= 32 || $0.value == 9 || $0.value == 10 }
 }
 
 struct ManualAnalysisState: Codable {
@@ -227,6 +338,8 @@ struct Dashboard: Codable {
     var rollingAnalysis: Analysis?
     var manualAnalysis: ManualAnalysisState?
     var activity: ActivityData?
+    var events: [LifestyleEvent]?
+    var eventsTruncated: Bool?
     var glucosePlotUpperBound: Double { max(12, (readings.map(\.value).max() ?? 10) + 1) }
 
     static func decode(_ data: Data) throws -> Dashboard {
@@ -235,7 +348,10 @@ struct Dashboard: Codable {
               result.readings.count <= 10000,
               result.readings.allSatisfy({ $0.value.isFinite && $0.value > 0 && $0.value <= 60 && $0.sourceAt.isFinite }),
               result.latest.map({ $0.value.isFinite && $0.value > 0 && $0.value <= 60 && $0.sourceAt.isFinite }) ?? true,
-              result.activity?.valid ?? true
+              result.activity?.valid ?? true,
+              (result.events?.count ?? 0) <= 500, (result.events ?? []).allSatisfy(\.valid),
+              Set((result.events ?? []).map(\.id)).count == (result.events?.count ?? 0),
+              [result.analysis, result.dailyAnalysis, result.rollingAnalysis].compactMap({ $0 }).allSatisfy(\.valid)
         else { throw MirrorError.invalidResponse }
         return result
     }

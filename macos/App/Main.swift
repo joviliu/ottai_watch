@@ -52,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+#if !PREVIEW_TOOL
 @main
 struct OttaiMirrorApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
@@ -71,3 +72,4 @@ struct OttaiMirrorApp: App {
         }.menuBarExtraStyle(.window)
     }
 }
+#endif

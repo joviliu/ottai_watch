@@ -73,6 +73,17 @@ class Store:
                     source TEXT NOT NULL, kind TEXT NOT NULL, start_at INTEGER NOT NULL, end_at INTEGER NOT NULL,
                     PRIMARY KEY(source,kind,start_at)
                 );
+                CREATE TABLE IF NOT EXISTS lifestyle_events (
+                    event_id TEXT PRIMARY KEY, at INTEGER NOT NULL, kind TEXT NOT NULL,
+                    body TEXT NOT NULL, updated_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS lifestyle_at ON lifestyle_events(at);
+                CREATE TABLE IF NOT EXISTS evidence_topics (topic TEXT PRIMARY KEY, seen_at INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS food_jobs (
+                    request_id TEXT PRIMARY KEY, digest TEXT NOT NULL, status TEXT NOT NULL,
+                    started_at INTEGER NOT NULL, finished_at INTEGER, body TEXT, error_code TEXT,
+                    reserved INTEGER NOT NULL DEFAULT 1
+                );
                 CREATE TABLE IF NOT EXISTS manual_reports (
                     snapshot_id TEXT PRIMARY KEY, window_end INTEGER NOT NULL,
                     status TEXT NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER,
@@ -293,6 +304,100 @@ class Store:
             db.execute('BEGIN')
             return self._activity_identity(db,start,end,end if now is None else now)
 
+    def events(self, start, end, limit=1000):
+        with self.connect() as db:
+            rows = db.execute('SELECT body,updated_at FROM lifestyle_events WHERE deleted=0 AND at>=? AND at<=? ORDER BY at DESC,event_id LIMIT ?', (start,end,limit)).fetchall()
+        return [dict(json.loads(r['body']), updatedAt=r['updated_at']) for r in reversed(rows)]
+
+    def event_snapshot(self, start, end):
+        with self.connect() as db:
+            rows = db.execute('SELECT body,updated_at FROM lifestyle_events WHERE deleted=0 AND at>=? AND at<=? ORDER BY event_id', (start,end)).fetchall()
+        digest = hashlib.sha256(('['+','.join(r['body'] for r in rows)+']').encode('utf-8')).hexdigest()
+        events = sorted([dict(json.loads(r['body']),updatedAt=r['updated_at']) for r in rows], key=lambda e:(e['at'],e['id']))
+        return {'events':events,'digest':digest}
+
+    def event_identity(self, start, end):
+        return self.event_snapshot(start,end)['digest']
+
+    def upsert_event(self, event, expected, now):
+        from .lifestyle import canonical
+        body = canonical(event)
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            old = db.execute('SELECT * FROM lifestyle_events WHERE event_id=?', (event['id'],)).fetchone()
+            if old and not old['deleted'] and old['body'] == body:
+                return dict(event, updatedAt=old['updated_at'])
+            if old and expected != old['updated_at'] or not old and expected is not None:
+                raise ValueError('event_conflict')
+            if not old and db.execute('SELECT COUNT(*) FROM lifestyle_events WHERE deleted=0 AND at>=? AND at<?', (event['at']-86400000,event['at']+86400000)).fetchone()[0] >= 500:
+                raise ValueError('event_limit')
+            updated = max(now, old['updated_at']+1 if old else now)
+            db.execute('INSERT OR REPLACE INTO lifestyle_events VALUES (?,?,?,?,?,0)', (event['id'],event['at'],event['type'],body,updated))
+        return dict(event, updatedAt=updated)
+
+    def delete_event(self, event_id, expected, now):
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            old = db.execute('SELECT * FROM lifestyle_events WHERE event_id=?', (event_id,)).fetchone()
+            if not old or old['deleted']:
+                return
+            if expected != old['updated_at']:
+                raise ValueError('event_conflict')
+            db.execute('UPDATE lifestyle_events SET deleted=1,updated_at=? WHERE event_id=?', (max(now,old['updated_at']+1),event_id))
+
+    def recent_evidence_topics(self):
+        with self.connect() as db:
+            rows = db.execute("SELECT body FROM (SELECT body,finished_at FROM reports WHERE status='ready' UNION ALL SELECT body,finished_at FROM manual_reports WHERE status='ready') ORDER BY finished_at DESC LIMIT 12").fetchall()
+            topics = {r[0] for r in db.execute('SELECT topic FROM evidence_topics')}
+            for row in rows:
+                try:
+                    report = json.loads(row['body'])
+                    topics.update(e['topic'] for e in report.get('evidence',[]) if isinstance(e,dict) and isinstance(e.get('topic'),str))
+                    prose=json.dumps({'summary':report.get('summary',''),'sections':report.get('sections',[])},ensure_ascii=False).lower()
+                    if 'shah' in prose:
+                        topics.add('healthy_reference')
+                except (TypeError,ValueError,KeyError):
+                    pass
+            for topic in topics:
+                db.execute('INSERT OR IGNORE INTO evidence_topics VALUES (?,?)', (topic,now_ms()))
+        return sorted(topics)
+
+    def _save_evidence_topics(self, db, body, now):
+        for item in (body or {}).get('evidence',[]):
+            db.execute('INSERT OR IGNORE INTO evidence_topics VALUES (?,?)', (item['topic'],now))
+
+    def food_job(self, request_id, now):
+        with self.connect() as db:
+            db.execute("UPDATE food_jobs SET status='error',finished_at=?,error_code='provider_uncertain' WHERE request_id=? AND status='running' AND started_at<?", (now,request_id,now-150000))
+            row = db.execute('SELECT * FROM food_jobs WHERE request_id=?', (request_id,)).fetchone()
+        return dict(row) if row else None
+
+    def claim_food(self, request_id, digest, now):
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            old = db.execute('SELECT * FROM food_jobs WHERE request_id=?', (request_id,)).fetchone()
+            if old:
+                if old['digest'] != digest:
+                    raise ValueError('recognition_conflict')
+                return 'existing'
+            cached = db.execute("SELECT body FROM food_jobs WHERE digest=? AND status='ready' AND finished_at>? ORDER BY finished_at DESC LIMIT 1", (digest,now-86400000)).fetchone()
+            if cached:
+                body = json.loads(cached['body'])
+                body['usage'] = dict(body['usage'], inputTokens=0,outputTokens=0,totalTokens=0,cachedInputTokens=0,estimatedCostUsd=0,cacheHit=True,usageAvailable=True)
+                db.execute("INSERT INTO food_jobs VALUES (?,?,'ready',?,?,?,NULL,0)", (request_id,digest,now,now,json.dumps(body,ensure_ascii=False)))
+                return 'cached'
+            if db.execute("SELECT 1 FROM food_jobs WHERE status='running' AND started_at>?",(now-150000,)).fetchone():
+                raise ValueError('food_busy')
+            day_start = ((now+8*3600000)//86400000)*86400000-8*3600000
+            if db.execute('SELECT COUNT(*) FROM food_jobs WHERE reserved=1 AND started_at>=? AND started_at<?',(day_start,day_start+86400000)).fetchone()[0] >= 30:
+                raise ValueError('food_daily_limit')
+            db.execute("INSERT INTO food_jobs(request_id,digest,status,started_at) VALUES (?,?,'running',?)", (request_id,digest,now))
+        return 'created'
+
+    def finish_food(self, request_id, now, body=None, error_code=None):
+        with self.connect() as db:
+            db.execute('UPDATE food_jobs SET status=?,finished_at=?,body=?,error_code=? WHERE request_id=? AND status=?', ('error' if error_code else 'ready',now,json.dumps(body,ensure_ascii=False) if body else None,error_code,request_id,'running'))
+
     def claim_report(self, day, now):
         """Unique day is also the network-call lock; failed calls are not auto-retried."""
         with self.connect() as db:
@@ -301,6 +406,8 @@ class Store:
 
     def finish_report(self, day, now, body=None, error_code=None):
         with self.connect() as db:
+            if body and not error_code:
+                self._save_evidence_topics(db, body, now)
             db.execute('UPDATE reports SET status=?,finished_at=?,body=?,error_code=? WHERE report_date=?',
                        ('error' if error_code else 'ready', now, json.dumps(body, ensure_ascii=False) if body else None, error_code, day))
 
@@ -339,6 +446,8 @@ class Store:
 
     def finish_manual(self, snapshot_id, now, body=None, error_code=None):
         with self.connect() as db:
+            if body and not error_code:
+                self._save_evidence_topics(db, body, now)
             db.execute('UPDATE manual_reports SET status=?,finished_at=?,body=?,error_code=? WHERE snapshot_id=?',
                        ('error' if error_code else 'ready', now, json.dumps(body, ensure_ascii=False) if body else None, error_code, snapshot_id))
 

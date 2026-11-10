@@ -1,0 +1,25 @@
+[Unit]
+Description=Ottai SG food relay SSH tunnel to Ali loopback
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ottai-food-ai
+Group=ottai-food-ai
+LoadCredential=ssh-key:/path/to/owner-provided-food-tunnel-key
+LoadCredential=known-hosts:/path/to/owner-provided-known-hosts
+ExecStart=/usr/bin/ssh -NT -i %d/ssh-key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=%d/known-hosts -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -L 127.0.0.1:18782:127.0.0.1:18781 FOOD_TUNNEL_USER@ALI_HOST
+Restart=always
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+MemoryMax=32M
+TasksMax=8
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

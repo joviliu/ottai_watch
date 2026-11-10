@@ -1,0 +1,30 @@
+[Unit]
+Description=Ottai dedicated SG food-image provider worker
+After=network-online.target ottai-food-tunnel.service
+Requires=ottai-food-tunnel.service
+
+[Service]
+Type=simple
+User=ottai-food-ai
+Group=ottai-food-ai
+EnvironmentFile=/etc/ottai-food-worker/service.env
+# Supply an SG-only protected existing provider key; never copy it to Ali or clients.
+LoadCredential=openai-key:/path/to/owner-provided-openai-key
+Environment=OPENAI_API_KEY_FILE=%d/openai-key
+Environment=AI_RELAY_ORIGIN=http://127.0.0.1:18782
+Environment=AI_RELAY_DAILY_LIMIT=30
+ExecStart=/usr/bin/python3 /srv/ottai-food-worker/worker.py
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+MemoryMax=96M
+TasksMax=12
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+PrivateTmp=true
+ReadWritePaths=/var/lib/ottai-food-worker
+
+[Install]
+WantedBy=multi-user.target
