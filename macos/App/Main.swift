@@ -1,7 +1,10 @@
 import SwiftUI
 import AppKit
 
-enum AppNavigation { static let settings = Notification.Name("com.joviliu.ottai.mirror.settings") }
+enum AppNavigation {
+    static let settings = Notification.Name("com.joviliu.ottai.mirror.settings")
+    static let detail = Notification.Name("com.joviliu.ottai.mirror.detail")
+}
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -9,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var settingsObserver: NSObjectProtocol?
     private var dashboardObserver: NSObjectProtocol?
+    private var detailObserver: NSObjectProtocol?
+    private var detailWindow: DetailedReportWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         settingsObserver = NotificationCenter.default.addObserver(forName: AppNavigation.settings, object: nil, queue: .main) { [weak self] _ in
@@ -16,6 +21,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         dashboardObserver = DistributedNotificationCenter.default().addObserver(forName: SingleInstance.showDashboard, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.showDashboard() }
+        }
+        detailObserver = NotificationCenter.default.addObserver(forName: AppNavigation.detail, object: nil, queue: .main) { [weak self] notice in
+            guard let selection = notice.object as? DetailReportSelection, selection.valid else { return }
+            Task { @MainActor in
+                guard let self else { return }
+                self.detailWindow?.close()
+                self.detailWindow = DetailedReportWindowController(model: AppModel.shared, selection: selection)
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                self.detailWindow?.showWindow(nil)
+            }
         }
     }
 

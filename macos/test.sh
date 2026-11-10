@@ -10,8 +10,10 @@ swiftc App/ProcessLock.swift Tests/ProcessLockTests.swift -o build/process-lock-
 build/process-lock-tests
 swiftc Shared/Models.swift Shared/Cache.swift Tests/CacheTests.swift -o build/cache-tests
 build/cache-tests
-swiftc Shared/Models.swift Shared/Cache.swift App/ConnectionStore.swift App/AppModel.swift Tests/AppModelTests.swift -o build/app-model-tests
+swiftc Shared/Models.swift Shared/Cache.swift App/ConnectionStore.swift App/DetailAnalysisModel.swift App/AppModel.swift Tests/AppModelTests.swift -o build/app-model-tests
 build/app-model-tests
+swiftc Shared/Models.swift App/ConnectionStore.swift App/DetailAnalysisModel.swift Tests/DetailClientTests.swift -o build/detail-client-tests
+build/detail-client-tests
 swiftc -D REMOTE_DASHBOARD_TESTS Shared/Models.swift Widget/RemoteDashboard.swift Tests/RemoteDashboardTests.swift -o build/remote-tests
 build/remote-tests
 python3 Tests/test_configure.py

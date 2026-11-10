@@ -34,10 +34,11 @@ final class CloudActions {
             try {
                 CloudConfig.Connection credentials=CloudConfig.connection(app);
                 if(credentials.endpoint.isEmpty()||credentials.token.isEmpty())throw new IOException();
+                boolean detail=path.startsWith("/api/v1/analysis/detail");
                 javax.net.ssl.HttpsURLConnection connection=(javax.net.ssl.HttpsURLConnection)new URL(credentials.endpoint+path).openConnection();call.connection=connection;
-                call.deadline=CLOCK.schedule(()-> { javax.net.ssl.HttpsURLConnection current=call.connection;if(current!=null)current.disconnect(); },45000,TimeUnit.MILLISECONDS);
+                call.deadline=CLOCK.schedule(()-> { javax.net.ssl.HttpsURLConnection current=call.connection;if(current!=null)current.disconnect(); },detail?60000:45000,TimeUnit.MILLISECONDS);
                 try {
-                    connection.setConnectTimeout(10000);connection.setReadTimeout(20000);connection.setInstanceFollowRedirects(false);
+                    connection.setConnectTimeout(10000);connection.setReadTimeout(detail?45000:20000);connection.setInstanceFollowRedirects(false);
                     connection.setRequestMethod(method);connection.setRequestProperty("Authorization","Bearer "+credentials.token);
                     connection.setRequestProperty("Accept","application/json");
                     if(body!=null) {

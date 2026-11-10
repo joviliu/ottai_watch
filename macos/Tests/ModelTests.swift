@@ -154,6 +154,14 @@ struct ModelTests {
             evidence: [AnalysisEvidence(topic: "meal_order", title: "食物顺序", text: "不同进食顺序可能影响餐后上升。", sourceUrl: "https://pubmed.ncbi.nlm.nih.gov/26106234/")])
         let decodedEvents = try Dashboard.decode(JSONEncoder().encode(withEvents))
         assert(decodedEvents.events?.first?.meal == photoMeal && decodedEvents.rollingAnalysis?.highlights?.first?.severity == "watch")
+        assert(decodedEvents.rollingAnalysis?.reportId == nil, "existing concise reports remain readable without detail IDs")
+        withEvents.rollingAnalysis!.reportId = String(repeating: "a", count: 64)
+        let withID = try Dashboard.decode(JSONEncoder().encode(withEvents))
+        assert(withID.rollingAnalysis?.reportId == withEvents.rollingAnalysis?.reportId)
+        var invalidID = withEvents
+        invalidID.rollingAnalysis!.reportId = "not-a-report-id"
+        do { _ = try Dashboard.decode(JSONEncoder().encode(invalidID)); fatalError("invalid parent report ID accepted") }
+        catch MirrorError.invalidResponse {}
         assert(dashboard.events == nil, "old dashboard/cache must not require event records")
         var invalidEvents = withEvents
         invalidEvents.events = [event, event]

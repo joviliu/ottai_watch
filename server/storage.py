@@ -94,6 +94,13 @@ class Store:
                     started_at INTEGER NOT NULL, finished_at INTEGER,
                     body TEXT, error_code TEXT
                 );
+                CREATE TABLE IF NOT EXISTS detail_reports (
+                    job_id TEXT PRIMARY KEY, report_id TEXT NOT NULL, kind TEXT NOT NULL,
+                    context_digest TEXT NOT NULL, request_key TEXT NOT NULL, status TEXT NOT NULL, started_at INTEGER NOT NULL,
+                    finished_at INTEGER, period_start INTEGER NOT NULL, period_end INTEGER NOT NULL,
+                    parent_body TEXT NOT NULL, context_body TEXT NOT NULL, body TEXT, error_code TEXT
+                );
+                CREATE INDEX IF NOT EXISTS detail_parent ON detail_reports(kind,report_id,started_at);
             ''')
             # Migrate only activity tables; glucose, revisions and reports are untouched.
             # BEGIN rechecks under the write lock if API and timer start together.
@@ -437,12 +444,64 @@ class Store:
             db.execute('BEGIN IMMEDIATE')
             if db.execute('SELECT 1 FROM manual_reports WHERE snapshot_id=?', (snapshot_id,)).fetchone():
                 return 'existing'
+            if db.execute("SELECT 1 FROM detail_reports WHERE status='running' AND started_at>=?", (now-180000,)).fetchone():
+                return 'busy'
             latest = db.execute('SELECT MAX(started_at) FROM manual_reports').fetchone()[0]
             if latest is not None and now-latest < 30*60*1000:
                 return 'cooldown'
             db.execute('INSERT INTO manual_reports(snapshot_id,window_end,status,started_at) VALUES (?,?,?,?)',
                        (snapshot_id, window_end, 'running', now))
             return 'created'
+
+    def _expire_details(self, db, now):
+        db.execute("UPDATE detail_reports SET status='error',finished_at=?,error_code='detail_uncertain' WHERE status='running' AND started_at<?", (now,now-180000))
+
+    def active_detail(self, now):
+        with self.connect() as db:
+            self._expire_details(db,now)
+            return db.execute("SELECT 1 FROM detail_reports WHERE status='running' LIMIT 1").fetchone() is not None
+
+    def analysis_busy(self, now):
+        with self.connect() as db:
+            self._expire_details(db,now)
+            return any(db.execute("SELECT 1 FROM %s WHERE status='running' AND started_at>=? LIMIT 1" % table,(now-180000,)).fetchone() is not None for table in ('detail_reports','manual_reports','reports'))
+
+    def detail_report(self, kind, report_id, now, job_id=None, request_key=None, ready_only=False):
+        with self.connect() as db:
+            self._expire_details(db,now)
+            clauses,params=['kind=?','report_id=?'],[kind,report_id]
+            if job_id:
+                clauses.append('job_id=?');params.append(job_id)
+            if request_key:
+                clauses.append('request_key=?');params.append(request_key)
+            if ready_only:
+                clauses.append("status='ready'")
+            row=db.execute('SELECT * FROM detail_reports WHERE '+' AND '.join(clauses)+' ORDER BY started_at DESC,rowid DESC LIMIT 1',params).fetchone()
+        return dict(row) if row else None
+
+    def claim_detail(self, request_key, kind, report_id, context_digest, parent, context, now):
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            self._expire_details(db,now)
+            current=db.execute("SELECT body FROM manual_reports WHERE status='ready' ORDER BY started_at DESC LIMIT 1" if kind=='rolling' else "SELECT body FROM reports WHERE status='ready' ORDER BY report_date DESC LIMIT 1").fetchone()
+            if current is None or json.loads(current['body'])!=parent:
+                return 'stale',None
+            old=db.execute('SELECT * FROM detail_reports WHERE kind=? AND report_id=? AND request_key=? ORDER BY started_at DESC,rowid DESC LIMIT 1',(kind,report_id,request_key)).fetchone()
+            ttl=(8 if kind=='rolling' else 24)*3600000
+            if old and (old['status']=='running' or (old['finished_at'] if old['status']=='ready' else old['started_at'])+ttl>now):
+                return 'existing',old['job_id']
+            for table in ('detail_reports','manual_reports','reports'):
+                if db.execute("SELECT 1 FROM %s WHERE status='running' AND started_at>=? LIMIT 1" % table,(now-180000,)).fetchone():
+                    return 'busy',None
+            attempt=db.execute('SELECT COUNT(*) FROM detail_reports WHERE request_key=?',(request_key,)).fetchone()[0]+1
+            job_id=hashlib.sha256((request_key+':'+str(attempt)).encode('utf-8')).hexdigest()
+            db.execute("INSERT INTO detail_reports(job_id,report_id,kind,context_digest,request_key,status,started_at,period_start,period_end,parent_body,context_body) VALUES (?,?,?,?,?,'running',?,?,?,?,?)", (job_id,report_id,kind,context_digest,request_key,now,parent['periodStart'],parent['periodEnd'],json.dumps(parent,ensure_ascii=False,separators=(',',':')),json.dumps(context,ensure_ascii=False,separators=(',',':'))))
+        return 'created',job_id
+
+    def finish_detail(self, job_id, now, body=None, error_code=None):
+        with self.connect() as db:
+            self._expire_details(db,now)
+            db.execute("UPDATE detail_reports SET status=?,finished_at=?,body=?,error_code=? WHERE job_id=? AND status='running'", ('error' if error_code else 'ready',now,json.dumps(body,ensure_ascii=False,separators=(',',':')) if body is not None else None,error_code,job_id))
 
     def finish_manual(self, snapshot_id, now, body=None, error_code=None):
         with self.connect() as db:
@@ -452,15 +511,15 @@ class Store:
                        ('error' if error_code else 'ready', now, json.dumps(body, ensure_ascii=False) if body else None, error_code, snapshot_id))
 
     @contextmanager
-    def analysis_lock(self):
-        # One SG worker: serialize scheduled and manual calls across API/timer processes.
+    def analysis_lock(self, blocking=True):
+        # Bound model calls and full-history context memory across API/timer processes.
         descriptor = os.open(self.path+'.model.lock', os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW, 0o600)
         try:
             info = os.fstat(descriptor)
             if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid():
                 raise ValueError('Unsafe model lock')
             os.fchmod(descriptor, 0o600)
-            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            fcntl.flock(descriptor, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
             try:
                 yield
             finally:

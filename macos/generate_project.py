@@ -22,7 +22,8 @@ def value(v):
     return json.dumps(str(v))
 
 shared = ['Shared/Models.swift', 'Shared/Cache.swift', 'Shared/Appearance.swift', 'Shared/GlucoseChart.swift']
-files = shared + ['App/ConnectionStore.swift', 'App/ProcessLock.swift', 'App/SingleInstance.swift', 'App/AppModel.swift', 'App/StatusBadge.swift', 'App/Views.swift', 'App/Main.swift', 'Widget/GlucoseWidget.swift', 'Widget/RemoteDashboard.swift']
+app = ['App/ConnectionStore.swift', 'App/ProcessLock.swift', 'App/SingleInstance.swift', 'App/AppModel.swift', 'App/DetailAnalysisModel.swift', 'App/StatusBadge.swift', 'App/Views.swift', 'App/DetailedReportView.swift', 'App/Main.swift']
+files = shared + app + ['Widget/GlucoseWidget.swift', 'Widget/RemoteDashboard.swift']
 refs = {name: obj('ref:'+name, 'PBXFileReference', lastKnownFileType='sourcecode.swift', path=name, sourceTree='<group>') for name in files}
 icon_ref = obj('icon', 'PBXFileReference', lastKnownFileType='image.icns', path='App/OttaiMirror.icns', sourceTree='<group>')
 app_product = obj('product:app', 'PBXFileReference', explicitFileType='wrapper.application', path='OttaiMirror.app', sourceTree='BUILT_PRODUCTS_DIR')
@@ -57,7 +58,7 @@ embedded = obj('embed widget', 'PBXCopyFilesBuildPhase', buildActionMask=2147483
 resources = obj('app resources', 'PBXResourcesBuildPhase', buildActionMask=2147483647,
                 files=[obj('icon build', 'PBXBuildFile', fileRef=icon_ref)], runOnlyForDeploymentPostprocessing=0)
 app_sources = obj('app sources', 'PBXSourcesBuildPhase', buildActionMask=2147483647,
-                  files=[obj('app build:'+name, 'PBXBuildFile', fileRef=refs[name]) for name in shared+['App/ConnectionStore.swift', 'App/ProcessLock.swift', 'App/SingleInstance.swift', 'App/AppModel.swift', 'App/StatusBadge.swift', 'App/Views.swift', 'App/Main.swift']], runOnlyForDeploymentPostprocessing=0)
+                  files=[obj('app build:'+name, 'PBXBuildFile', fileRef=refs[name]) for name in shared+app], runOnlyForDeploymentPostprocessing=0)
 app_target = obj('app target', 'PBXNativeTarget', name='OttaiMirror', productName='OttaiMirror', productReference=app_product,
                  productType='com.apple.product-type.application', buildPhases=[app_sources, resources, embedded], buildRules=[], dependencies=[dependency],
                  buildConfigurationList=configs('app', dict(PRODUCT_NAME='OttaiMirror', PRODUCT_BUNDLE_IDENTIFIER='com.joviliu.ottai.mirror',

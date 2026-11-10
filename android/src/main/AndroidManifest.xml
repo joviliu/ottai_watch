@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.glucosewatch6" android:versionCode="19" android:versionName="0.5.1">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.glucosewatch6" android:versionCode="20" android:versionName="0.6.0">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
@@ -28,6 +28,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".CloudActivity" android:exported="false" />
+        <activity android:name=".DetailActivity" android:exported="false" />
         <activity android:name=".EventActivity" android:exported="false" />
         <provider android:name=".MealPhotoProvider" android:authorities="com.example.glucosewatch6.mealphoto" android:exported="false" android:grantUriPermissions="true" />
         <activity android:name=".HealthActivity" android:exported="true">

@@ -91,7 +91,12 @@ struct AnalysisPanel: View {
     @State private var expandedSummary = false
     private var report: Analysis? {
         let data = model.snapshot?.dashboard
-        return selection == "rolling" ? data?.rollingAnalysis : data?.dailyAnalysis ?? data?.analysis
+        if selection == "rolling" { return data?.rollingAnalysis }
+        return data?.dailyAnalysis ?? (data?.analysis?.trigger?.hasPrefix("manual") == true ? nil : data?.analysis)
+    }
+    private var detailSelection: DetailReportSelection? {
+        guard let report, report.generatedAt != nil, let id = report.reportId, validReportID(id) else { return nil }
+        return DetailReportSelection(kind: selection, reportId: id, periodStart: report.periodStart, periodEnd: report.periodEnd)
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -160,6 +165,14 @@ struct AnalysisPanel: View {
                 Text(selection == "rolling" ? "最近24小时数据就绪后，可生成动态分析。" : "自动回顾会在每日生成。")
                     .font(.callout).foregroundStyle(MirrorPalette.muted)
             }
+            Button {
+                if let detailSelection { NotificationCenter.default.post(name: AppNavigation.detail, object: detailSelection) }
+            } label: { Label("详细解读", systemImage: "text.magnifyingglass") }
+                .buttonStyle(.bordered).tint(MirrorPalette.blue).controlSize(.small)
+                .disabled(detailSelection == nil).help("对当前所选报告时段生成或查看详细解读")
+            if detailSelection == nil {
+                Text("这类报告就绪后可查看详细解读。").font(.caption).foregroundStyle(MirrorPalette.muted)
+            }
         }.frame(maxWidth: .infinity, alignment: .leading).mirrorCard(padding: compact ? 14 : 20)
     }
 }
@@ -181,7 +194,7 @@ private struct HighlightCard: View {
     }
 }
 
-private func reportInlineText(_ text: String) -> AttributedString {
+func reportInlineText(_ text: String) -> AttributedString {
     var result = (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
     for run in result.runs where run.link != nil { result[run.range].link = nil }
     return result

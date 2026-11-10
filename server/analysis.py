@@ -279,6 +279,7 @@ def manual_status(store, now=None, points=None, activity=None, events=None):
     same = store.manual_report(key)
     last = store.manual_report()
     cooldown = max(0, (last['started_at']+30*60000-now)//1000) if last else 0
+    detail_busy = store.active_detail(now)
     status = 'available' if quality['ready'] else 'insufficient_data'
     reason = quality['reason']
     if not enabled():
@@ -291,7 +292,9 @@ def manual_status(store, now=None, points=None, activity=None, events=None):
         status, reason = 'running', '上一份动态分析仍在生成，无需重复提交。'
     elif cooldown:
         status, reason = 'cooldown', '距离上次手动分析不足30分钟，约%d分钟后可再次分析。' % ((cooldown+59)//60)
-    return dict(quality, eligible=enabled() and quality['ready'] and not same and not cooldown,
+    elif detail_busy:
+        status, reason = 'busy', '详细解读正在生成，请稍后再分析。'
+    return dict(quality, eligible=enabled() and quality['ready'] and not same and not cooldown and not detail_busy,
                 status=status, reason=reason, cooldownSeconds=cooldown, windowEnd=end, snapshotId=key)
 
 

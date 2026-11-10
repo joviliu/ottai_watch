@@ -131,9 +131,11 @@ struct Analysis: Codable {
     var trigger: String?
     var highlights: [AnalysisHighlight]?
     var evidence: [AnalysisEvidence]?
+    var reportId: String?
     var valid: Bool {
         (highlights?.count ?? 0) <= 3 && (highlights ?? []).allSatisfy(\.valid)
             && (evidence?.count ?? 0) <= 1 && (evidence ?? []).allSatisfy(\.valid)
+            && (reportId.map(validReportID) ?? true)
     }
     var periodDescription: String? {
         guard let start = periodStart, let end = periodEnd else { return nil }
@@ -145,6 +147,117 @@ struct Analysis: Codable {
         if status == "ready" { return "已生成" }
         if status == "error" || status == "failed" { return (generatedAt != nil || reportDate != nil) ? "分析失败 · 旧报告" : "分析失败" }
         return (generatedAt != nil || reportDate != nil) ? "旧报告 · 待更新" : "积累数据中"
+    }
+}
+
+func validReportID(_ value: String) -> Bool {
+    value.utf8.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+}
+
+struct DetailReportSelection: Identifiable, Equatable {
+    let kind: String
+    let reportId: String
+    var periodStart: Double?
+    var periodEnd: Double?
+    var id: String { kind + ":" + reportId }
+    var title: String { kind == "rolling" ? "动态24h · 详细解读" : "每日回顾 · 详细解读" }
+    var valid: Bool { ["rolling", "daily"].contains(kind) && validReportID(reportId) }
+    var periodDescription: String? {
+        guard let start = periodStart, let end = periodEnd else { return nil }
+        return DisplayTime.dateTime(Date(timeIntervalSince1970: start/1000))+" – "+DisplayTime.dateTime(Date(timeIntervalSince1970: end/1000))
+    }
+}
+
+struct DetailSource: Codable, Identifiable {
+    let id: String
+    let title: String
+    let url: String
+    var valid: Bool {
+        guard !id.isEmpty, id.count <= 80, !title.isEmpty, title.count <= 200, url.count <= 2048,
+              let address = URL(string: url), address.scheme == "https", address.host != nil,
+              address.user == nil, address.password == nil else { return false }
+        return true
+    }
+}
+
+struct DetailSection: Codable, Identifiable {
+    let title: String
+    let text: String
+    let sourceIds: [String]
+    var id: String { title + text }
+}
+
+struct DetailHypothesis: Codable, Identifiable {
+    let title: String
+    let support: String
+    let against: String
+    let verification: String
+    let confidence: String
+    let sourceIds: [String]
+    var id: String { title + support }
+    var confidenceTitle: String {
+        switch confidence {
+        case "strong": return "支持较强"
+        case "moderate": return "部分支持"
+        default: return "待验证"
+        }
+    }
+}
+
+struct DetailAction: Codable, Identifiable {
+    let title: String
+    let text: String
+    var id: String { title + text }
+}
+
+struct DetailedReport: Codable {
+    let title: String
+    let summary: String
+    let sections: [DetailSection]
+    let hypotheses: [DetailHypothesis]
+    let actions: [DetailAction]
+    let limitations: [String]
+    let sources: [DetailSource]
+    var valid: Bool {
+        let ids = Set(sources.map(\.id))
+        func references(_ values: [String]) -> Bool { values.count <= 20 && values.allSatisfy { ids.contains($0) } }
+        return !title.isEmpty && title.count <= 80 && !summary.isEmpty && summary.count <= 500
+            && (3...6).contains(sections.count) && sections.allSatisfy { !$0.title.isEmpty && $0.title.count <= 80 && !$0.text.isEmpty && $0.text.count <= 3500 && references($0.sourceIds) }
+            && hypotheses.count <= 3 && hypotheses.allSatisfy {
+                !$0.title.isEmpty && $0.title.count <= 80 && !$0.support.isEmpty && $0.support.count <= 1000
+                    && !$0.against.isEmpty && $0.against.count <= 1000 && !$0.verification.isEmpty && $0.verification.count <= 1000
+                    && ["strong", "moderate", "weak"].contains($0.confidence) && references($0.sourceIds)
+            }
+            && (1...5).contains(actions.count) && actions.allSatisfy { !$0.title.isEmpty && $0.title.count <= 80 && !$0.text.isEmpty && $0.text.count <= 1200 }
+            && limitations.count <= 3 && limitations.allSatisfy { $0.count <= 300 }
+            && sources.count <= 20 && sources.allSatisfy(\.valid) && ids.count == sources.count
+    }
+}
+
+struct DetailAnalysisState: Codable {
+    let schemaVersion: Int
+    let kind: String
+    let reportId: String
+    let status: String
+    let eligible: Bool
+    let reason: String
+    var periodStart: Double?
+    var periodEnd: Double?
+    var startedAt: Double?
+    var generatedAt: Double?
+    var dataStale: Bool
+    var report: DetailedReport?
+    var valid: Bool {
+        schemaVersion == 1 && ["rolling", "daily"].contains(kind) && validReportID(reportId)
+            && ["available", "running", "ready", "error", "unavailable"].contains(status) && reason.count <= 2000
+            && [periodStart, periodEnd, startedAt, generatedAt].compactMap { $0 }.allSatisfy { $0.isFinite && $0 > 0 }
+            && (periodStart == nil || periodEnd == nil || periodStart! < periodEnd!)
+            && (report?.valid ?? true) && (status != "ready" || report != nil)
+    }
+    static func decode(_ data: Data, for selection: DetailReportSelection) throws -> DetailAnalysisState {
+        let value = try JSONDecoder().decode(Self.self, from: data)
+        guard data.count <= 262144, value.valid, value.kind == selection.kind, value.reportId == selection.reportId else { throw MirrorError.invalidResponse }
+        return value
     }
 }
 

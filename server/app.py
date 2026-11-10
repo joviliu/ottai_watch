@@ -16,6 +16,7 @@ from .storage import Store, now_ms, validate_batch
 from .activity import MAX_ACTIVITY_BODY, ActivityValidationError, dashboard_activity, validate_activity
 from .lifestyle import validate_event, identifier
 from .meals import MAX_FOOD_BODY, request_recognition, job_view
+from .detail import attach_report_id, detail_view, request_detail, validate_target
 
 MAX_BODY = 262144
 
@@ -24,6 +25,7 @@ def dashboard(store, now=None):
     now = now if now is not None else now_ms()
     points = store.readings(now-29*DAY-NOMINAL_INTERVAL, now+90000)
     daily, rolling = report_view(store, now), manual_report_view(store)
+    daily, rolling = attach_report_id(store,'daily',daily), attach_report_id(store,'rolling',rolling)
     markers = store.events(now-DAY,now+300000,101)
     available = [r for r in (daily, rolling) if r.get('generatedAt')]
     current = max(available, key=lambda r: r['generatedAt']) if available else daily
@@ -69,7 +71,7 @@ def make_handler(store, ingest_token, read_token, analysis_token=""):
             if self.path == '/health':
                 return self.send_json(200, {'ok':True,'schemaVersion':1})
             parsed=urlsplit(self.path)
-            if parsed.path not in ('/api/v1/dashboard','/api/v1/events','/api/v1/meals/recognize') or parsed.fragment:
+            if parsed.path not in ('/api/v1/dashboard','/api/v1/events','/api/v1/meals/recognize','/api/v1/analysis/detail') or parsed.fragment:
                 return self.send_json(404, {'error':'not_found'})
             photo=parsed.path=='/api/v1/meals/recognize'
             if not self.authorized(write=photo,allow_analysis=parsed.path!='/api/v1/dashboard'):
@@ -82,6 +84,9 @@ def make_handler(store, ingest_token, read_token, analysis_token=""):
                 query=parse_qs(parsed.query,keep_blank_values=True)
                 if any(len(v)!=1 for v in query.values()):
                     raise ValueError('invalid_query')
+                if parsed.path=='/api/v1/analysis/detail':
+                    kind,report_id=validate_target({k:v[0] for k,v in query.items()})
+                    return self.send_json(200,detail_view(store,kind,report_id))
                 if photo:
                     if set(query)!={'requestId'}:
                         raise ValueError('invalid_query')
@@ -113,9 +118,9 @@ def make_handler(store, ingest_token, read_token, analysis_token=""):
                     return self.send_json(status, result)
                 except Exception:
                     return self.send_json(503, {'error': 'temporarily_unavailable'})
-            if self.path not in ('/api/v1/readings','/api/v1/activity','/api/v1/events','/api/v1/events/delete','/api/v1/meals/recognize'):
+            if self.path not in ('/api/v1/readings','/api/v1/activity','/api/v1/events','/api/v1/events/delete','/api/v1/meals/recognize','/api/v1/analysis/detail'):
                 return self.send_json(404, {'error': 'not_found'})
-            if not self.authorized(write=True,allow_analysis=self.path in ('/api/v1/events','/api/v1/events/delete','/api/v1/meals/recognize')):
+            if not self.authorized(write=True,allow_analysis=self.path in ('/api/v1/events','/api/v1/events/delete','/api/v1/meals/recognize','/api/v1/analysis/detail')):
                 return self.send_json(401, {'error': 'unauthorized'})
             if self.headers.get('Transfer-Encoding'):
                 return self.send_json(400, {'error': 'unsupported_transfer_encoding'})
@@ -134,6 +139,9 @@ def make_handler(store, ingest_token, read_token, analysis_token=""):
                     raise ValueError('Incomplete body')
                 now = now_ms()
                 payload = json.loads(raw.decode('utf-8'))
+                if self.path == '/api/v1/analysis/detail':
+                    status,result=request_detail(store,payload,now)
+                    return self.send_json(status,result)
                 if self.path == '/api/v1/events':
                     event,expected=validate_event(payload,now)
                     return self.send_json(200,{'ok':True,'event':store.upsert_event(event,expected,now)})
@@ -160,6 +168,8 @@ def make_handler(store, ingest_token, read_token, analysis_token=""):
                 logging.warning('activity_validation code=%s', str(error))
                 return self.send_json(400, {'error': 'invalid_activity', 'reason': str(error)})
             except (ValueError, UnicodeError) as error:
+                if self.path=='/api/v1/analysis/detail':
+                    return self.send_json(400,{'error':'invalid_detail_target'})
                 if str(error)=='event_conflict':
                     return self.send_json(409,{'error':'event_conflict','reason':'记录已在其他设备更新，请刷新后重试。'})
                 if str(error)=='recognition_conflict':

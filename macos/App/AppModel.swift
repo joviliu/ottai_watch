@@ -46,6 +46,7 @@ final class AppModel: ObservableObject {
     private let session: URLSession
     private let snapshotURL: URL
     private let reloadWidgets: () -> Void
+    private weak var detailController: DetailAnalysisModel?
 
     var canAnalyze: Bool { connectionStore.current?.analysisToken != nil && snapshot?.dashboard.manualAnalysis?.eligible == true && !analyzing }
     var canEditEvents: Bool { connectionStore.current?.analysisToken != nil }
@@ -83,11 +84,19 @@ final class AppModel: ObservableObject {
 
     func configure(url: String, token: String?, analysisToken: String? = nil) async {
         do {
+            let previous = connectionStore.current
             let configuration = ConnectionConfiguration(baseURL: url, readToken: token?.trimmingCharacters(in: .whitespacesAndNewlines) ?? connectionStore.current?.readToken ?? "", analysisToken: analysisToken ?? (url.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == connectionStore.current?.baseURL ? connectionStore.current?.analysisToken : nil))
             try connectionStore.save(configuration)
+            if previous != connectionStore.current { detailController?.invalidateConnection() }
             baseURL = connectionStore.current!.baseURL
             await refresh()
         } catch { message = "配置未保存：\(error.localizedDescription)" }
+    }
+
+    func detailModel(for selection: DetailReportSelection) -> DetailAnalysisModel {
+        let controller = DetailAnalysisModel(selection: selection, connectionStore: connectionStore, session: session)
+        detailController = controller
+        return controller
     }
 
     func refresh() async {

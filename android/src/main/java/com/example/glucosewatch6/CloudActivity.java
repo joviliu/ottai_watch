@@ -20,9 +20,11 @@ import java.util.regex.*;
 
 public final class CloudActivity extends Activity {
     private EditText endpoint,token;
-    private TextView status,metrics,reportTime,summary,latest,latestInfo,activitySummary,graphNotes,analysisState;
+    private TextView status,metrics,reportTime,summary,latest,latestInfo,activitySummary,graphNotes,analysisState,detailReason;
     private LinearLayout connection,sections;
-    private Button analyze,markerList;
+    private Button analyze,markerList,detail;
+    private String detailKind="rolling",detailReportId="";
+    private long detailStart,detailEnd;
     private JSONArray eventRows=new JSONArray();
     private CloudGraph graph;
     private boolean rolling=true,analyzing,fetching,analysisUnconfirmed,active;
@@ -56,6 +58,7 @@ public final class CloudActivity extends Activity {
         reportTime=MobileStyle.text(report,"",12,MobileStyle.MUTED,false);summary=MobileStyle.text(report,"",17,MobileStyle.INK,true);
         summary.setMaxLines(5);summary.setEllipsize(TextUtils.TruncateAt.END);summary.setOnClickListener(v-> { summary.setMaxLines(summary.getMaxLines()==5?Integer.MAX_VALUE:5); });
         sections=MobileStyle.column(this);report.addView(sections);
+        detail=MobileStyle.button(report,"详细解读",this::openDetail);detailReason=MobileStyle.text(report,"",12,MobileStyle.MUTED,false);
         LinearLayout health=MobileStyle.card(box);MobileStyle.text(health,"活动资料",18,MobileStyle.INK,true);activitySummary=MobileStyle.text(health,"",13,MobileStyle.MUTED,false);
         MobileStyle.button(health,"活动来源与权限  →",()->startActivity(new Intent().setClassName(this,getPackageName()+".HealthActivity")));
         MobileStyle.button(box,"连接设置",this::showSettings);MobileStyle.button(box,"返回手表连接",this::finish);
@@ -89,6 +92,11 @@ public final class CloudActivity extends Activity {
             if(error!=null) { analysisUnconfirmed=result==null;analyzing=false;toast(result!=null&&!result.optString("reason").isEmpty()?result.optString("reason"):error); }
             fetchDashboard(true);
         });
+    }
+    private void openDetail() {
+        if(!DetailPolicy.validIdentity(detailKind,detailReportId))return;
+        startActivity(new Intent(this,DetailActivity.class).putExtra("kind",detailKind).putExtra("reportId",detailReportId)
+            .putExtra("periodStart",detailStart).putExtra("periodEnd",detailEnd));
     }
     private void fetchDashboard(boolean poll) {
         if(fetching||!active||isDestroyed())return;fetching=true;
@@ -126,7 +134,7 @@ public final class CloudActivity extends Activity {
         try {
             String raw=p.getString("dashboard","");
             if(raw.isEmpty()) {
-                latest.setText("--");latestInfo.setText("mmol/L · 等待读数");metrics.setText("");reportTime.setText("");sections.removeAllViews();graph.setData(null,null);graph.setActivity(null);graph.setEvents(null);eventRows=new JSONArray();markerList.setVisibility(View.GONE);graphNotes.setText(graph.legend());summary.setText("连接后显示曲线与观察结果");analyze.setEnabled(false);analysisState.setText("等待最近24小时资料");return;
+                latest.setText("--");latestInfo.setText("mmol/L · 等待读数");metrics.setText("");reportTime.setText("");sections.removeAllViews();graph.setData(null,null);graph.setActivity(null);graph.setEvents(null);eventRows=new JSONArray();markerList.setVisibility(View.GONE);graphNotes.setText(graph.legend());summary.setText("连接后显示曲线与观察结果");analyze.setEnabled(false);analysisState.setText("等待最近24小时资料");detailReportId="";detail.setEnabled(false);detailReason.setText("生成报告后可展开详细解读");detailReason.setVisibility(View.VISIBLE);return;
             }
             JSONObject dashboard=new JSONObject(raw);graph.setData(dashboard.optJSONArray("readings"),dashboard.optJSONObject("comparison"),dashboard.optLong("serverAt",0));graph.setActivity(dashboard.optJSONObject("activity"));graph.setEvents(dashboard.optJSONArray("events"));eventRows=dashboard.optJSONArray("events");if(eventRows==null)eventRows=new JSONArray();markerList.setVisibility(eventRows.length()>0?View.VISIBLE:View.GONE);markerList.setText("查看时间标记（"+eventRows.length()+"）");graphNotes.setText(graph.legend());
             JSONObject value=dashboard.optJSONObject("latest");latest.setText(value==null?"--":number(value,"value","")+" "+value.optString("trend",""));latestInfo.setText(value==null?"mmol/L · 等待读数":"mmol/L · 更新 "+at(value.optLong("sourceAt",0)));
@@ -139,6 +147,9 @@ public final class CloudActivity extends Activity {
             JSONObject a=dashboard.optJSONObject(rolling?"rollingAnalysis":"dailyAnalysis");
             if(a==null) { JSONObject fallback=dashboard.optJSONObject("analysis");if(fallback!=null&&((rolling&&fallback.optString("trigger").startsWith("manual"))||(!rolling&&!fallback.optString("trigger").startsWith("manual"))))a=fallback; }
             if(a==null)a=new JSONObject();
+            detailKind=rolling?"rolling":"daily";detailReportId=a.optString("reportId","");detailStart=a.optLong("periodStart",0);detailEnd=a.optLong("periodEnd",0);
+            boolean detailAvailable=DetailPolicy.validIdentity(detailKind,detailReportId)&&a.optLong("generatedAt",0)>0&&detailStart>0&&detailEnd>detailStart;
+            detail.setEnabled(detailAvailable);detailReason.setText(a.optLong("generatedAt",0)>0?"请刷新以获取详细解读入口":rolling?"生成动态24h报告后可详细解读":"生成每日回顾后可详细解读");detailReason.setVisibility(detailAvailable?View.GONE:View.VISIBLE);
             long begin=a.optLong("periodStart",0),end=a.optLong("periodEnd",0);String time=begin>0&&end>0?at(begin)+" — "+at(end):rolling?"动态24小时":"每日回顾 · "+a.optString("reportDate","尚无");
             reportTime.setText(time+(a.optLong("generatedAt",0)>0?"\n生成于 "+at(a.optLong("generatedAt")):"")+(a.optBoolean("dataStale")?" · 资料已有更新":""));
             String text=a.optString("summary","");summary.setText(rich(text.isEmpty()?rolling?"点击上方按钮，查看过去24小时的重点变化":"尚无每日回顾":text));sections.removeAllViews();
@@ -146,7 +157,7 @@ public final class CloudActivity extends Activity {
             if(highlights!=null&&highlights.length()>0)for(int i=0;i<Math.min(highlights.length(),3);i++) { JSONObject h=highlights.optJSONObject(i);if(h!=null)highlight(h); }
             else renderLegacy(a.optJSONArray("sections"));
             renderEvidence(a);
-        }catch(Exception error) { summary.setText("观察缓存暂不可读，请刷新"); }
+        }catch(Exception error) { summary.setText("观察缓存暂不可读，请刷新");detailReportId="";detail.setEnabled(false);detailReason.setText("请刷新报告后再查看");detailReason.setVisibility(View.VISIBLE); }
     }
     private void renderActivity(JSONObject activity) {
         if(activity==null) { activitySummary.setText("暂无活动资料");return; }
