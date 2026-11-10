@@ -66,8 +66,8 @@ struct OttaiMirrorApp: App {
             MenuContent(model: model)
         } label: {
             Image(nsImage: StatusBadge.menuImage(reading: model.latest, now: model.now))
-                .accessibilityLabel("血糖 \(model.latest?.display ?? "暂无")，\(model.stale ? "待更新" : "已更新")")
-                .help(model.latest.map { "血糖 \($0.display) mmol/L · \($0.displayTrend) · \(DisplayTime.time($0.date))" } ?? "血糖镜像 · 等待数据")
+                .accessibilityLabel("血糖 \(model.latest?.display ?? "暂无")，\(StatusBadge.rangeState(reading: model.latest, now: model.now).description)")
+                .help(model.latest.map { "血糖 \($0.display) mmol/L · \($0.displayTrend) · \(DisplayTime.time($0.date)) · \(StatusBadge.rangeState(reading: $0, now: model.now).description)" } ?? "血糖镜像 · 等待数据")
         }.menuBarExtraStyle(.window)
     }
 }
