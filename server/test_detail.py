@@ -375,4 +375,3 @@ class DetailHttpTests(DetailFixture):
                     self.assertEqual(state['report'],saved)
                 heavy.assert_not_called()
                 provider.assert_not_called()
-
