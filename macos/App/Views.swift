@@ -7,6 +7,7 @@ struct MenuContent: View {
             DashboardView(model: model, compact: true)
             Divider()
             HStack {
+                Button("设置…") { NotificationCenter.default.post(name: AppNavigation.settings, object: nil) }
                 Spacer()
                 Button("退出") { NSApplication.shared.terminate(nil) }
             }.buttonStyle(.borderless).foregroundStyle(MirrorPalette.blue).padding(12)
@@ -19,7 +20,8 @@ struct MenuContent: View {
 struct DashboardView: View {
     @ObservedObject var model: AppModel
     var compact = false
-    @State private var showConnection = false
+    @State private var refreshRotation = 0.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: compact ? 12 : 18) {
@@ -44,31 +46,8 @@ struct DashboardView: View {
                         metric("最高 / 最低", "\(metricText(metrics?.max)) / \(metricText(metrics?.min))", color: Color(red: 0.68, green: 0.43, blue: 0.29))
                         metric("数据覆盖", metricText(metrics?.coveragePercent, suffix: "%", decimals: 0), color: Color(red: 0.18, green: 0.55, blue: 0.49))
                     }
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Label("每日观察", systemImage: "sparkle").font(.headline).foregroundStyle(MirrorPalette.violet)
-                            Spacer()
-                            Text([dashboard.analysis?.reportDate, dashboard.analysis?.displayStatus].compactMap { $0 }.joined(separator: " · "))
-                                .font(.caption).foregroundStyle(MirrorPalette.muted)
-                        }
-                        if let analysis = dashboard.analysis {
-                            if analysis.dataStale == true { Text("旧报告：数据已变化，等待下一次分析。").font(.caption).foregroundStyle(MirrorPalette.muted) }
-                            if let summary = analysis.summary, !summary.isEmpty { Text(summary).font(.callout).textSelection(.enabled) }
-                            else if analysis.status == "error" || analysis.status == "failed" { Text("本次分析暂未生成。").font(.callout) }
-                            ForEach(analysis.sections ?? []) { section in
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(section.title).font(.subheadline.weight(.semibold))
-                                    Text(section.text).font(.callout).textSelection(.enabled)
-                                }
-                            }
-                            ForEach(analysis.limitations ?? [], id: \.self) { Text($0).font(.caption).foregroundStyle(MirrorPalette.muted) }
-                            if !compact {
-                                ForEach(analysis.sources ?? []) { source in
-                                    if let url = URL(string: source.url), ["https", "http"].contains(url.scheme ?? "") { Link(source.title, destination: url).font(.caption) }
-                                }
-                            }
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading).mirrorCard(padding: compact ? 14 : 20)
+                    AnalysisPanel(model: model, compact: compact)
+
                 } else {
                     ContentUnavailableView("等待首次同步", systemImage: "waveform.path.ecg", description: Text("在设置中连接服务后，手机上传的新读数会自动显示。"))
                         .mirrorCard()
@@ -77,12 +56,20 @@ struct DashboardView: View {
                 HStack {
                     if let fetched = model.snapshot?.fetchedAt { Text("获取于 \(DisplayTime.time(fetched))").font(.caption2).monospacedDigit() }
                     Spacer()
-                    Button(model.fetching ? "更新中…" : "刷新") { Task { await model.refresh() } }.disabled(model.fetching)
-                        .buttonStyle(.borderedProminent).tint(MirrorPalette.blue).controlSize(.small)
+                    Button {
+                        if !reduceMotion { refreshRotation += 360 }
+                        Task { await model.refresh() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise").font(.system(size: 13, weight: .semibold))
+                            .rotationEffect(.degrees(refreshRotation))
+                            .animation(.easeInOut(duration: 0.35), value: refreshRotation)
+                            .padding(6).contentShape(Rectangle())
+                    }.disabled(model.fetching).help("刷新数据").accessibilityLabel("刷新数据")
+                        .buttonStyle(.plain).controlSize(.small)
                 }.foregroundStyle(MirrorPalette.muted)
-                DisclosureGroup("连接与启动设置", isExpanded: $showConnection) {
-                    SettingsView(model: model).padding(.top, 10)
-                }.font(.caption).foregroundStyle(MirrorPalette.blue).mirrorCard(padding: compact ? 14 : 20)
+                if !compact {
+                    Button("设置…") { NotificationCenter.default.post(name: AppNavigation.settings, object: nil) }.buttonStyle(.borderless)
+                }
                 Text("趋势观察不用于确诊、药量调整或替代医生诊疗。缺测区间不补造读数。").font(.caption2).foregroundStyle(MirrorPalette.muted)
             }.padding(compact ? 14 : 24)
         }.foregroundStyle(MirrorPalette.ink).background(MirrorPalette.background).preferredColorScheme(.light)
@@ -96,16 +83,68 @@ struct DashboardView: View {
     }
 }
 
+struct AnalysisPanel: View {
+    @ObservedObject var model: AppModel
+    let compact: Bool
+    @State private var selection = "rolling"
+    private var report: Analysis? {
+        let data = model.snapshot?.dashboard
+        return selection == "rolling" ? data?.rollingAnalysis : data?.dailyAnalysis ?? data?.analysis
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("血糖分析", systemImage: "sparkle").font(.headline).foregroundStyle(MirrorPalette.violet)
+                Spacer()
+                Text(report?.displayStatus ?? "等待数据").font(.caption).foregroundStyle(MirrorPalette.muted)
+            }
+            Picker("分析类型", selection: $selection) {
+                Text("动态24h").tag("rolling")
+                Text("每日回顾").tag("daily")
+            }.pickerStyle(.segmented)
+            if selection == "rolling" {
+                Button {
+                    Task { await model.analyzeRecent() }
+                } label: {
+                    Label(model.analyzing ? "正在分析…" : "分析过去24小时", systemImage: "sparkles")
+                }.disabled(!model.canAnalyze).buttonStyle(.borderedProminent).tint(MirrorPalette.violet).controlSize(.small)
+                Text(model.analysisMessage.isEmpty ? model.analysisReason : model.analysisMessage).font(.caption).foregroundStyle(MirrorPalette.muted)
+            }
+            if let report {
+                if let period = report.periodDescription { Text(period).font(.caption).monospacedDigit().foregroundStyle(MirrorPalette.muted) }
+                if report.dataStale == true { Text("保留的历史报告，等待新数据分析。").font(.caption).foregroundStyle(MirrorPalette.muted) }
+                if let summary = report.summary, !summary.isEmpty { Text(summary).font(.callout).textSelection(.enabled) }
+                ForEach(report.sections ?? []) { section in
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(section.title).font(.subheadline.weight(.semibold))
+                        Text(section.text).font(.callout).textSelection(.enabled)
+                    }
+                }
+                ForEach(report.limitations ?? [], id: \.self) { Text($0).font(.caption).foregroundStyle(MirrorPalette.muted) }
+                if !compact {
+                    ForEach(report.sources ?? []) { source in
+                        if let url = URL(string: source.url), url.scheme == "https" { Link(source.title, destination: url).font(.caption) }
+                    }
+                }
+            } else {
+                Text(selection == "rolling" ? "最近24小时数据就绪后，可生成动态分析。" : "自动日报在积累超过72小时后生成，覆盖前一自然日。").font(.callout).foregroundStyle(MirrorPalette.muted)
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading).mirrorCard(padding: compact ? 14 : 20)
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var model: AppModel
     @State private var url = ""
     @State private var token = ""
+    @State private var analysisToken = ""
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             TextField("HTTPS 服务地址", text: $url).textFieldStyle(.roundedBorder)
             SecureField("只读令牌（留空保留原令牌）", text: $token).textFieldStyle(.roundedBorder)
+            SecureField("手动分析权限（留空保留）", text: $analysisToken).textFieldStyle(.roundedBorder)
             HStack {
-                Button("保存并连接") { Task { await model.configure(url: url, token: token.isEmpty ? nil : token); token = "" } }
+                Button("保存并连接") { Task { await model.configure(url: url, token: token.isEmpty ? nil : token, analysisToken: analysisToken.isEmpty ? nil : analysisToken); token = ""; analysisToken = "" } }
                 Button("导入私密配置…") { Task { await model.importConfiguration(); url = model.baseURL } }
             }
             Toggle("登录后在菜单栏运行", isOn: Binding(get: { model.launchAtLogin }, set: { model.setStartup($0) }))

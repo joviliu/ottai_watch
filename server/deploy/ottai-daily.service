@@ -22,4 +22,4 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 MemoryMax=256M
 CPUQuota=50%
 TasksMax=32
-TimeoutStartSec=180
+TimeoutStartSec=300

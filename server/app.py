@@ -8,7 +8,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
-from .analysis import generate_daily, report_view
+from .analysis import generate_daily, report_view, manual_status, request_manual, manual_report_view
 from .statistics import DAY, NOMINAL_INTERVAL, historical_profile, metrics
 from .storage import Store, now_ms, validate_batch
 
@@ -18,14 +18,19 @@ MAX_BODY = 262144
 def dashboard(store, now=None):
     now = now if now is not None else now_ms()
     points = store.readings(now-29*DAY-NOMINAL_INTERVAL, now+90000)
+    daily, rolling = report_view(store, now), manual_report_view(store)
+    available = [r for r in (daily, rolling) if r.get('generatedAt')]
+    current = max(available, key=lambda r: r['generatedAt']) if available else daily
     return {'schemaVersion': 1, 'serverAt': now, 'latest': store.latest(),
             'readings': [r for r in points if now-DAY <= r['sourceAt'] <= now],
             'metrics': metrics(points, now-DAY, now),
             'comparison': historical_profile(points, now-29*DAY, now-DAY),
-            'analysis': report_view(store, now)}
+            'analysis': current, 'dailyAnalysis': daily, 'rollingAnalysis': rolling, 'manualAnalysis': manual_status(store, now)}
 
 
-def make_handler(store, ingest_token, read_token):
+def make_handler(store, ingest_token, read_token, analysis_token=""):
+    if analysis_token and (len(analysis_token) < 32 or analysis_token in (ingest_token, read_token)):
+        raise ValueError('Analysis capability must use a separate token of at least 32 characters')
     class Handler(BaseHTTPRequestHandler):
         server_version = 'Ottai/1'
 
@@ -65,6 +70,18 @@ def make_handler(store, ingest_token, read_token):
                 return self.send_json(503, {'error': 'temporarily_unavailable'})
 
         def do_POST(self):
+            if self.path == '/api/v1/analysis':
+                candidate = self.headers.get('Authorization', '')
+                allowed = [ingest_token] + ([analysis_token] if analysis_token else [])
+                if not any(hmac.compare_digest(candidate.encode(), ('Bearer '+token).encode()) for token in allowed):
+                    return self.send_json(401, {'error': 'unauthorized'})
+                if self.headers.get('Transfer-Encoding') or self.headers.get('Content-Length', '0') != '0':
+                    return self.send_json(400, {'error': 'empty_body_required'})
+                try:
+                    status, result = request_manual(store)
+                    return self.send_json(status, result)
+                except Exception:
+                    return self.send_json(503, {'error': 'temporarily_unavailable'})
             if self.path != '/api/v1/readings':
                 return self.send_json(404, {'error': 'not_found'})
             if not self.authorized(write=True):
@@ -122,7 +139,7 @@ def main():
     host = os.environ.get('BIND_HOST', '127.0.0.1')
     if host not in ('127.0.0.1', '::1'):
         raise SystemExit('Bind loopback only; expose HTTPS through the configured reverse proxy')
-    httpd = ThreadedServer((host, int(os.environ.get('BIND_PORT', '18776'))), make_handler(store, ingest, reader))
+    httpd = ThreadedServer((host, int(os.environ.get('BIND_PORT', '18776'))), make_handler(store, ingest, reader, os.environ.get('ANALYZE_TOKEN', '')))
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

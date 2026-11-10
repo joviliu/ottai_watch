@@ -34,6 +34,8 @@ final class AppModel: ObservableObject {
     @Published var snapshot: CachedDashboard? = SnapshotStore.load()
     @Published var message = ""
     @Published var fetching = false
+    @Published var analyzing = false
+    @Published var analysisMessage = ""
     @Published var now = Date()
     @Published var baseURL = ""
     @Published var launchAtLogin = LoginStartup.enabled
@@ -42,6 +44,11 @@ final class AppModel: ObservableObject {
     private let connectionStore = ConnectionStore()
     private let session = URLSession(configuration: .ephemeral, delegate: NoRedirects(), delegateQueue: nil)
 
+    var canAnalyze: Bool { connectionStore.current?.analysisToken != nil && snapshot?.dashboard.manualAnalysis?.eligible == true && !analyzing }
+    var analysisReason: String {
+        if connectionStore.current?.analysisToken == nil { return "请在设置中导入手动分析权限。" }
+        return snapshot?.dashboard.manualAnalysis?.reason ?? "请先刷新数据。"
+    }
     var latest: Reading? { snapshot?.dashboard.latest }
     var stale: Bool { latest?.isStale(at: now) ?? true }
     var statusText: String { latest.map { "\($0.display) \($0.displayTrend)" } ?? "— →" }
@@ -62,9 +69,9 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func configure(url: String, token: String?) async {
+    func configure(url: String, token: String?, analysisToken: String? = nil) async {
         do {
-            let configuration = ConnectionConfiguration(baseURL: url, readToken: token?.trimmingCharacters(in: .whitespacesAndNewlines) ?? connectionStore.current?.readToken ?? "")
+            let configuration = ConnectionConfiguration(baseURL: url, readToken: token?.trimmingCharacters(in: .whitespacesAndNewlines) ?? connectionStore.current?.readToken ?? "", analysisToken: analysisToken ?? (url.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == connectionStore.current?.baseURL ? connectionStore.current?.analysisToken : nil))
             try connectionStore.save(configuration)
             baseURL = connectionStore.current!.baseURL
             await refresh()
@@ -92,9 +99,43 @@ final class AppModel: ObservableObject {
             try SnapshotStore.save(result)
             snapshot = result
             message = ""
+            if !analyzing { analysisMessage = "" }
             WidgetCenter.shared.reloadTimelines(ofKind: SnapshotStore.kind)
         } catch let error as MirrorError { message = error.localizedDescription }
         catch { message = MirrorError.unavailable.localizedDescription }
+    }
+
+    func analyzeRecent() async {
+        guard canAnalyze, let configuration = connectionStore.current,
+              let token = configuration.analysisToken, let root = URL(string: configuration.baseURL) else { return }
+        analyzing = true
+        analysisMessage = "正在分析最近24小时…"
+        defer { analyzing = false }
+        do {
+            var request = URLRequest(url: root.appendingPathComponent("api/v1/analysis"))
+            request.httpMethod = "POST"
+            request.httpBody = Data()
+            request.timeoutInterval = 20
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            let (data, response) = try await session.data(for: request)
+            guard let response = response as? HTTPURLResponse, data.count < 65536 else { throw MirrorError.invalidResponse }
+            if response.statusCode == 401 || response.statusCode == 403 { throw MirrorError.authentication }
+            guard [200,202,409].contains(response.statusCode) else { throw MirrorError.unavailable }
+            let result = try JSONSerialization.jsonObject(with: data) as? [String:Any]
+            analysisMessage = result?["reason"] as? String ?? "已提交分析。"
+            for _ in 0..<13 {
+                await refresh()
+                if snapshot?.dashboard.manualAnalysis?.status != "running" {
+                    analysisMessage = snapshot?.dashboard.manualAnalysis?.reason ?? "分析状态已更新。"
+                    return
+                }
+                try await Task.sleep(for: .seconds(10))
+            }
+            analysisMessage = "分析仍在生成，完成后会自动更新。"
+        } catch {
+            analysisMessage = "分析请求暂未确认，已保留原结果；请刷新状态，避免重复提交。"
+            await refresh()
+        }
     }
 
     func setStartup(_ enabled: Bool) {
@@ -114,7 +155,7 @@ final class AppModel: ObservableObject {
     func importFile(_ url: URL) async {
         do {
             let configuration = try ConnectionStore.readConfiguration(from: url)
-            await configure(url: configuration.baseURL, token: configuration.readToken)
+            await configure(url: configuration.baseURL, token: configuration.readToken, analysisToken: configuration.analysisToken)
         } catch { message = "无法读取配置，请检查 JSON 文件。" }
     }
 }

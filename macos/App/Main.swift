@@ -1,12 +1,19 @@
 import SwiftUI
 import AppKit
 
+enum AppNavigation { static let settings = Notification.Name("com.joviliu.ottai.mirror.settings") }
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var dashboardWindow: NSWindow?
+    private var settingsWindow: NSWindow?
+    private var settingsObserver: NSObjectProtocol?
     private var dashboardObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        settingsObserver = NotificationCenter.default.addObserver(forName: AppNavigation.settings, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.showSettings() }
+        }
         dashboardObserver = DistributedNotificationCenter.default().addObserver(forName: SingleInstance.showDashboard, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.showDashboard() }
         }
@@ -15,6 +22,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         guard urls.contains(where: { $0.scheme == "ottaimirror" && $0.host == "dashboard" }) else { return }
         showDashboard()
+    }
+
+    private func showSettings() {
+        if settingsWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 390), styleMask: [.titled,.closable], backing: .buffered, defer: false)
+            window.title = "血糖镜像 · 设置"
+            window.contentView = NSHostingView(rootView: SettingsView(model: AppModel.shared).padding(24).frame(width:480,height:390))
+            window.isReleasedWhenClosed = false
+            window.center()
+            settingsWindow = window
+        }
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
     private func showDashboard() {

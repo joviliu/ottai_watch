@@ -10,6 +10,9 @@ struct ConnectionStoreTests {
         defer { try? manager.removeItem(at: directory) }
         let file = directory.appendingPathComponent("private/connection.json")
         let configuration = ConnectionConfiguration(baseURL: "https://example.invalid/ottai/", readToken: "test-read-token-only")
+        let privileged = ConnectionConfiguration(baseURL: "https://example.invalid/ottai", readToken: "read-only", analysisToken: String(repeating:"a",count:32))
+        let checked = try privileged.validated(); assert(checked.analysisToken != nil)
+        expectFailure { _ = try ConnectionConfiguration(baseURL: "https://example.invalid", readToken: "r", analysisToken: "short").validated() }
         let store = ConnectionStore(url: file)
         assert(store.current == nil)
         try store.save(configuration)

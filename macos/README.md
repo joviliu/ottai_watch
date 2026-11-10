@@ -1,5 +1,7 @@
 # macOS 血糖镜像
 
+0.3.0新增“动态24h／每日回顾”分段切换，共用一个报告文本区。动态分析按钮在最近24h资料就绪且拥有分析权限时可用，至少间隔30min，同一快照复用；固定日报覆盖前一自然日并独立保留。刷新改为无背景图标（点击轻转一圈）；左下“设置…”打开真正独立窗口，主页不再嵌入连接/启动设置。
+
 原生 SwiftUI 菜单栏应用与 WidgetKit 通知中心组件，最低 macOS 15。0.2.10 修复了真实小组件空白：此前扩展能找到 App Group，但系统拒绝读取快照（`permission_denied`），CFPreferences 也没有得到数据。现在组件在自己的沙盒内，以独立只读连接通过 HTTPS 读取 Ali，并保存自己的 0600 缓存；不再依赖主应用的共享文件。保留 sandbox，仅增加标准 `network.client` 权限，没有关闭证书校验或绕过文件保护。
 
 菜单栏将 Helvetica Neue Thin 细长数字与浅色血滴渲染为单张 template 图像，数字大半嵌入水滴；水滴收窄为16:22比例后整体缩为18pt高，使用实心底；CoreGraphics XOR将重叠数字镂空为菜单栏原底色，外侧数字仍为前景色，去掉菜单栏趋势箭头；详情和组件仍有趋势。这避免系统将 Image/Text 标签重新分开排版。单实例保护使用当前用户私密目录内的原子 `flock`，兼容识别升级前进程。重复启动转交详情请求后退出；安装时退出旧实例、移除构建副本登记，只登记已安装应用。点击小组件通过 AppKit 打开详情窗口。
@@ -21,12 +23,12 @@ sh macos/install.sh --import-config /absolute/private-config.json
 输入文件须当前用户所有、0600、非符号链接，格式如下（只有占位）：
 
 ```json
-{"baseURL":"https://your-service.example/ottai","readToken":"YOUR_READ_ONLY_TOKEN"}
+{"baseURL":"https://your-service.example/ottai","readToken":"YOUR_READ_ONLY_TOKEN","analysisToken":"OPTIONAL_SEPARATE_ANALYSIS_CAPABILITY_32_PLUS_CHARS"}
 ```
 
 安装脚本先校验并原子写入主应用与组件的独立配置，再覆盖 `~/Applications/OttaiMirror.app`，写入 `~/Library/LaunchAgents/com.joviliu.ottai.mirror.plist`，供用户下一次登录后启动。不会把令牌写入 LaunchAgent、命令行或应用包。已配置机器可直接执行 `sh macos/install.sh`，沿用主应用配置并同步组件。仅 GUI 修改连接不会替另一沙盒写设置，更换凭据后须重跑该命令。
 
-通知中心 → 编辑小组件 → 搜索“血糖镜像” → 添加中号/大号。已添加组件覆盖升级后通常无需重加。设置在页面底部展开，“打开详情/设置”旧按钮已移除。
+通知中心 → 编辑小组件 → 搜索“血糖镜像” → 添加中号/大号。已添加组件覆盖升级后通常无需重加。设置由左下“设置…”打开独立AppKit窗口。分析权限只保存在主应用，安装脚本明确剥除后才给Widget配置，只读组件不能发起模型分析。
 
 ## 凭据与缓存
 

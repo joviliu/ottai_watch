@@ -8,7 +8,7 @@ import sys
 import uuid
 
 
-def configure(source: Path, destination: Path):
+def configure(source: Path, destination: Path, include_analysis=True):
     parent = os.open(source.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         descriptor = os.open(source.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent)
@@ -30,7 +30,16 @@ def configure(source: Path, destination: Path):
         raise ValueError('invalid address')
     if not token or len(token.encode()) > 8192 or any(not 32 < ord(char) < 127 for char in token):
         raise ValueError('invalid token')
-    encoded = json.dumps({'baseURL': address.rstrip('/'), 'readToken': token}, separators=(',', ':')).encode()
+    result = {'baseURL': address.rstrip('/'), 'readToken': token}
+    action_token = configuration.get('analysisToken')
+    if action_token is not None:
+        if not isinstance(action_token,str) or not 32 <= len(action_token.encode()) <= 8192 or any(not 32 < ord(c) < 127 for c in action_token):
+            raise ValueError('invalid action token')
+        if include_analysis:
+            result['analysisToken'] = action_token
+    encoded = json.dumps(result, separators=(',', ':')).encode()
+    if len(encoded) > 16384:
+        raise ValueError('oversize configuration')
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     folder = os.open(destination.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     temporary = '.connection-' + uuid.uuid4().hex + '.tmp'
@@ -67,7 +76,7 @@ if __name__ == '__main__':
         destination = home / 'Library/Application Support/OttaiMirror/connection.json'
         source = Path(sys.argv[1]) if len(sys.argv) == 2 else destination
         configure(source, destination)
-        configure(destination, home / 'Library/Containers/com.joviliu.ottai.mirror.widget/Data/Library/Application Support/OttaiMirror/connection.json')
+        configure(destination, home / 'Library/Containers/com.joviliu.ottai.mirror.widget/Data/Library/Application Support/OttaiMirror/connection.json', include_analysis=False)
     except Exception:
         print('Private configuration import failed; check structure, ownership, permissions and symlinks.', file=sys.stderr)
         sys.exit(1)

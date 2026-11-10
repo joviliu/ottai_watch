@@ -51,6 +51,8 @@ struct ModelTests {
         let oneDay = ComparisonPoint(minuteOfDay: 60, median: 7, p25: 7, p75: 7, sampleDays: 1)
         assert(Comparison(daysAvailable: 2, points: [bucket]).plotPoints.isEmpty)
         assert(Comparison(daysAvailable: 3, points: [bucket, oneDay]).plotPoints.count == 1)
+        assert(Analysis(status: "waiting", summary: "正在积累数据").displayStatus == "积累数据中")
+        assert(Analysis(status: "error", summary: "尚无报告").displayStatus == "分析失败")
         assert(Analysis(status: "error", reportDate: "2026-01-01", summary: "Previous report").displayStatus.contains("旧报告"))
         assert(Analysis(status: "ready", dataStale: true).displayStatus == "旧报告")
         for malformed in [json.replacingOccurrences(of: "\"schemaVersion\":1", with: "\"schemaVersion\":2"),

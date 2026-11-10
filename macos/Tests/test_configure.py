@@ -53,6 +53,15 @@ class ConfigureTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(widget.stat().st_mode), 0o600)
                 self.assertEqual(stat.S_IMODE(widget.parent.stat().st_mode), 0o700)
 
+    def test_analysis_capability_is_never_provisioned_to_widget(self):
+        with tempfile.TemporaryDirectory(prefix='ottai-capability-test-') as folder:
+            base=Path(folder);source=base/'input.json';host=base/'host/connection.json';widget=base/'widget/connection.json'
+            source.write_text(json.dumps({'baseURL':'https://example.invalid','readToken':'read-only','analysisToken':'a'*32}));source.chmod(0o600)
+            module.configure(source,host)
+            module.configure(host,widget,include_analysis=False)
+            self.assertIn('analysisToken',json.loads(host.read_bytes()))
+            self.assertNotIn('analysisToken',json.loads(widget.read_bytes()))
+
 
 if __name__ == '__main__':
     unittest.main()

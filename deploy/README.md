@@ -6,9 +6,9 @@
 
 Ali：`server/`放在`/srv/ottai-cloud/app/server`，API/日报模板在`server/deploy`。用户`ottai-cloud`拥有`/var/lib/ottai-cloud`（0700），root的`/etc/ottai-cloud/service.env`（0600）定义独立读/写token、DB路径和relay业务身份。API仅监听127.0.0.1:18776。备份脚本在`/srv/ottai-cloud/app/deploy/backup.py`，复制本目录的备份unit/timer。
 
-专用relay代码在`/opt/ottai-cloud/deploy/relay`，用户`ottai-relay`只可写`/var/lib/ottai-relay`。配置位于`/etc/ottai-relay/relay.env`及`clients.json`：使用vendor模块的`OPENAI_RELAY_CLIENTS_FILE`、`OPENAI_RELAY_STATE_DIR`和`AI_RELAY_SECRET`等配置名；必须提供独立HMAC密钥和ottai业务配置，不能复用教育业务凭据。该业务`dailyLimit=1`，全局上限2。当前Node可执行路径写在`ottai-relay.service`，新环境核对实际安装路径后再部署。
+专用relay代码在`/opt/ottai-cloud/deploy/relay`，用户`ottai-relay`只可写`/var/lib/ottai-relay`。配置位于`/etc/ottai-relay/relay.env`及`clients.json`：使用vendor模块的`OPENAI_RELAY_CLIENTS_FILE`、`OPENAI_RELAY_STATE_DIR`和`AI_RELAY_SECRET`等配置名；必须提供独立HMAC密钥和ottai业务配置，不能复用教育业务凭据。该业务`dailyLimit=49`，全局上限49（1份固定日报＋按30min间隔最多48份动态分析）。当前Node可执行路径写在`ottai-relay.service`，新环境核对实际安装路径后再部署。
 
-SG：`worker.py`放在`/opt/ottai-ai`，用户`ottai-ai`只可写`/var/lib/ottai-ai`。root的`/etc/ottai-ai/worker.env`（0600）定义`AI_RELAY_SECRET`、`AI_WORKER_ID`和`AI_RELAY_STATE_DIR`，与独立relay配对；OpenAI key通过unit的`LoadCredential`读取所有者指定的源文件。不能把key复制到Ali或客户端。worker只接受固定Responses路径、`store:false`、非stream/background请求，预留请求身份后不重试未知执行结果。
+SG：`worker.py`放在`/opt/ottai-ai`，用户`ottai-ai`只可写`/var/lib/ottai-ai`。root的`/etc/ottai-ai/worker.env`（0600）定义`AI_RELAY_SECRET`、`AI_WORKER_ID`和`AI_RELAY_STATE_DIR`，与独立relay配对；OpenAI key通过unit的`LoadCredential`读取所有者指定的源文件。不能把key复制到Ali或客户端。worker只接受固定Responses路径、`store:false`、非stream/background请求，预留请求身份后不重试未知执行结果；SG持久化每日安全上限同为49。
 
 SG的`ottai-ai-tunnel.service`将本地127.0.0.1:18778转到Ali的127.0.0.1:18779。独立SSH私钥放SG`/etc/ottai-ai/id_ed25519`（0600），核对主机指纹后写`known_hosts`。Ali专用用户`ottai-tunnel`的authorized_keys使用`restrict,port-forwarding,permitopen="127.0.0.1:18779",command="/bin/false"`，只允许这一转发，不开放shell或复用管理员私钥。
 

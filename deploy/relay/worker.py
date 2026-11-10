@@ -49,7 +49,7 @@ class Worker:
         saved = json.loads(self.state.read_text()) if self.state.exists() else {}
         if saved.get('day') != day:
             saved = {'day': day, 'seen': []}
-        if request_id in saved['seen'] or len(saved['seen']) >= 2:
+        if request_id in saved['seen'] or len(saved['seen']) >= 49:
             return False
         saved['seen'].append(request_id)
         tmp = self.state.with_suffix('.tmp')

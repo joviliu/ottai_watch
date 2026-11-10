@@ -86,7 +86,7 @@ struct GlucoseWidgetView: View {
             if let dashboard = entry.snapshot?.dashboard {
                 if family == .systemLarge {
                     VStack(alignment: .leading, spacing: 7) {
-                        Text("每日观察 · \(dashboard.analysis?.reportDate ?? "未生成") · \(dashboard.analysis?.displayStatus ?? "积累数据中")")
+                        Text("血糖观察 · \(dashboard.analysis?.reportDate ?? "未生成") · \(dashboard.analysis?.displayStatus ?? "积累数据中")")
                             .font(.caption.weight(.semibold)).lineLimit(1).foregroundStyle(MirrorPalette.violet)
                         if !reportSummary.isEmpty { Text(reportSummary).font(.caption).lineLimit(3) }
                         if let limitation = dashboard.analysis?.limitations?.first, !limitation.isEmpty {

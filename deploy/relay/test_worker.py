@@ -21,7 +21,8 @@ class Tests(unittest.TestCase):
             second.state = first.state
             self.assertFalse(second.reserve('a'))
             self.assertTrue(second.reserve('b'))
-            self.assertFalse(second.reserve('c'))
+            for i in range(47): self.assertTrue(second.reserve('more-'+str(i)))
+            self.assertFalse(second.reserve('over-cap'))
             self.assertEqual(os.stat(str(first.state)).st_mode & 0o777, 0o600)
 
     def test_only_stateless_responses_reach_provider_once(self):

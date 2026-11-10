@@ -1,4 +1,7 @@
 import json
+import os
+import stat
+import fcntl
 import math
 import re
 import sqlite3
@@ -53,6 +56,11 @@ class Store:
                     id INTEGER PRIMARY KEY, source_at INTEGER NOT NULL,
                     old_value REAL NOT NULL, old_trend TEXT NOT NULL,
                     new_value REAL NOT NULL, new_trend TEXT NOT NULL, changed_at INTEGER NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS manual_reports (
+                    snapshot_id TEXT PRIMARY KEY, window_end INTEGER NOT NULL,
+                    status TEXT NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER,
+                    body TEXT, error_code TEXT
                 );
                 CREATE TABLE IF NOT EXISTS reports (
                     report_date TEXT PRIMARY KEY, status TEXT NOT NULL,
@@ -128,3 +136,48 @@ class Store:
         with self.connect() as db:
             r = db.execute("SELECT body FROM reports WHERE status='ready' ORDER BY report_date DESC LIMIT 1").fetchone()
         return json.loads(r['body']) if r else None
+
+    def manual_report(self, snapshot_id=None, ready_only=False):
+        with self.connect() as db:
+            clauses, params = [], []
+            if snapshot_id:
+                clauses.append('snapshot_id=?'); params.append(snapshot_id)
+            if ready_only:
+                clauses.append("status='ready'")
+            where = ' WHERE '+' AND '.join(clauses) if clauses else ''
+            row = db.execute('SELECT * FROM manual_reports'+where+' ORDER BY started_at DESC LIMIT 1', params).fetchone()
+        return dict(row) if row else None
+
+    def claim_manual(self, snapshot_id, window_end, now):
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            if db.execute('SELECT 1 FROM manual_reports WHERE snapshot_id=?', (snapshot_id,)).fetchone():
+                return 'existing'
+            latest = db.execute('SELECT MAX(started_at) FROM manual_reports').fetchone()[0]
+            if latest is not None and now-latest < 30*60*1000:
+                return 'cooldown'
+            db.execute('INSERT INTO manual_reports(snapshot_id,window_end,status,started_at) VALUES (?,?,?,?)',
+                       (snapshot_id, window_end, 'running', now))
+            return 'created'
+
+    def finish_manual(self, snapshot_id, now, body=None, error_code=None):
+        with self.connect() as db:
+            db.execute('UPDATE manual_reports SET status=?,finished_at=?,body=?,error_code=? WHERE snapshot_id=?',
+                       ('error' if error_code else 'ready', now, json.dumps(body, ensure_ascii=False) if body else None, error_code, snapshot_id))
+
+    @contextmanager
+    def analysis_lock(self):
+        # One SG worker: serialize scheduled and manual calls across API/timer processes.
+        descriptor = os.open(self.path+'.model.lock', os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW, 0o600)
+        try:
+            info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid():
+                raise ValueError('Unsafe model lock')
+            os.fchmod(descriptor, 0o600)
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)

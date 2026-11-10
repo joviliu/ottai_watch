@@ -6,6 +6,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -203,7 +204,7 @@ class HttpTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.store = Store(Path(self.temp.name) / 'data.sqlite3')
-        self.server = ThreadedServer(('127.0.0.1', 0), make_handler(self.store, 'i'*32, 'r'*32))
+        self.server = ThreadedServer(('127.0.0.1', 0), make_handler(self.store, 'i'*32, 'r'*32, 'a'*32))
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.base = 'http://127.0.0.1:' + str(self.server.server_address[1])
@@ -214,11 +215,11 @@ class HttpTests(unittest.TestCase):
         self.thread.join()
         self.temp.cleanup()
 
-    def fetch(self, path, token=None, data=None):
+    def fetch(self, path, token=None, data=None, method=None):
         headers = {'Content-Type': 'application/json'}
         if token:
             headers['Authorization'] = 'Bearer ' + token
-        request = Request(self.base+path, data=json.dumps(data).encode() if data is not None else None, headers=headers)
+        request = Request(self.base+path, data=json.dumps(data).encode() if data is not None else None, headers=headers, method=method)
         try:
             with urlopen(request, timeout=5) as response:
                 return response.status, json.loads(response.read())
@@ -238,6 +239,15 @@ class HttpTests(unittest.TestCase):
         bad = {'readings': [reading(now_ms()), reading(now_ms(), 0)]}
         self.assertEqual(self.fetch('/api/v1/readings', 'i'*32, bad)[0], 400)
         self.assertEqual(len(self.store.readings()), 1)
+
+    @patch.dict(os.environ, {'ANALYSIS_ENABLED': 'true'})
+    def test_manual_analysis_capability_is_not_read_or_ingest_access(self):
+        self.assertEqual(self.fetch('/api/v1/analysis','r'*32,method='POST')[0],401)
+        self.assertEqual(self.fetch('/api/v1/analysis','a'*32,method='POST')[0],409)
+        self.assertEqual(self.fetch('/api/v1/dashboard','a'*32)[0],401)
+        self.assertEqual(self.fetch('/api/v1/readings','a'*32,{'readings':[reading(now_ms())]})[0],401)
+        self.assertEqual(self.fetch('/api/v1/analysis','a'*32,{})[0],400)
+        self.assertIsNone(self.store.manual_report())
 
 
 class RelaySignatureTests(unittest.TestCase):
@@ -264,6 +274,113 @@ class RelaySignatureTests(unittest.TestCase):
         self.assertEqual(signature, headers['x-relay-signature'])
         self.assertEqual(len(headers['x-relay-request-id']), 64)
         self.assertIn('合成', req.data.decode())
+
+
+
+# Rolling manual reports have independent snapshot identities and a persistent cooldown.
+class ManualAnalysisTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.temp.name) / 'manual.sqlite3')
+        self.now = 1794280000000
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def full_day(self):
+        self.store.ingest([reading(self.now-DAY+i*5*MINUTE) for i in range(289)], self.now)
+
+    @patch.dict(os.environ, {'ANALYSIS_ENABLED': 'true'})
+    def test_24h_manual_allowed_while_scheduled_waits_for_72h(self):
+        from server.analysis import manual_status, request_manual
+        self.full_day()
+        self.assertTrue(manual_status(self.store, self.now)['eligible'])
+        self.assertEqual(generate_daily(self.store, self.now, lambda *_: self.fail('paid call'))['status'], 'insufficient_history')
+        jobs = []
+        self.assertEqual(request_manual(self.store, self.now, launch=jobs.append)[0], 202)
+        with patch('server.analysis.relay_post', return_value=response_payload()): jobs[0]()
+        self.assertEqual(json.loads(self.store.manual_report()['body'])['trigger'], 'manual24h')
+        self.assertIsNone(self.store.report(), 'manual cannot overwrite or consume daily claim')
+        self.assertFalse(manual_status(self.store, self.now)['eligible'])
+
+    @patch.dict(os.environ, {'ANALYSIS_ENABLED': 'true'})
+    def test_quality_rejects_short_sparse_gap_and_stale_windows(self):
+        from server.excursions import day_quality
+        short = [reading(self.now-23*60*MINUTE+i*5*MINUTE) for i in range(277)]
+        self.assertFalse(day_quality(short, self.now)['ready'])
+        full = [reading(self.now-DAY+i*5*MINUTE) for i in range(289)]
+        self.assertTrue(day_quality(full, self.now)['ready'])
+        missing = [r for i,r in enumerate(full) if i not in range(80,85)]
+        self.assertGreater(day_quality(missing, self.now)['coveragePercent'], 95)
+        self.assertFalse(day_quality(missing, self.now)['ready'], 'long gap cannot hide behind high coverage')
+        self.assertFalse(day_quality(full[:-4], self.now)['ready'])
+
+    @patch.dict(os.environ, {'ANALYSIS_ENABLED': 'true'})
+    def test_concurrent_requests_launch_once_and_failures_are_not_retried(self):
+        from server.analysis import request_manual
+        from concurrent.futures import ThreadPoolExecutor
+        self.full_day()
+        jobs = []
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(lambda _: request_manual(self.store, self.now, launch=jobs.append), range(8)))
+        self.assertEqual(len(jobs), 1)
+        with patch('server.analysis.relay_post', side_effect=AnalysisError('test_uncertain')):
+            jobs[0]()
+        self.assertEqual(self.store.manual_report()['status'], 'error')
+        self.assertEqual(request_manual(self.store, self.now, launch=lambda _: self.fail('retried'))[0], 409)
+
+    def test_candidate_excursions_are_descriptive_and_do_not_bridge_gaps(self):
+        from server.excursions import candidate_excursions
+        start = self.now-2*60*MINUTE
+        values = [6.0]*8 + [6.3,6.8,7.3,7.9,8.4,8.6,8.4,7.8,7.1,6.5,6.2,6.1,6.0,6.0]
+        points = [reading(start+i*5*MINUTE, v) for i,v in enumerate(values)]
+        events = candidate_excursions(points,start,self.now)['events']
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual(event['baseline'], 6)
+        self.assertEqual(event['riseAmplitude'], 2.4)
+        self.assertTrue(event['returnedNearBaseline'])
+        self.assertEqual(event['riseMinutes'], 25)
+        self.assertIn('未确认', event['mealStatus'])
+        isolated = [reading(start+i*5*MINUTE, 10 if i==8 else 6) for i in range(22)]
+        self.assertEqual(candidate_excursions(isolated,start,self.now)['events'], [])
+        truncated = candidate_excursions(points[:15],start,self.now)['events'][0]
+        self.assertIsNone(truncated['peakToReturnMinutes'])
+        broken = points[:8] + [dict(r, sourceAt=r['sourceAt']+30*MINUTE) for r in points[8:]]
+        self.assertEqual(candidate_excursions(broken,start,self.now+DAY)['events'], [])
+
+    @patch.dict(os.environ, {'ANALYSIS_ENABLED': 'true'})
+    def test_multiple_dynamic_snapshots_and_fixed_calendar_report_coexist(self):
+        from server.analysis import request_manual
+        self.store.ingest([reading(self.now-4*DAY+i*5*MINUTE) for i in range(1153)], self.now)
+        jobs = []
+        self.assertEqual(request_manual(self.store, self.now, launch=jobs.append)[0], 202)
+        with patch('server.analysis.relay_post', return_value=response_payload()): jobs.pop()()
+        self.assertEqual(generate_daily(self.store,self.now,lambda *_:response_payload())['status'], 'ready')
+        daily = self.store.latest_ready_report()
+        local_end = datetime.fromtimestamp(self.now/1000, timezone(timedelta(hours=8))).replace(hour=0,minute=0,second=0,microsecond=0)
+        self.assertEqual(daily['periodEnd'], int(local_end.timestamp()*1000))
+        self.assertEqual(daily['reportDate'], (local_end-timedelta(days=1)).date().isoformat())
+        for block in [30,60,90,120]:
+            for minutes in range(block-25,block+1,5):
+                self.store.ingest([reading(self.now+minutes*MINUTE)],self.now+block*MINUTE)
+            self.assertEqual(request_manual(self.store,self.now+(block-25)*MINUTE,launch=jobs.append)[0],409)
+            self.assertEqual(request_manual(self.store,self.now+block*MINUTE,launch=jobs.append)[0],202)
+            with patch('server.analysis.relay_post',return_value=response_payload()): jobs.pop()()
+        self.assertEqual(self.store.latest_ready_report(),daily)
+        self.assertEqual(self.store.manual_report()['window_end'], self.now+120*MINUTE)
+        with self.store.connect() as db: self.assertEqual(db.execute('SELECT COUNT(*) FROM manual_reports').fetchone()[0],5)
+
+
+    def test_manual_and_scheduled_model_calls_are_serialized(self):
+        from concurrent.futures import ThreadPoolExecutor
+        import time
+        active=[0];peak=[0]
+        def call(_):
+            with self.store.analysis_lock():
+                active[0]+=1;peak[0]=max(peak[0],active[0]);time.sleep(.02);active[0]-=1
+        with ThreadPoolExecutor(max_workers=2) as pool:list(pool.map(call,range(2)))
+        self.assertEqual(peak[0],1)
 
 
 if __name__ == '__main__':

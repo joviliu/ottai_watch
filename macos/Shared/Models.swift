@@ -100,12 +100,28 @@ struct Analysis: Codable {
     var limitations: [String]?
     var sources: [AnalysisSource]?
     var dataStale: Bool?
+    var periodStart: Double?
+    var periodEnd: Double?
+    var trigger: String?
+    var periodDescription: String? {
+        guard let start = periodStart, let end = periodEnd else { return nil }
+        return DisplayTime.dateTime(Date(timeIntervalSince1970: start/1000))+" – "+DisplayTime.dateTime(Date(timeIntervalSince1970: end/1000))
+    }
     var displayStatus: String {
         if dataStale == true { return "旧报告" }
+        if status == "running" { return generatedAt == nil ? "生成中" : "生成中 · 旧结果" }
         if status == "ready" { return "已生成" }
-        if status == "error" || status == "failed" { return summary?.isEmpty == false ? "分析失败 · 旧报告" : "分析失败" }
-        return summary?.isEmpty == false ? "旧报告 · 待更新" : "积累数据中"
+        if status == "error" || status == "failed" { return (generatedAt != nil || reportDate != nil) ? "分析失败 · 旧报告" : "分析失败" }
+        return (generatedAt != nil || reportDate != nil) ? "旧报告 · 待更新" : "积累数据中"
     }
+}
+
+struct ManualAnalysisState: Codable {
+    let eligible: Bool
+    let status: String
+    let reason: String
+    var coveragePercent: Double?
+    var cooldownSeconds: Double?
 }
 
 struct Dashboard: Codable {
@@ -116,6 +132,9 @@ struct Dashboard: Codable {
     var metrics: Metrics?
     var comparison: Comparison?
     var analysis: Analysis?
+    var dailyAnalysis: Analysis?
+    var rollingAnalysis: Analysis?
+    var manualAnalysis: ManualAnalysisState?
 
     static func decode(_ data: Data) throws -> Dashboard {
         let result = try JSONDecoder().decode(Dashboard.self, from: data)

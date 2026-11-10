@@ -138,10 +138,27 @@ def analysis_input(readings, now, timezone='Asia/Shanghai'):
                             'bothHaveObservations': bool(recent['sampleCount'] and baseline['sampleCount']),
                             'recentCoveragePercent': recent['coveragePercent'],
                             'baselineCoveragePercent': baseline['coveragePercent'], 'limitations': notes})
+    personal_baselines = []
+    for name, low, high in [('此前7天', 2, 8), ('较早第15–28天', 15, 28)]:
+        days = [r for r in daily if low <= r['daysBeforeCurrent'] <= high and r['coveragePercent'] >= 95]
+        values = {}
+        if len(days) >= 3:
+            for field in ['mean','sd','cvPercent','min','max','inRangePercent','aboveRangePercent','belowRangePercent']:
+                reference = median([d[field] for d in days if d[field] is not None])
+                current = windows['latest24h'][field]
+                values[field] = {'dailyMedian': round_value(reference), 'currentMinusReference': round_value(current-reference) if current is not None else None}
+        personal_baselines.append({'label':name,'eligibleDays':len(days),'minimumDays':3,'coverageRequired':95,
+                                   'comparable':len(days)>=3 and windows['latest24h']['coveragePercent']>=95,
+                                   'metrics':values,'meaning':'自身完整日指标的日间中位数；不是医学正常值，不能据差值单独归因饮食或激素变化'})
     return {
         'schemaVersion': 1, 'timezone': timezone,
         'profile': '成人非诊断性观察模式；不预设糖尿病或糖前期诊断；未提供用药/饮食/活动记录，不能据CGM诊断',
         'rangeMeaning': '3.9–7.8仅为用户观察范围；3.9–10仅糖尿病人群共识参考；不输出GMI或推算HbA1c诊断',
+        'personalBaselines': personal_baselines,
+        'healthyReference': {'source': 'Shah et al. 2019 / doi:10.1210/jc.2018-02763',
+                             'researchCohortMeanMmolL': 5.5, 'researchWithinPersonCVMeanPercent': 17,
+                             'researchRange39To78MedianPercent': 96, 'researchRange39To78IQRPercent': [93,98],
+                             'referenceOnly': True, 'populationNote': '健康非糖尿病研究样本，含不同年龄段；Dexcom G6，非个人同龄同餐匹配标准，不能把均值/CV/96%设为个人目标', 'meaning': '健康人群CGM研究提供描述性参考，不存在可直接套用到本人的单条理想餐后曲线；须考虑餐食、活动、年龄与传感器差异'},
         'windows': windows, 'dailySummaries': daily, 'older28DaySummaries': list(reversed(older)),
         'historyStatus': history_status, 'comparisonAvailability': comparisons,
         'recentReadingColumns': ['minutesBeforeCurrent', 'mmolPerL'],

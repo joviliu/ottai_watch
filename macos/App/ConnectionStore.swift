@@ -4,6 +4,7 @@ import Darwin
 struct ConnectionConfiguration: Codable, Equatable {
     let baseURL: String
     let readToken: String
+    var analysisToken: String? = nil
 
     func validated() throws -> ConnectionConfiguration {
         guard let url = URL(string: baseURL), url.scheme == "https", url.host != nil,
@@ -11,7 +12,13 @@ struct ConnectionConfiguration: Codable, Equatable {
               !readToken.isEmpty, readToken.utf8.count <= 8192,
               readToken.utf8.allSatisfy({ $0 > 32 && $0 < 127 })
         else { throw MirrorError.invalidConfiguration }
-        return ConnectionConfiguration(baseURL: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")), readToken: readToken)
+        if let token = analysisToken {
+            guard token.utf8.count >= 32, token.utf8.count <= 8192,
+                  token.utf8.allSatisfy({ $0 > 32 && $0 < 127 }) else { throw MirrorError.invalidConfiguration }
+        }
+        let normalized = ConnectionConfiguration(baseURL: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")), readToken: readToken, analysisToken: analysisToken)
+        guard try JSONEncoder().encode(normalized).count <= 16384 else { throw MirrorError.invalidConfiguration }
+        return normalized
     }
 }
 
