@@ -101,7 +101,7 @@ class EventTests(unittest.TestCase):
         calls=[]
         body=_report_body(rows,NOW,'manual24h','2026-11-10',NOW,lambda p,k:calls.append(p) or output(concise_report()),'test',events=markers,explained_topics=['healthy_reference'])
         self.assertEqual(body['evidence'],[]);self.assertEqual(body['sources'],[])
-        self.assertEqual(body['limitations'],[]);self.assertEqual(body['methodVersion'],'cgm-observation-4')
+        self.assertEqual(body['limitations'],[]);self.assertEqual(body['methodVersion'],'cgm-observation-5')
         self.assertEqual(len(body['sections']),1)
         observations=json.loads(calls[0]['input'][1]['content'][0]['text'])['observations']
         self.assertEqual(observations['lifestyle']['latest24h']['totalCount'],30)

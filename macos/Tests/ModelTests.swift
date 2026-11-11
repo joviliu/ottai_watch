@@ -61,6 +61,38 @@ struct ModelTests {
             catch MirrorError.invalidResponse {}
         }
         assert(dashboard.activity == nil, "old dashboard/cache must decode without new activity fields")
+        let sessionStart = now.addingTimeInterval(-86400)
+        let sleep = ActivitySession(id: "synthetic-overnight", startAt: fresh.sourceAt - 27 * 3600000,
+            endAt: fresh.sourceAt - 16 * 3600000)
+        let exercise = ActivitySession(id: "synthetic-exercise", startAt: fresh.sourceAt - 4 * 3600000,
+            endAt: fresh.sourceAt - 3 * 3600000, exerciseType: 53)
+        assert(sleep.clipped(start: sessionStart, end: now)?.start == sessionStart,
+            "overnight sleep crossing the chart boundary must remain visible, clipped only for drawing")
+        assert(sleep.startAt < sessionStart.timeIntervalSince1970 * 1000,
+            "clipping must preserve the original session")
+        assert(exercise.clipped(start: sessionStart, end: now)?.duration == 3600)
+        let future = ActivitySession(id: "synthetic-future", startAt: fresh.sourceAt,
+            endAt: now.addingTimeInterval(3600).timeIntervalSince1970 * 1000)
+        assert(future.clipped(start: sessionStart, end: now)?.end == now)
+        assert(exercise.clipped(start: now, end: now.addingTimeInterval(86400)) == nil)
+        var sessionsDashboard = dashboard
+        sessionsDashboard.activity = ActivityData(sleepSessions: [sleep], exerciseSessions: [exercise])
+        let decodedSessions = try Dashboard.decode(JSONEncoder().encode(sessionsDashboard))
+        assert(decodedSessions.activity?.sleepSessions?.first?.id == sleep.id)
+        assert(decodedSessions.activity?.exerciseSessions?.first?.exerciseType == 53)
+        assert(decodedSessions.glucosePlotUpperBound == dashboard.glucosePlotUpperBound,
+            "session annotations must not change the glucose scale")
+        sessionsDashboard.activity?.sleepSessions = [sleep, sleep]
+        do { _ = try Dashboard.decode(JSONEncoder().encode(sessionsDashboard)); fatalError("duplicate sleep accepted") }
+        catch MirrorError.invalidResponse {}
+        let instantExercise = ActivitySession(id: "legacy-instant", startAt: fresh.sourceAt, endAt: fresh.sourceAt, exerciseType: 53)
+        sessionsDashboard.activity = ActivityData(exerciseSessions: [instantExercise])
+        _ = try Dashboard.decode(JSONEncoder().encode(sessionsDashboard))
+        assert(instantExercise.clipped(start: sessionStart, end: now) == nil,
+            "legacy zero-duration exercise must not reject CGM or fabricate a plot interval")
+        sessionsDashboard.activity = ActivityData(sleepSessions: [instantExercise])
+        do { _ = try Dashboard.decode(JSONEncoder().encode(sessionsDashboard)); fatalError("zero-duration sleep accepted") }
+        catch MirrorError.invalidResponse {}
         let hr = HeartRateBin(startAt: fresh.sourceAt-300000, endAt: fresh.sourceAt+1,
             mean: 210, min: 200, max: 220, sampleCount: 3,
             firstSampleAt: fresh.sourceAt-200000, lastSampleAt: fresh.sourceAt)

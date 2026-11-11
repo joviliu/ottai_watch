@@ -398,7 +398,7 @@ class HybridActivityTests(unittest.TestCase):
         view=dashboard_activity(result,NOW-DAY,NOW,NOW+1000)
         self.assertEqual(view['source'],'mixed')
         self.assertIsNone(view['origin'])
-        self.assertEqual(view['sourceByKind'],{'exercise':'health_connect','heart_rate':'health_connect','steps':'phone_steps','active_calories':'health_connect'})
+        self.assertEqual(view['sourceByKind'],{'exercise':'health_connect','heart_rate':'health_connect','steps':'phone_steps','active_calories':'health_connect','sleep':'health_connect'})
         self.assertEqual((view['summary']['heartRateSampleCount'],view['summary']['recordedExerciseCount'],view['summary']['observedStepTotal']),(2,1,200))
         self.assertEqual(view['stepIntervals'][0]['origin'],'com.miui.rom')
         self.assertEqual(view['stepIntervals'][0]['providerMode'],2)
@@ -738,6 +738,117 @@ class ActiveCalorieTests(unittest.TestCase):
         self.assertEqual(sum(row['energyKcal'] for row in public['plot']['activeCalories30m']),360)
         self.assertEqual(len(public['activeCalorieIntervals']),32)
         self.assertTrue(public['activeCalorieIntervalsTruncated'])
+
+
+class SleepActivityTests(unittest.TestCase):
+    setUp=ActivityStorageTests.setUp
+    tearDown=ActivityStorageTests.tearDown
+    ingest=ActivityStorageTests.ingest
+
+    def test_sleep_native_bounds_and_private_fields(self):
+        item=record('sleep','night',NOW-8*60*MINUTE,NOW-60*MINUTE)
+        self.assertEqual(validate_activity(snapshot([item],kinds=['sleep']),NOW)['records'][0],item)
+        for field,value in [('title','Private title'),('notes','Private notes'),('stages',[])]:
+            extra=dict(item,**{field:value})
+            with self.assertRaises(ValueError):validate_activity(snapshot([extra],kinds=['sleep']),NOW)
+        with self.assertRaises(ValueError):validate_activity(snapshot([dict(item,endAt=item['startAt'])],kinds=['sleep']),NOW)
+        with self.assertRaises(ValueError):validate_activity(snapshot([item]),NOW)
+        with self.assertRaises(ValueError):validate_activity(phone_snapshot([item]),NOW)
+
+    def test_old_client_revocation_correction_and_deletion_are_scoped(self):
+        item=record('sleep','night',NOW-8*60*MINUTE,NOW-60*MINUTE)
+        first=snapshot([item],kinds=['sleep'])
+        self.assertEqual(self.ingest(first)['inserted'],1)
+        self.assertEqual(self.ingest(first)['status'],'duplicate')
+        self.ingest(snapshot([],synced=NOW+1000))
+        cached=dashboard_activity(self.store.activity_snapshot(NOW-DAY,NOW,NOW+1000),NOW-DAY,NOW,NOW+1000)
+        self.assertEqual(cached['sleepSessions'][0]['id'],'night')
+        self.assertFalse(cached['kindAvailability']['sleep']['readable'])
+        self.assertIsNone(cached['summary']['recordedSleepSessionCount'])
+        denied=snapshot([],synced=NOW+2000,kinds=[],status='permission_denied')
+        self.ingest(denied)
+        self.assertEqual(len(self.store.activity_snapshot(NOW-DAY,NOW,NOW+2000)['records']),1)
+        corrected=dict(item,endAt=NOW-30*MINUTE,modifiedAt=NOW+3000)
+        self.assertEqual(self.ingest(snapshot([corrected],synced=NOW+3000,kinds=['sleep']))['updated'],1)
+        self.assertEqual(self.store.activity_snapshot(NOW-DAY,NOW,NOW+3000)['records'][0]['endAt'],NOW-30*MINUTE)
+        self.assertEqual(self.ingest(snapshot([],synced=NOW+4000,kinds=['sleep']))['deleted'],1)
+
+    def test_cross_midnight_interval_keeps_native_bounds_and_observed_glucose(self):
+        midnight=(NOW+8*60*MINUTE)//DAY*DAY-8*60*MINUTE
+        item=record('sleep','night',midnight-2*60*MINUTE,midnight+6*60*MINUTE)
+        self.ingest(snapshot([item],start=NOW-2*DAY,kinds=['sleep']))
+        # An empty narrower START query must not remove an earlier-started overlapping night.
+        self.ingest(snapshot([],start=midnight,end=NOW,synced=NOW+1000,kinds=['sleep']))
+        saved=self.store.activity_snapshot(midnight,NOW,NOW+1000)
+        public=dashboard_activity(saved,midnight,NOW,NOW+1000)
+        self.assertEqual((public['sleepSessions'][0]['startAt'],public['sleepSessions'][0]['endAt']),
+                         (item['startAt'],item['endAt']))
+        points=[reading(midnight+i*5*MINUTE,6) for i in range(72)]
+        points += [reading(item['endAt']+5*MINUTE,20)]
+        context=analysis_context(saved,points,midnight,NOW,NOW+1000)
+        night=context['sleepSessions'][0]
+        self.assertEqual((night['observedStartAt'],night['observedEndAt']),(midnight,item['endAt']))
+        self.assertEqual((night['glucoseDuring']['mean'],night['glucoseDuring']['coveragePercent']),(6,100))
+        self.assertFalse(night['endCensored'])
+        self.assertIn('清醒',context['sleepSessionMeaning'])
+        self.assertEqual(context['recordedSessions'],[],'sleep is not an exercise or a manual sleep event')
+
+    def test_ai_sleep_respects_cutoff_and_public_sessions_are_bounded(self):
+        rows=[record('sleep','sleep-%03d'%i,NOW-(i+1)*10*MINUTE,NOW-i*10*MINUTE) for i in range(140)]
+        self.ingest(snapshot(rows,kinds=['sleep']))
+        saved=self.store.activity_snapshot(NOW-DAY,NOW,NOW)
+        public=dashboard_activity(saved,NOW-DAY,NOW,NOW)
+        self.assertEqual((len(public['sleepSessions']),public['sleepSessionTotalCount']),(128,140))
+        self.assertTrue(public['sleepSessionsTruncated'])
+        context=analysis_context(saved,[],NOW-DAY,NOW,NOW)
+        self.assertEqual((len(context['sleepSessions']),context['sleepSessionTotalCount']),(32,140))
+        self.assertTrue(context['sleepSessionsTruncated'])
+        cutoff=NOW-5*MINUTE
+        past=analysis_context(saved,[reading(cutoff-5*MINUTE,6),reading(cutoff+MINUTE,20)],NOW-DAY,cutoff,NOW)
+        latest=past['sleepSessions'][-1]
+        self.assertEqual((latest['endAt'],latest['observedEndAt']),(cutoff,cutoff))
+        self.assertTrue(latest['endCensored'])
+        self.assertEqual(latest['glucoseDuring']['mean'],6)
+        self.assertNotIn('asleepMinutes',latest)
+
+    def test_overlapping_sleep_is_flagged_without_a_summed_asleep_duration(self):
+        rows=[record('sleep','watch-night',NOW-8*60*MINUTE,NOW-60*MINUTE),
+              record('sleep','duplicate-night',NOW-7*60*MINUTE,NOW-30*MINUTE)]
+        self.ingest(snapshot(rows,kinds=['sleep']))
+        view=dashboard_activity(self.store.activity_snapshot(NOW-DAY,NOW),NOW-DAY,NOW,NOW)
+        self.assertTrue(view['summary']['potentialSleepSessionOverlap'])
+        self.assertEqual(len(view['sleepSessions']),2)
+        self.assertNotIn('asleepMinutes',view['summary'])
+        self.assertTrue(any('不相加' in message for message in view['limitations']))
+
+    def test_entire_brief_context_hides_future_sleep_and_exercise_end_metadata(self):
+        from server.activity import _shanghai_time
+        cutoff=NOW-3*60*MINUTE
+        wake=NOW+60*MINUTE
+        workout_end=NOW+2*60*MINUTE
+        rows=[record('sleep','crossing-night',cutoff-60*MINUTE,wake),
+              record('exercise','crossing-workout',cutoff-30*MINUTE,workout_end)]
+        self.ingest(snapshot(rows,kinds=['sleep','exercise']))
+        saved=self.store.activity_snapshot(cutoff-DAY,cutoff,NOW)
+        data=analysis_context(saved,[reading(cutoff-10*MINUTE,6),reading(cutoff+MINUTE,20)],cutoff-DAY,cutoff,NOW)
+        text=json.dumps(data,ensure_ascii=False)
+        for future in (wake,workout_end):
+            self.assertNotIn(str(future),text)
+            self.assertNotIn(_shanghai_time(future),text)
+        for kind in ('sleep','exercise'):
+            self.assertEqual(data['kindAvailability'][kind]['lastRecordEndAt'],cutoff)
+            self.assertTrue(data['kindAvailability'][kind]['recordEndCensored'])
+        self.assertEqual(data['sleepSessions'][0]['endAt'],cutoff)
+        workout=data['recordedSessions'][0]
+        self.assertEqual((workout['endAt'],workout['observedEndAt']),(cutoff,cutoff))
+        self.assertEqual(workout['endLocal'],_shanghai_time(cutoff))
+        self.assertTrue(workout['endCensored'])
+        self.assertIsNone(workout['glucoseAfter60m'])
+        self.assertEqual(workout['glucoseDuring']['mean'],6)
+        public=dashboard_activity(saved,cutoff-DAY,cutoff,NOW)
+        self.assertEqual(public['kindAvailability']['sleep']['lastRecordEndAt'],wake)
+        self.assertEqual(public['sleepSessions'][0]['endAt'],wake)
+        self.assertEqual(public['exerciseSessions'][0]['endAt'],workout_end)
 
 
 if __name__ == '__main__': unittest.main()

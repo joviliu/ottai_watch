@@ -22,6 +22,13 @@ public final class HealthPolicy {
         return start > 0 && end > start && end - start <= WINDOW_MILLIS;
     }
 
+    /** Visible overlap of an original recorded session; no inference across missing intervals. */
+    public static long[] clipSession(long start, long end, long windowStart, long windowEnd) {
+        if (start <= 0 || end <= start || windowEnd <= windowStart || end <= windowStart || start >= windowEnd)
+            return null;
+        return new long[]{Math.max(start, windowStart), Math.min(end, windowEnd)};
+    }
+
     /**
      * Platform Energy is in cal. AndroidX UnitConverters.toSdkEnergy uses
      * Energy.calories(platform.inCalories); its Energy.Type.KILOCALORIES sets caloriesPerUnit=1000.

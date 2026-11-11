@@ -16,6 +16,8 @@ struct GlucoseChart: View {
     private let heartColor = Color(red: 191/255, green: 145/255, blue: 189/255)
     private let stepColor = Color(red: 131/255, green: 189/255, blue: 166/255)
     private let energyColor = Color(red: 215/255, green: 170/255, blue: 100/255)
+    private let sleepColor = Color(red: 168/255, green: 154/255, blue: 203/255)
+    private let exerciseColor = Color(red: 119/255, green: 184/255, blue: 160/255)
     private let axisWidth: CGFloat = 34
     private var end: Date { Date(timeIntervalSince1970: dashboard.serverAt / 1000) }
     private var start: Date { end.addingTimeInterval(-86400) }
@@ -29,6 +31,12 @@ struct GlucoseChart: View {
     private var energyInterval: Int { dashboard.activity?.plot?.energyIntervalMinutes ?? 15 }
     private var coarse: Int { dashboard.activity?.plot?.omittedRecordCount ?? 0 }
     private var overlap: Bool { (steps + energy).contains { $0.potentialOverlap == true } }
+    private var sleepSessions: [ActivitySession] {
+        (dashboard.activity?.sleepSessions ?? []).filter { $0.clipped(start: start, end: end) != nil }
+    }
+    private var exerciseSessions: [ActivitySession] {
+        (dashboard.activity?.exerciseSessions ?? []).filter { $0.clipped(start: start, end: end) != nil }
+    }
     private var ticks: [Date] { (compact ? [0.0,12,24] : [0.0,6,12,18,24]).map { start.addingTimeInterval($0 * 3600) } }
     private var glucoseTicks: [Double] { dashboard.glucosePlotUpperBound > 16 ? [0, dashboard.glucosePlotUpperBound/2, dashboard.glucosePlotUpperBound] : [3.9,7.8,12] }
 
@@ -78,7 +86,7 @@ struct GlucoseChart: View {
                 }
             } else {
               VStack(alignment: .leading, spacing: spacing) {
-                trackTitle("血糖", unit: "mmol/L", color: MirrorPalette.blue).frame(height: header)
+                glucoseTitle.frame(height: header)
                 glucoseTrack().frame(height: glucoseHeight)
                 if extended {
                     trackTitle("心率", unit: "bpm", color: heartColor, detail: miniature ? nil : "实测采样").frame(height: header)
@@ -98,7 +106,21 @@ struct GlucoseChart: View {
             }
         }
         .accessibilityElement(children: interactive ? .contain : .combine)
-        .accessibilityLabel("过去24小时，共用时间轴。血糖为独立mmol/L刻度，心率为独立bpm刻度，仅显示实际采样。绿色步数和橙色估算活动热量分别缩放，表示记录线索，不能推断运动强度；缺测不补造数据。")
+        .accessibilityLabel("过去24小时，共用时间轴。淡紫色区间是Health Connect睡眠记录，淡绿色是锻炼会话；睡眠记录可能包含清醒时间。血糖为独立mmol/L刻度，心率为独立bpm刻度，仅显示实际采样。绿色步数和橙色估算活动热量分别缩放，表示记录线索，不能推断运动强度；缺测不补造数据。")
+    }
+
+    private var glucoseTitle: some View {
+        HStack(spacing: 7) {
+            trackTitle("血糖", unit: "mmol/L", color: MirrorPalette.blue)
+            if !sleepSessions.isEmpty {
+                Label("睡眠", systemImage: "moon.zzz.fill").foregroundStyle(sleepColor)
+                    .help("Health Connect睡眠记录区间，可能包含清醒时间")
+            }
+            if !exerciseSessions.isEmpty {
+                Label("锻炼", systemImage: "figure.run").foregroundStyle(exerciseColor)
+                    .help("Health Connect锻炼会话区间")
+            }
+        }.font(.system(size: miniature ? 8 : 10, weight: .medium)).lineLimit(1)
     }
 
     private func trackTitle(_ name: String, unit: String, color: Color, detail: String? = nil) -> some View {
@@ -127,6 +149,20 @@ struct GlucoseChart: View {
                 RectangleMark(xStart: .value("开始", start), xEnd: .value("结束", end),
                               yStart: .value("观察下界", 3.9), yEnd: .value("观察上界", 7.8))
                     .foregroundStyle(MirrorPalette.blue.opacity(0.065))
+                ForEach(sleepSessions) { session in
+                    if let interval = session.clipped(start: start, end: end) {
+                        RectangleMark(xStart: .value("睡眠开始", interval.start), xEnd: .value("睡眠结束", interval.end),
+                                      yStart: .value("区间下界", 0), yEnd: .value("区间上界", dashboard.glucosePlotUpperBound))
+                            .foregroundStyle(sleepColor.opacity(0.10))
+                    }
+                }
+                ForEach(exerciseSessions) { session in
+                    if let interval = session.clipped(start: start, end: end) {
+                        RectangleMark(xStart: .value("锻炼开始", interval.start), xEnd: .value("锻炼结束", interval.end),
+                                      yStart: .value("区间下界", 0), yEnd: .value("区间上界", dashboard.glucosePlotUpperBound))
+                            .foregroundStyle(exerciseColor.opacity(0.13))
+                    }
+                }
                 ForEach(reference) { point in
                     LineMark(x: .value("时间", point.date), y: .value("历史参照", point.value), series: .value("参照", "history-\(point.segment)"))
                         .foregroundStyle(MirrorPalette.violet.opacity(0.22)).lineStyle(StrokeStyle(lineWidth: miniature ? 1 : 1.5))

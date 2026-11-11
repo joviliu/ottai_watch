@@ -16,6 +16,16 @@ public final class HealthPolicyTest {
         check(!HealthPolicy.validWindow(0, 1000));
         check(!HealthPolicy.validWindow(1000, 1000));
         check(!HealthPolicy.validWindow(1000, 1000 + HealthPolicy.WINDOW_MILLIS + 1));
+        // Overnight sessions keep the visible part at the chart boundary, without creating a new interval.
+        long[] overnight = HealthPolicy.clipSession(900, 1200, 1000, 2000);
+        check(overnight[0] == 1000 && overnight[1] == 1200);
+        long[] current = HealthPolicy.clipSession(1700, 2200, 1000, 2000);
+        check(current[0] == 1700 && current[1] == 2000);
+        check(HealthPolicy.clipSession(900, 1000, 1000, 2000) == null);
+        check(HealthPolicy.clipSession(2000, 2200, 1000, 2000) == null);
+        check(HealthPolicy.clipSession(1500, 1400, 1000, 2000) == null);
+        check(HealthPolicy.clipSession(0, 1200, 1000, 2000) == null);
+        check(HealthPolicy.clipSession(1000, 1800, 2000, 1000) == null);
         check(HealthPolicy.activeKilocalories(0) == 0);
         check(HealthPolicy.activeKilocalories(1000) == 1);
         check(HealthPolicy.activeKilocalories(335330) == 335.33); // Unit conversion, not335330kcal.
@@ -53,6 +63,6 @@ public final class HealthPolicyTest {
         HealthPolicy.Budget records = new HealthPolicy.Budget();
         for (int i = 0; i < HealthPolicy.MAX_RECORDS; i++) records.record("steps", Integer.toString(i), 0, 1);
         reject(() -> records.record("steps", "overflow", 0, 1));
-        System.out.println("Health policy: extension availability, rolling window, repeated tokens, cal-to-kcal conversion/energy bounds, total page/record/sample/UTF8 byte bounds passed");
+        System.out.println("Health policy: extension availability, rolling window/session clipping, repeated tokens, cal-to-kcal conversion/energy bounds, total page/record/sample/UTF8 byte bounds passed");
     }
 }

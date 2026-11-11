@@ -34,6 +34,8 @@ SOURCES = [
      'url': 'https://doi.org/10.2337/dc16-1728'},
     {'title': 'ACSM Exercise/Physical Activity Consensus Statement (2022)',
      'url': 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8802999/'},
+    {'title': 'Broussard et al. Experimental Sleep Restriction and Insulin Signaling (2012)',
+     'url': 'https://pubmed.ncbi.nlm.nih.gov/23070488/'},
     {'title': 'Shah et al. CGM Profiles in Healthy Nondiabetic Participants (2019)',
      'url': 'https://pubmed.ncbi.nlm.nih.gov/31127824/'},
 ]
@@ -214,7 +216,7 @@ def _report_body(readings, end, trigger, date, now, invoke, request_identity, ac
     referenced={e['sourceUrl'] for e in result.get('evidence',[])}
     result.update(status='ready',generatedAt=now_ms(),reportDate=date,
                   periodStart=end-DAY,periodEnd=end,sources=[s for s in SOURCES if s['url'] in referenced],
-                  methodVersion='cgm-observation-4',trigger=trigger,activityContextIncluded=activity is not None,
+                  methodVersion='cgm-observation-5',trigger=trigger,activityContextIncluded=activity is not None,
                   lifestyleContextIncluded=bool(events))
     return result
 
@@ -250,7 +252,7 @@ def generate_daily(store, now=None, invoke=None):
 
 def _snapshot_id(points, end, activity_digest=None, event_digest=None):
     observed = [[r['sourceAt'],r['value'],r['trend']] for r in points if end-2*DAY-300000 <= r['sourceAt'] <= end]
-    return hashlib.sha256(json.dumps(['manual-v4', end, observed, activity_digest, event_digest], separators=(',', ':')).encode()).hexdigest()
+    return hashlib.sha256(json.dumps(['manual-v5', end, observed, activity_digest, event_digest], separators=(',', ':')).encode()).hexdigest()
 
 
 def manual_report_view(store):

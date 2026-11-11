@@ -263,8 +263,8 @@ class Store:
         else:
             chosen='phone_steps' if states['phone_steps']['lastSyncedAt'] is not None else 'health_connect'
             reason='no_step_records'
-        selected={'exercise':'health_connect','heart_rate':'health_connect','steps':chosen,'active_calories':'health_connect'}
-        reasons={'exercise':'health_connect_only','heart_rate':'health_connect_only','steps':reason,'active_calories':'health_connect_only'}
+        selected={'exercise':'health_connect','heart_rate':'health_connect','steps':chosen,'active_calories':'health_connect','sleep':'health_connect'}
+        reasons={'exercise':'health_connect_only','heart_rate':'health_connect_only','steps':reason,'active_calories':'health_connect_only','sleep':'health_connect_only'}
         return states,selected,reasons
 
     def activity_snapshot(self, start, end, now=None):

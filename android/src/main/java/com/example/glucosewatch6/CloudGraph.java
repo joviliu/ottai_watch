@@ -12,9 +12,9 @@ import java.util.*;
 /** Separate units share one time axis; missing observations are never interpolated. */
 final class CloudGraph extends View {
     private static final long DAY=86400000L;
-    private static final int BLUE=0xff3f78ee, HEART=0xffbf91bd, STEPS=0xff83bda6, ENERGY=0xffd7aa64;
+    private static final int BLUE=0xff3f78ee, HEART=0xffbf91bd, STEPS=0xff83bda6, ENERGY=0xffd7aa64, SLEEP=0xffa89acb, EXERCISE=0xff77b8a0;
     private final List<Reading> points=new ArrayList<>(),reference=new ArrayList<>();
-    private final List<long[]> exercise=new ArrayList<>();
+    private final List<long[]> exercise=new ArrayList<>(),sleep=new ArrayList<>();
     private final List<HeartBin> heart=new ArrayList<>();
     private final List<AmountBin> steps=new ArrayList<>(),energy=new ArrayList<>();
     interface TimeSelection { void selected(long at,JSONObject event); }
@@ -67,13 +67,10 @@ final class CloudGraph extends View {
         invalidate();
     }
     void setActivity(JSONObject activity) {
-        hasActivity=activity!=null;exercise.clear();heart.clear();steps.clear();energy.clear();
+        hasActivity=activity!=null;exercise.clear();sleep.clear();heart.clear();steps.clear();energy.clear();
         stepOverlap=false;energyOverlap=false;coarseSteps=0;coarseEnergy=0;energyMinutes=15;
-        JSONArray sessions=activity==null?null:activity.optJSONArray("exerciseSessions");
-        if(sessions!=null)for(int i=0;i<Math.min(sessions.length(),128);i++) {
-            JSONObject r=sessions.optJSONObject(i);if(r==null)continue;
-            long a=r.optLong("startAt",0),b=r.optLong("endAt",0);if(a>0&&b>a)exercise.add(new long[]{a,b});
-        }
+        sessions(activity==null?null:activity.optJSONArray("exerciseSessions"),exercise);
+        sessions(activity==null?null:activity.optJSONArray("sleepSessions"),sleep);
         JSONArray samples=activity==null?null:activity.optJSONArray("heartRate");
         if(samples!=null)for(int i=0;i<Math.min(samples.length(),288);i++) {
             JSONObject r=samples.optJSONObject(i);if(r==null||r.optLong("sampleCount",0)<=0)continue;
@@ -91,8 +88,15 @@ final class CloudGraph extends View {
             coarseSteps=Math.max(0,plot.optInt("coarseStepRecordCount",0));
             coarseEnergy=Math.max(0,plot.optInt(halfHourly!=null?"activeCalories30mOmittedRecordCount":"coarseActiveCalorieRecordCount",0));
         }
-        setContentDescription("过去 24 小时：蓝色为血糖；粉紫色心率竖线为真实样本范围，点为样本均值，缺口不连接；绿色步数和琥珀色热量为各自相对记录量，按区间起点分组，不代表运动强度。粗粒度记录不画成时间柱。");
+        setContentDescription("过去 24 小时：蓝色为血糖；淡紫为 Health Connect 睡眠记录区间，淡绿为锻炼记录区间；粉紫色心率竖线为真实样本范围，点为样本均值，缺口不连接；绿色步数和琥珀色热量为各自相对记录量，按区间起点分组，不代表运动强度。粗粒度记录不画成时间柱。");
         invalidate();
+    }
+    private void sessions(JSONArray rows,List<long[]> output) {
+        if(rows!=null)for(int i=0;i<Math.min(rows.length(),128);i++) {
+            JSONObject row=rows.optJSONObject(i);if(row==null)continue;
+            long[] visible=HealthPolicy.clipSession(row.optLong("startAt",0),row.optLong("endAt",0),periodEnd-DAY,periodEnd);
+            if(visible!=null)output.add(visible);
+        }
     }
     private boolean amounts(JSONArray rows,String key,List<AmountBin> output,long maxInterval) {
         boolean overlap=false;
@@ -107,7 +111,7 @@ final class CloudGraph extends View {
     }
     String legend() {
         if(!hasActivity)return "缺测超过 10 分钟不连接。";
-        String text="心率为实测点与范围。步数按 15 分钟、能量按 "+energyMinutes+" 分钟分组。点按图表标记进餐等时间。";
+        String text="淡紫睡眠、淡绿锻炼为 HC 原始记录区间。心率为实测点与范围。步数按 15 分钟、能量按 "+energyMinutes+" 分钟分组。点按图表标记进餐等时间。";
         if(coarseSteps+coarseEnergy>0)text+=" 另有较粗时间汇总未画成分时柱。";
         return text;
     }
@@ -123,19 +127,16 @@ final class CloudGraph extends View {
         float glucoseBottom=hasActivity?178*d:getHeight()-34*d;
         drawGlucose(canvas,left,right,22*d,glucoseBottom,d);
         if(hasActivity) {
-            paint.setStyle(Paint.Style.FILL);paint.setColor(0xffbdb0e4);
-            for(long[] row:exercise) {
-                if(row[1]<=periodEnd-DAY||row[0]>=periodEnd)continue;
-                canvas.drawRect(x(Math.max(periodEnd-DAY,row[0]),left,right),183*d,x(Math.min(periodEnd,row[1]),left,right),186*d,paint);
-            }
-            drawHeart(canvas,left,right,209*d,250*d,d);
-            text(canvas,"活动线索 · 步 15 分 / 热量 "+energyMinutes+" 分",0,271*d,10*d,MobileStyle.MUTED,Paint.Align.LEFT);
-            drawAmounts(canvas,steps,"步",STEPS,left,right,282*d,299*d,d,stepOverlap);
-            drawAmounts(canvas,energy,"kcal",ENERGY,left,right,312*d,329*d,d,energyOverlap);
+            drawSessionRibbon(canvas,sleep,"睡眠",SLEEP,left,right,181*d,185*d,d);
+            drawSessionRibbon(canvas,exercise,"锻炼",EXERCISE,left,right,191*d,195*d,d);
+            drawHeart(canvas,left,right,216*d,257*d,d);
+            text(canvas,"活动线索 · 步 15 分 / 热量 "+energyMinutes+" 分",0,278*d,10*d,MobileStyle.MUTED,Paint.Align.LEFT);
+            drawAmounts(canvas,steps,"步",STEPS,left,right,289*d,306*d,d,stepOverlap);
+            drawAmounts(canvas,energy,"kcal",ENERGY,left,right,319*d,336*d,d,energyOverlap);
         }
         drawMarkers(canvas,left,right,d);
         if(cursor>=periodEnd-DAY&&cursor<=periodEnd)drawCursor(canvas,left,right,d);
-        float axis=hasActivity?350*d:getHeight()-9*d;
+        float axis=hasActivity?357*d:getHeight()-9*d;
         java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("HH:mm",Locale.CHINA);
         for(int tick=0;tick<3;tick++) {
             long at=periodEnd-DAY+tick*43200000L;
@@ -148,6 +149,8 @@ final class CloudGraph extends View {
         double high=12;for(Reading p:points)high=Math.max(high,p.mmol+1);for(Reading p:reference)high=Math.max(high,p.mmol+1);
         final double max=high;java.util.function.DoubleFunction<Float> y=v->(float)(bottom-v/max*(bottom-top));
         paint.setStyle(Paint.Style.FILL);paint.setColor(0xfff2f6ff);c.drawRect(left,y.apply(7.8),right,y.apply(3.9),paint);
+        drawSessionBackground(c,sleep,SLEEP,left,right,top,bottom);
+        drawSessionBackground(c,exercise,EXERCISE,left,right,top,bottom);
         for(double v:new double[]{3.9,7.8}) {
             paint.setColor(0xffa7b2c2);paint.setStrokeWidth(.7f*d);paint.setPathEffect(new DashPathEffect(new float[]{4*d,4*d},0));
             c.drawLine(left,y.apply(v),right,y.apply(v),paint);paint.setPathEffect(null);
@@ -160,13 +163,25 @@ final class CloudGraph extends View {
         Reading last=points.get(points.size()-1);paint.setStyle(Paint.Style.FILL);paint.setColor(System.currentTimeMillis()-last.sourceAt>=600000?0xff9aa6b5:BLUE);
         c.drawCircle(x(last.sourceAt,left,right),y.apply(last.mmol),3.5f*d,paint);c.restoreToCount(clip);
     }
+    private void drawSessionBackground(Canvas c,List<long[]> rows,int color,float left,float right,float top,float bottom) {
+        paint.setStyle(Paint.Style.FILL);paint.setColor(color);paint.setAlpha(18);
+        for(long[] row:rows)c.drawRect(x(row[0],left,right),top,x(row[1],left,right),bottom,paint);
+        paint.setAlpha(255);
+    }
+    private void drawSessionRibbon(Canvas c,List<long[]> rows,String label,int color,float left,float right,float top,float bottom,float d) {
+        if(rows.isEmpty())return;
+        text(c,label,0,bottom,8*d,color,Paint.Align.LEFT);
+        paint.setStyle(Paint.Style.FILL);paint.setColor(color);paint.setAlpha(210);
+        for(long[] row:rows)c.drawRoundRect(x(row[0],left,right),top,x(row[1],left,right),bottom,2*d,2*d,paint);
+        paint.setAlpha(255);
+    }
     private void drawLine(Canvas c,List<Reading> values,float left,float right,java.util.function.DoubleFunction<Float> y,int color,float width,long gap) {
         Path path=new Path();long previous=0;
         for(Reading p:values) { if(previous==0||p.sourceAt-previous>gap)path.moveTo(x(p.sourceAt,left,right),y.apply(p.mmol));else path.lineTo(x(p.sourceAt,left,right),y.apply(p.mmol));previous=p.sourceAt; }
         paint.setColor(color);paint.setStrokeWidth(width);paint.setStyle(Paint.Style.STROKE);paint.setStrokeCap(Paint.Cap.ROUND);c.drawPath(path,paint);
     }
     private void drawHeart(Canvas c,float left,float right,float top,float bottom,float d) {
-        text(c,"心率 bpm · 实测采样",0,200*d,11*d,HEART,Paint.Align.LEFT);
+        text(c,"心率 bpm · 实测采样",0,207*d,11*d,HEART,Paint.Align.LEFT);
         if(heart.isEmpty()) { text(c,"暂无可用心率采样",left+8*d,(top+bottom)/2,10*d,MobileStyle.MUTED,Paint.Align.LEFT);return; }
         double low=300,high=0;for(HeartBin p:heart) { low=Math.min(low,p.min);high=Math.max(high,p.max); }
         low=Math.max(0,Math.floor((low-5)/10)*10);high=Math.min(300,Math.ceil((high+5)/10)*10);if(high<=low)high=low+10;
@@ -208,7 +223,7 @@ final class CloudGraph extends View {
     private void drawCursor(Canvas c,float left,float right,float d) {
         float xx=x(cursor,left,right);paint.setColor(0xff8292ad);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(.8f*d);paint.setPathEffect(new DashPathEffect(new float[]{3*d,3*d},0));
         c.drawLine(xx,54*d,xx,hasActivity?178*d:getHeight()-30*d,paint);
-        if(hasActivity) { c.drawLine(xx,209*d,xx,250*d,paint);c.drawLine(xx,282*d,xx,299*d,paint);c.drawLine(xx,312*d,xx,329*d,paint); }paint.setPathEffect(null);
+        if(hasActivity) { c.drawLine(xx,216*d,xx,257*d,paint);c.drawLine(xx,289*d,xx,306*d,paint);c.drawLine(xx,319*d,xx,336*d,paint); }paint.setPathEffect(null);
         String time=new java.text.SimpleDateFormat("HH:mm",Locale.CHINA).format(new Date(cursor));float pillWidth=48*d;
         float a=Math.max(left,Math.min(right-pillWidth,xx-pillWidth/2));paint.setStyle(Paint.Style.FILL);paint.setColor(0xffe9effa);c.drawRoundRect(a,36*d,a+pillWidth,54*d,8*d,8*d,paint);
         text(c,time,a+pillWidth/2,49*d,10*d,MobileStyle.INK,Paint.Align.CENTER);

@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from statistics import median
 
-from .activity import exercise_type_label
+from .activity import exercise_type_label, sleep_session_context
 from .detail_sources import SOURCES
 from .excursions import candidate_excursions, day_quality
 from .lifestyle import context as event_context
@@ -120,7 +120,7 @@ def _interval_summary(records, key, start, end, minutes):
             'examplesTruncated': len(rows) > 24}
 
 
-def activity_window(records, start, end):
+def activity_window(records, start, end, readings=None):
     overlapping = [(source, r) for source, r in records if r['startAt'] < end and
                    (r['endAt'] > start or r['startAt'] == r['endAt'] and r['startAt'] >= start)]
     full = [(source, r) for source, r in overlapping if start <= r['startAt'] <= r['endAt'] <= end]
@@ -143,7 +143,19 @@ def activity_window(records, start, end):
         timeline.append({'startAt': start + index * 15 * MINUTE, 'endAt': min(end, start + (index + 1) * 15 * MINUTE),
                          'firstSampleAt': points[0][0], 'lastSampleAt': points[-1][0],
                          'meanBpm': round_value(sum(values) / len(values)), 'minBpm': min(values), 'maxBpm': max(values), 'sampleCount': len(values)})
-    sessions = [r for source, r in full if source == 'health_connect' and r['kind'] == 'exercise']
+    sessions = [r for source, r in overlapping if source == 'health_connect' and r['kind'] == 'exercise']
+    sleep = sorted((r for source, r in overlapping if source == 'health_connect' and r['kind'] == 'sleep'),key=lambda r:(r['startAt'],r['id']))
+    session_observations = []
+    for row in sessions[:24]:
+        a,b = max(start,row['startAt']),min(end,row['endAt'])
+        censored = row['endAt']>end
+        session_observations.append({'startAt':row['startAt'],'endAt':b,'origin':row['origin'],
+                                     'startLocal':clock(row['startAt']),'endLocal':clock(b),
+                                     'observedStartAt':a,'observedEndAt':b,'endCensored':censored,
+                                     'exerciseType':row['exerciseType'],'exerciseTypeLabel':exercise_type_label(row['exerciseType']),
+                                     'glucoseBefore30m':compact_metrics(readings or [],max(start,a-30*MINUTE),a),
+                                     'glucoseDuring':compact_metrics(readings or [],a,b),
+                                     'glucoseAfter60m':None if censored else compact_metrics(readings or [],b,min(end,b+60*MINUTE))})
     return {'periodStart': start, 'periodEnd': end, 'stepsSource': selected,
             'selectionMeaning': '仅使用该历史时段的实际记录，HC细区间优先、其次手机细区间、再粗总量；不使用当前同步状态，不合并步数来源。',
             'sourceOrigins': sorted(set(r['origin'] for _, r in overlapping if r['kind'] != 'heart_rate') |
@@ -152,9 +164,12 @@ def activity_window(records, start, end):
             'conflictingHeartRateTimestamps': sum(len(v) > 1 for v in hr.values()),
             'steps': _interval_summary(steps[selected], 'count', start, end, 15),
             'activeCalories': _interval_summary([r for s, r in full if s == 'health_connect' and r['kind'] == 'active_calories'], 'energyKcal', start, end, 30),
-            'sessions': [{'startAt': r['startAt'], 'endAt': r['endAt'], 'exerciseType': r['exerciseType'],
-                          'exerciseTypeLabel': exercise_type_label(r['exerciseType']), 'origin': r['origin']} for r in sessions[:24]],
+            'sessions': session_observations,
             'sessionsTruncated': len(sessions) > 24,
+            'sleepSessions':sleep_session_context(sleep,readings or [],start,end,end),
+            'sleepSessionsTruncated':len(sleep)>32,'sleepSessionTotalCount':len(sleep),
+            'potentialSleepSessionOverlap':any(a['endAt']>b['startAt'] for a,b in zip(sleep,sleep[1:])),
+            'sleepSessionMeaning':'Health Connect原始睡眠会话，可能包含清醒片段；只统计报告窗口内交集血糖，不将区间时长当实际睡着时长，不与手动入睡/起床标记合并。',
             'crossBoundaryOmitted': {kind: sum(r['kind'] == kind and not start <= r['startAt'] <= r['endAt'] <= end for _, r in overlapping)
                                      for kind in ('steps', 'active_calories', 'exercise')},
             'meaning': '心率仅为实际样本；步数/热量按原区间起点分组不均摊。跨界总量未计入，空白不是静止，热量不是精确消耗或独立于心率的证据。'}
@@ -225,7 +240,7 @@ def build_context(store, parent, now):
               'confirmedMeals': chosen, 'mealSelection': counts,
               'mealMethod': '餐前30min至少3个点且跨度10min才取中位基线；邻近小时取±7.5min真实采样，附实际时间；正增量面积只连接≤10min邻点，跨基线分段积分，不外推缺口；观测回到基线+0.3需3点跨度10min且峰后无>10min缺口；均为描述性产品指标。下一餐/报告截止截断跟踪。',
               'nightProfiles': nights, 'nightMeaning': '00–06时钟窗口，不等于空腹或已确认睡眠。',
-              'activity': {'latest24h': activity_window(activity, start, end), 'previous24h': activity_window(activity, start - DAY, start)},
+              'activity': {'latest24h': activity_window(activity, start, end, rows), 'previous24h': activity_window(activity, start - DAY, start, rows)},
               'sourceCatalog': SOURCES, 'contextTruncation': []}
     # Dense device records are summarized before this bound; trim only examples, never raw storage.
     size = lambda: len(json.dumps(result, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8'))

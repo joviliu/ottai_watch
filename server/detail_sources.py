@@ -27,7 +27,7 @@ SOURCES = [
      'notes': '运动影响肌肉摄糖与胰岛素敏感性，反应受强度、时机及条件影响；该共识主要面向2型糖尿病。稀疏心率、手机步数和设备热量不能确定强度、净因果或精确能量平衡。'},
     {'id': 'sleep', 'title': 'Broussard et al.: Experimental Sleep Restriction and Insulin Signaling (2012)',
      'url': 'https://pubmed.ncbi.nlm.nih.gov/23070488/',
-     'notes': '小样本随机交叉实验发现限制睡眠可影响胰岛素信号及敏感性；只在本人实际睡眠/起床记录支持时考虑该解释，不能由夜间曲线或少量心率反推睡眠不足。'},
+     'notes': '小样本随机交叉实验发现限制睡眠可影响胰岛素信号及敏感性；只在本人睡眠/起床标记或HC睡眠区间支持时考虑该解释；HC区间可含清醒，不等于实睡时长，不能由夜间曲线或少量心率反推睡眠不足。'},
     {'id': 'cgm_consensus', 'title': 'International Consensus on Use of CGM (2017)',
      'url': 'https://doi.org/10.2337/dc17-1600',
      'notes': 'CGM反映组织间液葡萄糖，动态与准确度受测量条件影响；孤立尖峰/低值应先核查，数据完整性及多日重复性影响解释。糖尿病人群标准不能自动推广为本人诊断阈值。'},

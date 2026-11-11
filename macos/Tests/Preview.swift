@@ -34,7 +34,9 @@ struct PreviewTool {
             periodEnd: end, intervalMinutes: 15, steps: stepBins, activeCalories: [],
             activeCalories30m: energyBins, activeCalories30mIntervalMinutes: 30,
             activeCalories30mOmittedRecordCount: 0, activeCalories30mTruncated: false),
-            sourceByKind: ["heart_rate":"health_connect", "steps":"phone_steps", "active_calories":"health_connect"])
+            sourceByKind: ["heart_rate":"health_connect", "steps":"phone_steps", "active_calories":"health_connect"],
+            sleepSessions: [ActivitySession(id: "synthetic-sleep", startAt: end-19*3600000, endAt: end-11*3600000)],
+            exerciseSessions: [ActivitySession(id: "synthetic-walk", startAt: end-7*3600000, endAt: end-6*3600000, exerciseType: 53)])
         let dashboard = Dashboard(schemaVersion: 1, serverAt: now.timeIntervalSince1970 * 1000,
             latest: readings.last, readings: readings,
             metrics: Metrics(coveragePercent: 100, sampleCount: 288, mean: 6.4, min: 5.7, max: 8.1, cvPercent: 12, inRangePercent: 98),

@@ -419,12 +419,36 @@ struct ActivityPlot: Codable {
     }
 }
 
+struct ActivitySession: Codable, Identifiable {
+    let id: String
+    let startAt: Double
+    let endAt: Double
+    var exerciseType: Int?
+    var valid: Bool {
+        !id.isEmpty && id.count <= 200 && id.unicodeScalars.allSatisfy { $0.value >= 32 }
+            && startAt.isFinite && endAt.isFinite && startAt > 0 && endAt >= startAt
+            && endAt - startAt <= 31 * 86400000
+            && (exerciseType == nil || (0...1000).contains(exerciseType!))
+    }
+    func clipped(start: Date, end: Date) -> DateInterval? {
+        let a = max(start, Date(timeIntervalSince1970: startAt / 1000))
+        let b = min(end, Date(timeIntervalSince1970: endAt / 1000))
+        return valid && b > a ? DateInterval(start: a, end: b) : nil
+    }
+}
+
 struct ActivityData: Codable {
     var heartRate: [HeartRateBin]?
     var plot: ActivityPlot?
     var sourceByKind: [String: String]?
+    var sleepSessions: [ActivitySession]?
+    var exerciseSessions: [ActivitySession]?
     var valid: Bool {
         (heartRate?.count ?? 0) <= 288 && (heartRate ?? []).allSatisfy(\.valid)
+            && (sleepSessions?.count ?? 0) <= 128 && (sleepSessions ?? []).allSatisfy { $0.valid && $0.endAt > $0.startAt }
+            && (exerciseSessions?.count ?? 0) <= 128 && (exerciseSessions ?? []).allSatisfy(\.valid)
+            && Set((sleepSessions ?? []).map(\.id)).count == (sleepSessions?.count ?? 0)
+            && Set((exerciseSessions ?? []).map(\.id)).count == (exerciseSessions?.count ?? 0)
             && (plot?.steps?.count ?? 0) <= 96 && (plot?.steps ?? []).allSatisfy(\.valid)
             && (plot?.activeCalories?.count ?? 0) <= 96 && (plot?.activeCalories ?? []).allSatisfy(\.valid)
             && (plot?.activeCalories30m?.count ?? 0) <= 48

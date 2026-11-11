@@ -24,22 +24,22 @@ public final class HealthActivity extends Activity {
         super.onCreate(saved);
         LinearLayout page = MobileStyle.page(this);
         label(page, "运动与血糖", 28, 0xff233456, true);
-        label(page, "结合运动、心率、步数和活动热量，让每日观察多一份时间线索。", 15, 0xff66789a, false);
+        label(page, "结合锻炼、睡眠、心率、步数和活动热量，与血糖对齐观察。", 15, 0xff66789a, false);
 
         LinearLayout connection = card(page);
-        Switch enabled = new Switch(this); enabled.setText("启用 Health Connect 运动与心率"); enabled.setTextSize(17);
+        Switch enabled = new Switch(this); enabled.setText("启用 Health Connect 活动与睡眠"); enabled.setTextSize(17);
         enabled.setTextColor(0xff233456); enabled.setChecked(HealthConnectBridge.isEnabled(this)); connection.addView(enabled);
         enabled.setOnCheckedChangeListener((button, checked) -> {
             HealthConnectBridge.setEnabled(this, checked);
             if (checked) {
-                if (HealthConnectBridge.status(this).optJSONArray("readableKinds").length() < 4)
+                if (HealthConnectBridge.status(this).optJSONArray("readableKinds").length() < 5)
                     HealthConnectBridge.requestPermissions(this, false, false);
                 else CloudSync.requestActivity(this, true, true);
             }
             render();
         });
         status = label(connection, "", 14, 0xff66789a, false);
-        button(connection, "授权运动、心率、步数与活动热量", () -> {
+        button(connection, "授权锻炼、心率、步数、热量与睡眠", () -> {
             if (!enabled.isChecked()) enabled.setChecked(true);
             else HealthConnectBridge.requestPermissions(this, false, false);
             render();
@@ -77,7 +77,7 @@ public final class HealthActivity extends Activity {
 
         LinearLayout source = card(page);
         label(source, "Health Connect 数据来源", 18, 0xff233456, true);
-        label(source, "请在小米运动健康中启用 Health Connect 数据共享，并在系统中允许它写入运动、心率、步数和活动热量。" +
+        label(source, "请在小米运动健康中启用 Health Connect 数据共享，并在系统中允许它写入锻炼、睡眠、心率、步数和活动热量。" +
                 "此通道只读取来源为小米运动健康的记录，手机步数通道可独立启用。", 14, 0xff66789a, false);
         button(source, "打开小米运动健康", () -> {
             Intent launch = getPackageManager().getLaunchIntentForPackage(HealthPolicy.ORIGIN);
@@ -85,13 +85,13 @@ public final class HealthActivity extends Activity {
             else startActivity(launch);
         });
         button(source, "打开 Health Connect 设置", () -> HealthConnectBridge.openSettings(this));
-        label(source, "空白时段代表没有可读数据，不能据此判断未运动。心率可能只在运动期间共享，步数也可能为较长时段汇总。" +
+        label(source, "空白时段代表没有可读数据，不能据此判断未运动。睡眠和锻炼按原始记录区间标记，睡眠区间可能包含清醒时间；不读取睡眠阶段。步数可能为较长时段汇总。" +
                 "活动热量是设备或应用提供的估计值，以 kcal 展示，不包含基础代谢；来源设备以原记录为准。", 13, 0xff66789a, false);
 
         LinearLayout policy = card(page);
         label(policy, "数据用途与隐私", 18, 0xff233456, true);
-        label(policy, "经你授权后，读取运动起止时间与类型、心率采样、步数区间、估计活动热量，以及记录来源和设备信息。" +
-                "不读取位置或运动路线，不修改健康记录。\n\n" +
+        label(policy, "经你授权后，读取锻炼起止时间与类型、睡眠记录区间、心率采样、步数区间、估计活动热量，以及记录来源和设备信息。" +
+                "不读取睡眠阶段、标题或备注，不读取位置或运动路线，不修改健康记录。\n\n" +
                 "启用云同步后，这些记录会通过当前云连接上传到你的 Ali 服务器，与血糖按时间对齐，" +
                 "用于统计及 AI 辅助观察；必要的运动摘要会随分析请求提供给已配置的模型服务。" +
                 "不能仅凭时间相关性认定运动导致某次血糖变化。\n\n" +

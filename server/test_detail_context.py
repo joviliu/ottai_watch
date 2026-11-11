@@ -124,6 +124,45 @@ class DetailContextTests(unittest.TestCase):
         self.assertEqual(view['activeCalories']['observedTotal'], 20)
         self.assertEqual(view['crossBoundaryOmitted']['active_calories'], 1)
 
+    def test_hc_sleep_fixed_cutoff_glucose_and_manual_marks_stay_separate(self):
+        a=self.end-2*60*MINUTE
+        self.put_record('health_connect', {'id':'night','kind':'sleep','origin':'com.mi.health',
+                                         'startAt':a,'endAt':self.end+6*60*MINUTE,'recordingMethod':2})
+        self.put_record('health_connect', {'id':'future-night','kind':'sleep','origin':'com.mi.health',
+                                         'startAt':self.end+60*MINUTE,'endAt':self.end+8*60*MINUTE})
+        self.store.upsert_event({'id':'SLEEP-DETAIL-0001','type':'sleep','at':a,'note':''},None,self.end)
+        self.store.upsert_event({'id':'WAKE-DETAIL-00001','type':'wake','at':self.end-MINUTE,'note':''},None,self.end)
+        body=build_context(self.store,self.parent,self.end+DAY)
+        sleep=body['activity']['latest24h']['sleepSessions']
+        self.assertEqual(len(sleep),1)
+        self.assertEqual(sleep[0]['id'],'night')
+        self.assertEqual((sleep[0]['startAt'],sleep[0]['endAt']),(a,self.end))
+        self.assertTrue(sleep[0]['endCensored'])
+        self.assertEqual((sleep[0]['glucoseDuring']['mean'],sleep[0]['glucoseDuring']['coveragePercent']),(6,100))
+        self.assertEqual(len(body['lifestyle']['sleepPairs']['pairs']),1)
+        self.assertEqual(body['activity']['previous24h']['sleepSessions'],[])
+        # A later known wake correction cannot leak into a report that ended at midnight.
+        with self.store.connect() as db:
+            row=json.loads(db.execute("SELECT body FROM activity_records WHERE record_id='night'").fetchone()[0])
+            row['endAt']+=60*MINUTE
+            db.execute("UPDATE activity_records SET body=? WHERE record_id='night'",(json.dumps(row),))
+        self.assertEqual(body,build_context(self.store,self.parent,self.end+2*DAY))
+
+    def test_sleep_and_exercise_observed_intersections_do_not_fill_glucose_gaps(self):
+        a=self.end-3*60*MINUTE
+        records=[('health_connect',{'id':'night','kind':'sleep','origin':'com.mi.health','startAt':a,'endAt':self.end}),
+                 ('health_connect',{'id':'workout','kind':'exercise','origin':'com.mi.health',
+                                    'startAt':a,'endAt':self.end+30*MINUTE,'exerciseType':53})]
+        data=activity_window(records,self.end-DAY,self.end,[reading(a,7)])
+        self.assertEqual(data['sleepSessions'][0]['glucoseDuring']['observedMinutes'],5)
+        self.assertLess(data['sleepSessions'][0]['glucoseDuring']['coveragePercent'],3)
+        workout=data['sessions'][0]
+        self.assertTrue(workout['endCensored'])
+        self.assertEqual(workout['endAt'],self.end)
+        self.assertEqual(workout['glucoseDuring']['observedMinutes'],5)
+        self.assertIsNone(workout['glucoseAfter60m'])
+        self.assertEqual(workout['exerciseTypeLabel'],'步行')
+
     def test_dense_unicode_context_bounded_without_erasing_storage(self):
         for i in range(80):
             e = meal(self.end - (i + 1) * 20 * MINUTE, 'MEAL-BOUND-%04d' % i)

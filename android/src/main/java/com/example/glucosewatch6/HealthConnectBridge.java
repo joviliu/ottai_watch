@@ -20,6 +20,7 @@ import android.health.connect.datatypes.HeartRateRecord;
 import android.health.connect.datatypes.IntervalRecord;
 import android.health.connect.datatypes.Metadata;
 import android.health.connect.datatypes.StepsRecord;
+import android.health.connect.datatypes.SleepSessionRecord;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.OutcomeReceiver;
@@ -45,11 +46,12 @@ public final class HealthConnectBridge {
     public static final String READ_STEPS = "android.permission.health.READ_STEPS";
     public static final String READ_EXERCISE = "android.permission.health.READ_EXERCISE";
     public static final String READ_ACTIVE_CALORIES = "android.permission.health.READ_ACTIVE_CALORIES_BURNED";
+    public static final String READ_SLEEP = "android.permission.health.READ_SLEEP";
     public static final String READ_BACKGROUND = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND";
     public static final String READ_HISTORY = "android.permission.health.READ_HEALTH_DATA_HISTORY";
-    private static final String[] KINDS = {"exercise", "heart_rate", "steps", "active_calories"};
-    private static final String[] PERMISSIONS = {READ_EXERCISE, READ_HEART_RATE, READ_STEPS, READ_ACTIVE_CALORIES};
-    private static final String[] LABELS = {"运动", "心率", "步数", "活动热量"};
+    private static final String[] KINDS = {"exercise", "heart_rate", "steps", "active_calories", "sleep"};
+    private static final String[] PERMISSIONS = {READ_EXERCISE, READ_HEART_RATE, READ_STEPS, READ_ACTIVE_CALORIES, READ_SLEEP};
+    private static final String[] LABELS = {"锻炼", "心率", "步数", "活动热量", "睡眠"};
     private static final AtomicBoolean INSTALLED = new AtomicBoolean(), ACTIVE = new AtomicBoolean();
     private static final AtomicInteger VISIBLE = new AtomicInteger();
     private static final AtomicLong VISIBILITY_EPOCH = new AtomicLong();
@@ -181,7 +183,7 @@ public final class HealthConnectBridge {
         WORKER.execute(() -> {
             if (!isEnabled(app)) { failBeforeScan(app, callback, "disabled", "运动辅助分析尚未启用。"); return; }
             if (!available(app)) { failBeforeScan(app, callback, "unavailable", "系统 Health Connect 暂不可用。"); return; }
-            if (!hasReadPermissions(app)) { failBeforeScan(app, callback, "permission_denied", "请先授权读取运动、心率、步数或活动热量。"); return; }
+            if (!hasReadPermissions(app)) { failBeforeScan(app, callback, "permission_denied", "请先授权读取锻炼、心率、步数、活动热量或睡眠。"); return; }
             if (!canReadInBackground(app) && (!foreground || VISIBLE.get() == 0)) {
                 failBeforeScan(app, callback, "foreground_only", "后台读取未授权，请在运动数据页面保持应用打开后同步。"); return;
             }
@@ -226,7 +228,8 @@ public final class HealthConnectBridge {
                 if (kind == 0) readPage(ExerciseSessionRecord.class, -1);
                 else if (kind == 1) readPage(HeartRateRecord.class, -1);
                 else if (kind == 2) readPage(StepsRecord.class, -1);
-                else readPage(ActiveCaloriesBurnedRecord.class, -1);
+                else if (kind == 3) readPage(ActiveCaloriesBurnedRecord.class, -1);
+                else readPage(SleepSessionRecord.class, -1);
             } catch (Exception error) { failed(error); }
         }
         <T extends IntervalRecord> void readPage(Class<T> type, long token) {
@@ -260,7 +263,7 @@ public final class HealthConnectBridge {
             Metadata metadata = record.getMetadata();
             if (!HealthPolicy.ORIGIN.equals(metadata.getDataOrigin().getPackageName())) throw new SecurityException("unexpected_origin");
             String kind = record instanceof ExerciseSessionRecord ? "exercise" : record instanceof HeartRateRecord ? "heart_rate"
-                    : record instanceof ActiveCaloriesBurnedRecord ? "active_calories" : "steps";
+                    : record instanceof ActiveCaloriesBurnedRecord ? "active_calories" : record instanceof SleepSessionRecord ? "sleep" : "steps";
             JSONObject value = new JSONObject().put("id", metadata.getId()).put("kind", kind).put("origin", HealthPolicy.ORIGIN)
                     .put("startAt", record.getStartTime().toEpochMilli()).put("endAt", record.getEndTime().toEpochMilli())
                     .put("modifiedAt", metadata.getLastModifiedTime().toEpochMilli()).put("recordingMethod", metadata.getRecordingMethod());
@@ -292,8 +295,8 @@ public final class HealthConnectBridge {
                 // https://developer.android.com/reference/android/health/connect/datatypes/units/Energy
                 value.put("energyKcal", HealthPolicy.activeKilocalories(((ActiveCaloriesBurnedRecord) record).getEnergy().getInCalories()));
             }
-            else value.put("exerciseType", ((ExerciseSessionRecord) record).getExerciseType());
-            // No notes, title, exercise route/GPS, or invented minute-by-minute step distribution.
+            else if (record instanceof ExerciseSessionRecord) value.put("exerciseType", ((ExerciseSessionRecord) record).getExerciseType());
+            // Sleep retains only the session interval: no stages, notes/title, exercise route/GPS, or invented samples.
             budget.record(kind, metadata.getId(), sampleCount, value.toString().getBytes(StandardCharsets.UTF_8).length);
             records.put(value);
         }

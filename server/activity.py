@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from .statistics import DAY, MINUTE, metrics
 
-KINDS = ('exercise', 'heart_rate', 'steps', 'active_calories')
+KINDS = ('exercise', 'heart_rate', 'steps', 'active_calories', 'sleep')
 SOURCE = 'health_connect'
 ORIGIN = 'com.mi.health'
 SOURCE_ORIGINS = {'health_connect': 'com.mi.health', 'phone_steps': 'com.miui.rom'}
@@ -103,7 +103,7 @@ def validate_activity(payload, now):
         kind = row.get('kind')
         if not isinstance(kind, str):
             raise ActivityValidationError('Invalid activity kind')
-        extra = {'heart_rate': {'samples'}, 'steps': {'count'}, 'exercise': {'exerciseType'}, 'active_calories': {'energyKcal'}}.get(kind)
+        extra = {'heart_rate': {'samples'}, 'steps': {'count'}, 'exercise': {'exerciseType'}, 'active_calories': {'energyKcal'}, 'sleep': set()}.get(kind)
         if extra is None or set(row)-common-extra or not (common-optional | extra) <= set(row):
             raise ActivityValidationError('Invalid activity fields')
         identifier = row['id']
@@ -115,7 +115,7 @@ def validate_activity(payload, now):
         # Native interval containers may end at a future day boundary; samples remain strict.
         a, b = _timestamp(row['startAt'], now, 'startAt'), _timestamp(row['endAt'], synced, 'endAt', MAX_WINDOW)
         modified = _timestamp(row['modifiedAt'], now, 'modifiedAt')
-        if not a <= b or b-a > MAX_WINDOW or not (start <= a < end) or modified > synced+90000:
+        if not a <= b or kind == 'sleep' and a == b or b-a > MAX_WINDOW or not (start <= a < end) or modified > synced+90000:
             raise ActivityValidationError('Invalid activity interval')
         method = row['recordingMethod']
         if type(method) is not int or not 0 <= method <= 3:
@@ -162,7 +162,7 @@ def validate_activity(payload, now):
             if type(row['count']) is not int or not 0 <= row['count'] <= 2000000:
                 raise ActivityValidationError('Invalid step count')
             item['count'] = row['count']
-        else:
+        elif kind == 'exercise':
             if type(row['exerciseType']) is not int or not 0 <= row['exerciseType'] <= 1000:
                 raise ActivityValidationError('Invalid exercise type')
             item['exerciseType'] = row['exerciseType']
@@ -185,7 +185,7 @@ def activity_view(snapshot, start, end, now):
     status = state.get('status', 'not_connected')
     kinds = state.get('readableKinds', [])
     source = state.get('source',SOURCE)
-    source_by_kind = snapshot.get('sourceByKind', {kind:SOURCE for kind in KINDS})
+    source_by_kind = {kind:snapshot.get('sourceByKind', {}).get(kind,SOURCE) for kind in KINDS}
     source_states = {key:dict(value) for key,value in snapshot.get('sourceStates',{SOURCE:state}).items()}
     kind_availability = {}
     for kind in KINDS:
@@ -206,6 +206,9 @@ def activity_view(snapshot, start, end, now):
     readable_info = [info for info in kind_availability.values() if info['readable']]
     stale = not readable_info or all(info['stale'] for info in readable_info)
     sessions = [r for r in records if r['kind'] == 'exercise']
+    sleep = [r for r in records if r['kind'] == 'sleep']
+    ordered_sleep = sorted(sleep,key=lambda r:(r['startAt'],r['endAt']))
+    sleep_overlap = any(a['endAt']>b['startAt'] for a,b in zip(ordered_sleep,ordered_sleep[1:]))
     steps = [dict(r, temporalResolution=('instant_count' if r['endAt']==r['startAt'] else 'interval' if r['endAt']-r['startAt'] <= 15*MINUTE else 'coarse_total'))
              for r in records if r['kind'] == 'steps']
     calories = [dict(r,temporalResolution=('instant_count' if r['startAt']==r['endAt'] else 'interval' if r['endAt']-r['startAt']<=15*MINUTE else 'coarse_total'))
@@ -251,6 +254,10 @@ def activity_view(snapshot, start, end, now):
         limitations.append('部分源记录结束时间超出观察截止；只使用已收到的样本或实际覆盖，不认定记录已完整结束。')
     if calories:
         limitations.append('活动能量为Health Connect来源的估计，不是基础代谢、总能耗或食物热量；设备来源以元数据为准，不预设手表。重叠、跨界或未来容器不作完整窗口能量总量。')
+    if sleep:
+        limitations.append('睡眠区间来自Health Connect睡眠会话记录，可能包含清醒片段，不等于实际睡着时长；不由心率或手动入睡标记推算。')
+    if sleep_overlap:
+        limitations.append('存在重叠睡眠会话，保留各条来源记录，不相加成总睡眠时长。')
     if status != 'available':
         limitations.append('活动资料当前不可读或尚未连接；历史缓存不能代表当前活动。')
     if set(kinds) != set(KINDS):
@@ -265,6 +272,8 @@ def activity_view(snapshot, start, end, now):
     kind_availability['heart_rate'].update(firstSampleAt=hr[0]['time'] if hr else None, lastSampleAt=hr[-1]['time'] if hr else None,
                                            lastObservedEndAt=hr[-1]['time'] if hr else None)
     summary = {'recordedExerciseCount': len(sessions) if kind_availability['exercise']['readable'] else None,
+               'recordedSleepSessionCount':len(sleep) if kind_availability['sleep']['readable'] else None,
+               'sleepSource':source_by_kind['sleep'],'potentialSleepSessionOverlap':sleep_overlap,
                'stepsSource':source_by_kind['steps'], 'heartRateSource':source_by_kind['heart_rate'], 'exerciseSource':source_by_kind['exercise'],
                'activeCalorieSource':source_by_kind['active_calories'], 'activeCalorieRecordCount':len(calories),
                'rawActiveKcalSum':raw_energy, 'observedActiveKcal':raw_energy if calories and calorie_readable and not calorie_overlap and calorie_inside else None,
@@ -285,7 +294,7 @@ def activity_view(snapshot, start, end, now):
                 lastSyncedAt=state.get('lastSyncedAt'), lastSuccessfulSyncAt=state.get('lastSuccessfulSyncAt'),
                 windowStart=start, windowEnd=end, sourceWindowStart=state.get('windowStart'),
                 sourceWindowEnd=state.get('windowEnd'), queryCoverageMinutes=query_coverage,
-                queryCoverageMeaning='按记录开始时间成功查询过的窗口，不等于佩戴、运动或心率样本覆盖', exerciseSessions=sessions, heartRate=hr,
+                queryCoverageMeaning='按记录开始时间成功查询过的窗口，不等于佩戴、运动、睡眠或心率样本覆盖', exerciseSessions=sessions, sleepSessions=sleep, heartRate=hr,
                 stepIntervals=steps, activeCalorieIntervals=calories, summary=summary, limitations=limitations)
 
 
@@ -387,10 +396,34 @@ def _analysis_energy(view, start, end, now):
             'meaning':'按原始开始时间汇总全部活动能量估计区间，原始能量和不保证独立/完整窗口总量；不均摊到分钟、不换算步数或强度，缺测不代表无活动。'}
 
 
+def sleep_session_context(records, readings, start, end, now):
+    """Recorded intervals only; glucose uses the observed intersection, not an inferred sleep duration."""
+    rows = sorted((r for r in records if r['kind']=='sleep' and r['startAt']<min(end,now) and r['endAt']>start),
+                  key=lambda r:(r['startAt'],r['id']))
+    observations = []
+    fields = ('periodStart','periodEnd','sampleCount','observedMinutes','expectedMinutes','coveragePercent',
+              'mean','sd','cvPercent','min','max','inRangePercent','belowRangePercent','aboveRangePercent','limitations')
+    for row in rows[-32:]:
+        a,b = max(start,row['startAt']),min(end,now,row['endAt'])
+        glucose = metrics(readings,a,b)
+        # A fixed-day report must not learn a wake time after its own cutoff.
+        observations.append(dict({k:row[k] for k in ('id','origin','startAt','recordingMethod','device') if k in row},
+                                 endAt=b,startLocal=_shanghai_time(row['startAt']),endLocal=_shanghai_time(b),
+                                 observedStartAt=a,observedEndAt=b,endCensored=row['endAt']>min(end,now),
+                                 glucoseDuring={key:glucose[key] for key in fields}))
+    return observations
+
+
 def analysis_context(snapshot, readings, start, end, now, excursions=None):
     """Bounded descriptive context; all windows below are product observation choices."""
     view = activity_view(snapshot, start, end, now)
+    cutoff = min(end,now)
+    # Public/source metadata stays native; an AI report must not learn future ends through a side field.
+    for info in view['kindAvailability'].values():
+        if info.get('lastRecordEndAt') is not None and info['lastRecordEndAt']>cutoff:
+            info.update(lastRecordEndAt=cutoff,recordEndCensored=True)
     sessions = sorted(view['exerciseSessions'], key=lambda r: r['startAt'])
+    sleep = sorted(view['sleepSessions'], key=lambda r:(r['startAt'],r['id']))
     observations = []
     def window(a, b):
         if a >= b:
@@ -405,8 +438,8 @@ def analysis_context(snapshot, readings, start, end, now, excursions=None):
         a, b = max(start, record['startAt']), min(end, now, record['endAt'])
         censored = record['endAt'] > min(end,now)
         session_hr = [p for p in view['heartRate'] if record['startAt'] <= p['time'] < min(record['endAt'],end,now)]
-        observations.append({'startAt': record['startAt'], 'endAt': record['endAt'],
-                             'startLocal': _shanghai_time(record['startAt']), 'endLocal': _shanghai_time(record['endAt']),
+        observations.append({'startAt': record['startAt'], 'endAt': b,
+                             'startLocal': _shanghai_time(record['startAt']), 'endLocal': _shanghai_time(b),
                              'timezone': 'Asia/Shanghai',
                              'endBeyondObservationWindow': record['endAt'] > end, 'endCensored': censored,
                              'observedStartAt': a, 'observedEndAt': b,
@@ -425,6 +458,7 @@ def analysis_context(snapshot, readings, start, end, now, excursions=None):
     return {'source':view['source'], 'origin':view['origin'], 'originApp': view['originApp'],
             'sourceByKind':view['sourceByKind'],'sourceByKindReason':view['sourceByKindReason'],
             'sourceStates':view['sourceStates'],'kindAvailability':view['kindAvailability'], 'periodStart': start, 'periodEnd': end, 'timezone': 'Asia/Shanghai',
+            'intervalEndMeaning':'会话endAt/endLocal及lastRecordEndAt均不晚于观察截止；endCensored或recordEndCensored表示来源区间尚越过截止，并非实际结束时间。',
             'availability': {k: view[k] for k in ('status', 'readableKinds', 'stale', 'lastSyncedAt',
                                                 'lastSuccessfulSyncAt', 'sourceWindowStart', 'sourceWindowEnd')},
             'queryCoverageMinutes': view['queryCoverageMinutes'], 'queryCoverageMeaning': view['queryCoverageMeaning'],
@@ -432,6 +466,9 @@ def analysis_context(snapshot, readings, start, end, now, excursions=None):
             'stepTimeline':_analysis_steps(view,start,end,now),
             'recordedSessions': observations,
             'sessionsTruncated': len(sessions) > 24,
+            'sleepSessions':sleep_session_context(sleep,readings,start,end,now),
+            'sleepSessionsTruncated':len(sleep)>32, 'sleepSessionTotalCount':len(sleep),
+            'sleepSessionMeaning':'原始Health Connect睡眠会话区间，可能包含清醒片段；不是实际睡着时长，不与手动入睡/起床标记合并或推断因果。',
             'shortStepIntervals': [dict({'startAt': r['startAt'], 'endAt': r['endAt'], 'count': r['count'], 'origin':r['origin']},
                                         **({'providerMode':r['providerMode']} if 'providerMode' in r else {}))
                                    for r in view['stepIntervals'] if r['temporalResolution']=='interval'][-32:],
@@ -506,9 +543,14 @@ def dashboard_activity(snapshot, start, end, now):
                                mean=round(sum(values)/len(values),2), min=min(values), max=max(values),
                                sampleCount=len(values), firstSampleAt=points[0]['time'], lastSampleAt=points[-1]['time']))
     sessions = view['exerciseSessions']
+    sleep = view['sleepSessions']
     intervals = view['stepIntervals']
     view['exerciseSessions'] = [dict({k:r[k] for k in ('id','startAt','endAt','exerciseType','origin','recordingMethod')},
                                      exerciseTypeLabel=exercise_type_label(r['exerciseType'])) for r in sessions[:128]]
+    view['sleepSessions'] = [{k:r[k] for k in ('id','origin','startAt','endAt','recordingMethod','device') if k in r}
+                             for r in sorted(sleep,key=lambda r:(r['startAt'],r['id']))[-128:]]
+    view['sleepSessionsTruncated'] = len(sleep)>128
+    view['sleepSessionTotalCount'] = len(sleep)
     view['stepIntervals'] = [{k:r[k] for k in ('id','origin','startAt','endAt','count','temporalResolution','providerMode') if k in r} for r in intervals[-288:]]
     energy=view['activeCalorieIntervals']
     view['activeCalorieIntervals']=[{k:r[k] for k in ('id','origin','startAt','endAt','energyKcal','recordingMethod','device','temporalResolution') if k in r}
