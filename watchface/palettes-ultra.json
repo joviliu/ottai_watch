@@ -1,0 +1,473 @@
+[
+  {
+    "name": "blue_straw",
+    "label": "蓝调麦金",
+    "hour": "#6596C4",
+    "minute": "#D1BC73",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#FDFF00",
+      "#9CFF2E",
+      "#38E54D",
+      "#2192FF"
+    ],
+    "rationale": "保留原组蓝黄关系；蓝色减饱和，荧光黄改为较暗、低饱和的麦金，避免双亮色争抢。"
+  },
+  {
+    "name": "azure_mist",
+    "label": "海蓝薄雾",
+    "hour": "#3299D3",
+    "minute": "#A5C3D3",
+    "source": "https://colorhunt.co/palettes/neon-white",
+    "style": "sport",
+    "sourceColors": [
+      "#3D6CB9",
+      "#00D1FF",
+      "#00FFF0",
+      "#FAFAF6"
+    ],
+    "rationale": "从原组水蓝提炼单一明快蓝色，辅色改为低饱和雾蓝，组成同色系的主辅层次。"
+  },
+  {
+    "name": "rally_amber",
+    "label": "拉力琥珀",
+    "hour": "#EB9554",
+    "minute": "#C4B8A7",
+    "source": "https://colorhunt.co/palettes/neon-white",
+    "style": "sport",
+    "sourceColors": [
+      "#4F200D",
+      "#FF8400",
+      "#FFD93D",
+      "#F6F1E9"
+    ],
+    "rationale": "由原组橘黄提炼温暖琥珀橘；亮黄替换为暖石灰，保留运动感并收敛亮度。"
+  },
+  {
+    "name": "track_vermilion",
+    "label": "跑道朱红",
+    "hour": "#E47158",
+    "minute": "#C4ACA3",
+    "source": "https://colorhunt.co/palettes/neon-light",
+    "style": "sport",
+    "sourceColors": [
+      "#FF5656",
+      "#FFA239",
+      "#FEEE91",
+      "#8CE4FF"
+    ],
+    "rationale": "将原组亮红调为朱红，冰蓝改为低饱和暖灰，形成红色主调与柔和辅色。"
+  },
+  {
+    "name": "grass_track",
+    "label": "草地灰绿",
+    "hour": "#8AB942",
+    "minute": "#B7C2AC",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#F3FF90",
+      "#9BEC00",
+      "#06D001",
+      "#059212"
+    ],
+    "rationale": "将原组两档荧绿同时收敛；保留草绿主色，辅色降为灰绿，避免两色一起荧光。"
+  },
+  {
+    "name": "lagoon_steel",
+    "label": "泻湖钢青",
+    "hour": "#3CB59C",
+    "minute": "#A2BDB4",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#E8FFC2",
+      "#00FFDD",
+      "#2FA4FF",
+      "#0E185F"
+    ],
+    "rationale": "由原组高亮青提炼一档清晰的泻湖绿，辅色转为同色系灰青，降低饱和度差。"
+  },
+  {
+    "name": "apricot_field",
+    "label": "杏橘沙地",
+    "hour": "#DE9B60",
+    "minute": "#D0C0A6",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#F93827",
+      "#FF9D23",
+      "#FFD65A",
+      "#16C47F"
+    ],
+    "rationale": "取原组橘色并略降饱和，将对比绿替换为暖沙色，以单一杏橘保持年轻感。"
+  },
+  {
+    "name": "violet_steel",
+    "label": "蓝紫钢色",
+    "hour": "#9581CB",
+    "minute": "#ADB8CA",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#A149FA",
+      "#3B44F6",
+      "#3EC70B",
+      "#F7EC09"
+    ],
+    "rationale": "将原组紫色调为柔和蓝紫，荧光黄替换为冷钢灰，保留色彩趣味但移除强烈互补撞色。"
+  },
+  {
+    "name": "turbine_blue",
+    "label": "涡轮蓝调",
+    "hour": "#458FD2",
+    "minute": "#A5B8CD",
+    "source": "https://colorhunt.co/palettes/neon-white",
+    "style": "sport",
+    "sourceColors": [
+      "#40514E",
+      "#2F89FC",
+      "#30E3CA",
+      "#F5F5F5"
+    ],
+    "rationale": "以原组鲜蓝为主色，亮青转为柔和蓝灰；保持同色系的运动感和主辅关系。"
+  },
+  {
+    "name": "pine_sprint",
+    "label": "松绿疾行",
+    "hour": "#43AC78",
+    "minute": "#A1B6A7",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#FDFF00",
+      "#9CFF2E",
+      "#38E54D",
+      "#2192FF"
+    ],
+    "rationale": "沿原组绿色方向收敛成松绿，第二档去荧光并灰化，形成清新的绿色双档。"
+  },
+  {
+    "name": "arctic_current",
+    "label": "冰川流线",
+    "hour": "#59AFC8",
+    "minute": "#B4C9CC",
+    "source": "https://colorhunt.co/palettes/neon-light",
+    "style": "sport",
+    "sourceColors": [
+      "#63C8FF",
+      "#4DFFBE",
+      "#FDFFB8",
+      "#FF2DD1"
+    ],
+    "rationale": "以原组天蓝为主色，亮绿改为低饱和冰灰青，保留清爽冷色关系。"
+  },
+  {
+    "name": "ochre_sand",
+    "label": "麦金沙色",
+    "hour": "#CFAB56",
+    "minute": "#BDB5A0",
+    "source": "https://colorhunt.co/palettes/neon-light",
+    "style": "sport",
+    "sourceColors": [
+      "#FF9137",
+      "#FFCC4D",
+      "#FFFC8C",
+      "#70FFD2"
+    ],
+    "rationale": "从原组暖橘黄提炼柔和麦金；辅色用暖沙灰代替亮薄荷，降低冷暖碰撞。"
+  },
+  {
+    "name": "racing_red",
+    "label": "竞速朱砂",
+    "hour": "#D96F55",
+    "minute": "#BFAEA2",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#06FF00",
+      "#FFE400",
+      "#FF8E00",
+      "#FF1700"
+    ],
+    "rationale": "将原组纯亮红调为朱砂，荧光黄改为柔和暖灰；鲜明色仅保留在红色一侧。"
+  },
+  {
+    "name": "coastal_sky",
+    "label": "海岸蓝灰",
+    "hour": "#549FC1",
+    "minute": "#A4BCC4",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#FDFF00",
+      "#9CFF2E",
+      "#38E54D",
+      "#2192FF"
+    ],
+    "rationale": "从原组亮蓝提炼海岸蓝，亮绿替换为相近的灰蓝，形成清晰而统一的蓝色配对。"
+  },
+  {
+    "name": "sunset_clay",
+    "label": "日落陶橘",
+    "hour": "#D99C65",
+    "minute": "#BFB1A6",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#FFCC29",
+      "#F58634",
+      "#007965",
+      "#00AF91"
+    ],
+    "rationale": "以原组橙黄方向调为陶橘，第二色改成低饱和暖灰；避免两档暖色同时过亮。"
+  },
+  {
+    "name": "court_olive",
+    "label": "球场橄榄",
+    "hour": "#A0B850",
+    "minute": "#C0C5A6",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#98CD00",
+      "#A4DD00",
+      "#B6F500",
+      "#FFFADC"
+    ],
+    "rationale": "把原组荧光青柠调为较柔和的黄绿，辅色灰化为浅橄榄，保持同色系活力。"
+  },
+  {
+    "name": "surf_sage",
+    "label": "冲浪青灰",
+    "hour": "#3EAE9C",
+    "minute": "#A9BEAD",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#FFCC29",
+      "#F58634",
+      "#007965",
+      "#00AF91"
+    ],
+    "rationale": "保留原组海绿方向，亮黄改为柔和灰绿，以相邻色协调水面主题。"
+  },
+  {
+    "name": "stadium_aqua",
+    "label": "球场水青",
+    "hour": "#5CB1AA",
+    "minute": "#B8C8C0",
+    "source": "https://colorhunt.co/palettes/neon-light",
+    "style": "sport",
+    "sourceColors": [
+      "#FFF591",
+      "#A3F7BF",
+      "#05DFD7",
+      "#FA26A0"
+    ],
+    "rationale": "从原组亮青提炼较柔和的水青，亮黄改为灰青中性色，保留清亮感而收敛对比。"
+  },
+  {
+    "name": "jet_cyan",
+    "label": "流线青蓝",
+    "hour": "#28A6BB",
+    "minute": "#A6BAC0",
+    "source": "https://coolors.co/00bed5",
+    "style": "sport",
+    "sourceColors": [
+      "#00BED5"
+    ],
+    "rationale": "由 Coolors 青色基色降低亮度、略降饱和，辅色采用同色系灰青，移除原先的互补亮橘。"
+  },
+  {
+    "name": "endurance_teal",
+    "label": "耐力青金",
+    "hour": "#4FB2A8",
+    "minute": "#C9BE93",
+    "source": "https://coolors.co/12dfca",
+    "style": "sport",
+    "sourceColors": [
+      "#12DFCA"
+    ],
+    "rationale": "由 Coolors 亮青及 F6BC2E 金黄调成较柔和的青绿与浅麦金；两色均降低亮度、饱和度，避免双亮色。"
+  },
+  {
+    "name": "trail_copper",
+    "label": "山径铜橘",
+    "hour": "#D58F58",
+    "minute": "#BDB7A6",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#FF0000",
+      "#FF9300",
+      "#FBFF00",
+      "#49FF00"
+    ],
+    "rationale": "取原组亮橘调为温暖铜橘，荧绿替换为暖灰，保持户外配色但去除强烈撞色。"
+  },
+  {
+    "name": "velocity_sky",
+    "label": "疾风天蓝",
+    "hour": "#60AAD4",
+    "minute": "#BBCBD1",
+    "source": "https://colorhunt.co/palettes/neon-light",
+    "style": "sport",
+    "sourceColors": [
+      "#C4F7CA",
+      "#D8FFC5",
+      "#92EEFF",
+      "#30AFFF"
+    ],
+    "rationale": "将原组高亮天蓝与冰青同时收敛，主色仍明快，辅色调成低饱和灰蓝。"
+  },
+  {
+    "name": "pitlane_straw",
+    "label": "赛场麦金",
+    "hour": "#C9AE62",
+    "minute": "#A8B5BF",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#BAFFB4",
+      "#FFFDA2",
+      "#FFAB76",
+      "#FF6363"
+    ],
+    "rationale": "取原组淡黄调成较暗的麦金，亮红替换为柔和蓝灰；以温和的蓝金关系形成清晰主辅。"
+  },
+  {
+    "name": "highland_fern",
+    "label": "山野蕨绿",
+    "hour": "#65B17E",
+    "minute": "#C1C5A8",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "sport",
+    "sourceColors": [
+      "#F93827",
+      "#FF9D23",
+      "#FFD65A",
+      "#16C47F"
+    ],
+    "rationale": "由原组鲜绿和金黄调成清新蕨绿与灰橄榄，减少饱和度并保留自然活力。"
+  },
+  {
+    "name": "navy_steel",
+    "label": "海军钢蓝",
+    "hour": "#6085B2",
+    "minute": "#D1D9E4",
+    "source": "https://colorhunt.co/palettes/dark-grey",
+    "style": "business",
+    "sourceColors": [
+      "#27374D",
+      "#526D82",
+      "#9DB2BF",
+      "#DDE6ED"
+    ],
+    "rationale": "将原组深海军蓝提亮为可读钢蓝，并搭配冷银，保留沉稳仪表主题。"
+  },
+  {
+    "name": "carbon_amber",
+    "label": "碳灰琥珀",
+    "hour": "#B0B8BE",
+    "minute": "#D89216",
+    "source": "https://colorhunt.co/palettes/vintage-dark",
+    "style": "business",
+    "sourceColors": [
+      "#E1D89F",
+      "#D89216",
+      "#374045",
+      "#2C061F"
+    ],
+    "rationale": "保留原组琥珀，将碳灰提亮为银灰，使暖色指示与冷灰协调。"
+  },
+  {
+    "name": "forest_brass",
+    "label": "森林黄铜",
+    "hour": "#8BAE66",
+    "minute": "#EBD5AB",
+    "source": "https://colorhunt.co/palettes/vintage-dark",
+    "style": "business",
+    "sourceColors": [
+      "#EBD5AB",
+      "#8BAE66",
+      "#628141",
+      "#1B211A"
+    ],
+    "rationale": "直接取同一原组橄榄绿与暖金，保留少量沉稳户外商务气质。"
+  },
+  {
+    "name": "steel_petrol",
+    "label": "石油钢青",
+    "hour": "#7A9EA3",
+    "minute": "#D3DAD9",
+    "source": "https://colorhunt.co/palettes/vintage-dark",
+    "style": "business",
+    "sourceColors": [
+      "#E0D9D9",
+      "#5A9690",
+      "#2F5755",
+      "#432323"
+    ],
+    "rationale": "从原组灰青提亮、降饱和，衍生钢青和冷银，避免深色失去可读性。"
+  },
+  {
+    "name": "graphite_copper",
+    "label": "石墨赤铜",
+    "hour": "#B6BCC3",
+    "minute": "#C99773",
+    "source": "https://colorhunt.co/palettes/vintage-dark",
+    "style": "business",
+    "sourceColors": [
+      "#2C3639",
+      "#3F4E4F",
+      "#A27B5C",
+      "#DCD7C9"
+    ],
+    "rationale": "将石墨灰和铜棕分别提亮，保留石墨与铜的沉稳冷暖材料配对。"
+  },
+  {
+    "name": "slate_sand",
+    "label": "板岩银沙",
+    "hour": "#9DB2BF",
+    "minute": "#DDE6ED",
+    "source": "https://colorhunt.co/palettes/dark-grey",
+    "style": "business",
+    "sourceColors": [
+      "#27374D",
+      "#526D82",
+      "#9DB2BF",
+      "#DDE6ED"
+    ],
+    "rationale": "直接取同一原组亮板岩蓝与银灰，以少量低饱和双色平衡运动配色。"
+  },
+  {
+    "name": "brass_night",
+    "label": "夜航黄铜",
+    "hour": "#B09A21",
+    "minute": "#D5D4C7",
+    "source": "https://coolors.co/b09a21",
+    "style": "business",
+    "sourceColors": [
+      "#B09A21"
+    ],
+    "rationale": "保留 Coolors 黄铜基色，衍生低饱和暖银搭配，形成夜航仪表的暖金与银色。"
+  },
+  {
+    "name": "blue_chronometer",
+    "label": "蓝钢计时",
+    "hour": "#748DA6",
+    "minute": "#C3CED8",
+    "source": "https://colorhunt.co/palettes/pastel-grey-blue",
+    "style": "business",
+    "sourceColors": [
+      "#748DA6",
+      "#9CB4CC",
+      "#D3CEDF",
+      "#F2D7D9"
+    ],
+    "rationale": "保留原组蓝钢，银色由淡紫灰去紫衍生；舍弃原组粉色，保持克制冷色。"
+  }
+]

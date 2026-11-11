@@ -1,6 +1,6 @@
 from pathlib import Path
 from lupa import LuaRuntime
-from build import clock_palette_source
+from build import clock_palette_source, load_palettes
 
 mock_lua='''
 widgets={}; subscriptions={}; now=1792972800; payload=nil; SCRIPT_PATH='/lua'
@@ -41,12 +41,15 @@ package.preload['dataman']=function()return {subscribe=function(name,obj,fn)
 end}end
 '''
 
-def create_ui(layout, timestamp=None):
+def create_ui(layout, timestamp=None, palettes=None):
     root=Path(__file__).resolve().parent
     lua=LuaRuntime(unpack_returned_tuples=True)
     lua.globals().LAYOUT=lua.table_from(layout,recursive=True)
     lua.globals().FRAME=lua.execute((root/"src/frame.lua").read_text())
-    lua.globals().CLOCK_PALETTES=lua.execute(clock_palette_source())
+    if palettes is None:
+        variant={'dots':'ultra','solid':'signal','analog':'meridian'}[layout['style']]
+        palettes=load_palettes(variant)
+    lua.globals().CLOCK_PALETTES=lua.execute(clock_palette_source(palettes))
     lua.execute(mock_lua)
     if timestamp is not None:lua.globals().now=timestamp
     lua.execute((root/"src/main.lua").read_text())

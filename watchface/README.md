@@ -1,26 +1,22 @@
 # Redmi Watch 6：三款 Lua 血糖表盘
 
-2026-10-30：共享选色器已修复低精度大数运算导致的固定轮换风险，三款 [0.1.18](../releases/0.1.18/README.md) 已构建、尚未真机覆盖。32 组颜色、四个时点、字体与布局保留；新增真实 float32/int32 Lua 回归。当前设备仍是下面的已验收版本。
+2026-11-11：[0.1.19](../releases/0.1.19/README.md) 将三款拆为独立 32 组色库，并更新 Ultra LED 血糖信息板与底部指标。Meridian/Ultra 已上传并获用户确认；Signal 的圆角裁切以 [0.1.20](../releases/0.1.20/README.md) 单款修补，已上传待用户确认；临时安装器已卸载。用户选择修复后自行安装官方，HC 恢复待完成，最新设备状态见[交接](../docs/HANDOFF.md)。
 
-最终实机组合：Ultra 0.1.14（不改）、Meridian 0.1.16（用户确认）、Signal 0.1.17（Poiret One 原字形，用户确认）。Signal 32 组使用预着色图片，Meridian 用原生有色对象，不依赖已证明不生效的 image recolor。开始前先看 [当前交接](../docs/HANDOFF.md)。
-
-Signal [0.1.17](../releases/0.1.17/README.md) 采用用户指定的 Poiret One 原字体；Meridian [0.1.16](../releases/0.1.16/README.md) 为原生彩色指针。0.1.15 的图片 recolor 在真机未生效，已被预着色图片/原生对象替代。开发结束后已还原官方小米运动健康 3.59.2，非充电锁屏两轮自动更新和最后 Signal 屏显已通过；修改版和临时安装器均已卸载。
-
-| 款式 | 固定 ID | 设计 |
+| 款式 | 固定 ID | 当前设计 |
 | --- | --- | --- |
-| Ottai Ultra | `8670260101` | 原点阵布局；日期/更新时间同灰，分段颜色血糖、电量和心率 |
-| Ottai Signal | `8670260102` | Poiret One 细圆数字大时钟、48px 紧凑血糖行，保留更新时间、电量和心率 |
-| Ottai Meridian | `8670260103` | 408px 圆盘；底部固定浅灰血糖替代心率，淡色趋势图标，无更新时间/矩形/心率 |
+| Ottai Ultra | `8670260101` | 原 6×14 大时钟；统一 8px LED 血糖/箭头，暗灰未亮圆点与黑色间隙；底部时间、电量、心率为三等宽区的同字号原生文字 |
+| Ottai Signal | `8670260102` | Poiret One 原比例数字与原 32 组配色；0.1.20 去掉 OLD、保留灰色测量时间，将 LAST UPDATE 右移避开圆角 |
+| Ottai Meridian | `8670260103` | 原生有色指针；固定浅灰血糖与淡色趋势，无更新时间/OLD/心率；16 金属色调 + 16 塑料色调 |
 
-三款均有时间、日期、血糖、趋势、电量，独立 ID 可切换，共用 RPK 与合法数据文件。时钟/指针从同一 32 组方案按当地时间 04/11/15/19 稳定选取；当前实际颜色与布局已经用户确认，跨边界为代码测试，未等待真实跨时点耐久观察。没有新增通信、传感器轮询或常驻后台。
+三款共用 RPK 与合法数据文件，独立 ID 可切换。各从自己的 32 组小时/分钟配色中，在当地 04/11/15/19 稳定选整对；保留 0.1.18 的小整数精度修复、相邻段不重复与午夜延续。没有新增通信、传感器轮询或定时器。Signal 的 [palettes.json](palettes.json) 字节不变；Meridian 和 Ultra 分别使用 [palettes-meridian.json](palettes-meridian.json)、[palettes-ultra.json](palettes-ultra.json)，Ultra 为 24 运动 + 8 商务的协调主辅色。来源和证据边界见[配色说明](../docs/clock-palettes.md)。
 
-布局默认值在 [layout.json](layout.json)，新款参数在 [faces.json](faces.json)；打包与 Lua 共用生成的 layout.lua。Ultra 保持原 6×14 时钟、稀疏 5×7 血糖。Signal 使用原字体等比栅格化的 32 组着色数字；Meridian 用原生有色圆点对象组成指针，无需图片旋转/变色。配色及来源见 [说明](../docs/clock-palettes.md)。
+默认布局在 [layout.json](layout.json)，Signal/Meridian 覆盖参数在 [faces.json](faces.json)。Meridian 的指标坐标明确覆盖 Ultra 默认值。Ultra 血糖数字为 5×7、箭头为 7×7 LED 栅格；底部原始测量时间、电量与心率均为 MiSans-Regular 28px、同一行高，旧数据的 OLD 单列于时间上方。Signal/Meridian 的字体与主要布局保留；Signal 0.1.20 仅去掉 OLD 并把 LAST UPDATE 标签右移 8px；共享 main.lua 包含 Ultra 专用分支，因此 Signal 整份 BIN 不承诺与旧版相同。
 
-Ultra/Signal 的日期与更新时间同灰，旧数据保留原始时间和 OLD，血糖色系变暗。Meridian 不展示血糖更新时间/OLD 标签，以暗灰血糖和箭头表示失效；新鲜血糖为固定浅灰，只有趋势箭头按范围淡绿/淡黄/淡红。选择器与预览使用占位或合成示例，正常运行只取真实文件。
+Ultra/Signal 的日期与原始测量时间同灰；旧数据保留原始时间、血糖色系变暗。Ultra 保留 OLD；Signal 0.1.20 为避开圆角去掉 OLD，不改变过期判定。Meridian 不展示更新时间/OLD，以暗灰数值和箭头表示失效；新鲜血糖固定浅灰，只有箭头按范围淡绿/淡黄/淡红。选择器使用占位，预览使用合成值，正常运行只取合法文件。
 
 ## 用户自定义显示颜色
 
-Ultra/Signal 按一位小数有效显示值 `v` 分段，数值和趋势箭头使用对应颜色；Signal 正常值为更柔和的浅紫。Meridian 数值固定浅灰，仅箭头使用同阈值的淡绿/淡黄/淡红：
+Ultra/Signal 按一位小数有效显示值 `v` 分段，数值和趋势箭头使用对应颜色；Ultra 正常值为 `#B57AFF`，Signal 为 `#B8A8D9`。Meridian 数值固定浅灰，仅箭头使用同阈值的淡绿/淡黄/淡红：
 
 | 显示值范围 | 新鲜读数颜色 |
 | --- | --- |
@@ -28,7 +24,7 @@ Ultra/Signal 按一位小数有效显示值 `v` 分段，数值和趋势箭头�
 | `7.8 < v <= 12.0` | 黄色 `#ffd60a` |
 | 其余有效值 | 红色 `#ff453a` |
 
-边界 `7.8` 为紫色、`12.0` 为黄色；小于 `3.9` 或大于 `12.0` 为红色。旧数据仍显示原始时间与 `OLD`，数值和箭头在各自色系中变暗，不把旧读数改成新鲜读数。这是用户自定义的显示分段；不改变数据、提醒或告警逻辑。配色升级当时保持手机 APK 0.1.10 和 RPK 0.1.8 不变；当前手机 0.1.11 的后台修复仍沿用相同表盘配色与协议。动态配色版已通过 SPP 覆盖当前 ID `8670260101`，恢复默认启用状态及原通知监听后卸载临时安装器。三色、边界及过期分支已完成桌面测试；此前用户目视确认的是相同布局的静态紫色版，本次未额外确认真实数据下的颜色分段切换。
+上表紫色为原始基色，当前各款正常色以上文与布局 JSON 为准。边界 `7.8` 为正常色、`12.0` 为黄色；小于 `3.9` 或大于 `12.0` 为红色。旧数据仍显示原始时间，Ultra 保留 `OLD`、Signal 0.1.20 不显示 `OLD`；数值和箭头在各自色系中变暗，不把旧读数改成新鲜读数。这是用户自定义的显示分段；不改变数据、提醒或告警逻辑。配色升级当时保持手机 APK 0.1.10 和 RPK 0.1.8 不变；当时手机 0.1.11 的后台修复仍沿用相同表盘配色与协议。动态配色版已通过 SPP 覆盖当前 ID `8670260101`，恢复默认启用状态及原通知监听后卸载临时安装器。三色、边界及过期分支已完成桌面测试；此前用户目视确认的是相同布局的静态紫色版，本次未额外确认真实数据下的颜色分段切换。
 
 [配色预览](preview-colors.png)使用合成示例，供比较三种颜色及旧数据样式，不是实机血糖截图。
 
@@ -45,7 +41,7 @@ python3 -m venv .toolchain/watchface-venv
 .toolchain/watchface-venv/bin/python watchface/test_assets.py
 ```
 
-另需 Node.js 测试真实 JS 导出兼容性。构建使用 Pillow；Ultra 时钟/血糖来自原创点阵；Signal 时间/血糖使用仓库内未修改的 Poiret One 原字体，Meridian 血糖使用设备原生 MiSans-Regular 28px；Barlow Condensed SemiBold 仅用于刻度文字和静态预览标识，Barlow Light 用于预览及 unknown 问号，Lupa 仅用于桌面 Lua 测试。不依赖 Windows、EasyFace 或官方编译器。
+精度回归另运行 `python watchface/test_palette_precision.py`；可用 `--lua` 指定 float32/int32 Lua CLI。另需 Node.js 测试真实 JS 导出兼容性。构建使用 Pillow；Ultra 时钟/血糖来自原创点阵；Signal 时间/血糖使用仓库内未修改的 Poiret One 原字体，Meridian 血糖使用设备原生 MiSans-Regular 28px；Barlow Condensed SemiBold 仅用于刻度文字和静态预览标识，Barlow Light 用于预览及 unknown 问号，Lupa 仅用于桌面 Lua 测试。不依赖 Windows、EasyFace 或官方编译器。
 
 输出位于忽略的 `watchface/build/`：
 
@@ -73,7 +69,7 @@ Vela 应用接收合法帧后，通过 `system.file` 写入双槽文件；Lua �
 
 ## 安装入口与验收
 
-手机 APK 仍用 [0.1.11](../releases/0.1.11/README.md)，表盘候选见 [0.1.15](../releases/0.1.15/README.md)，新增基准线的 RPK 为 [watch-0.1.12](../releases/watch-0.1.12/README.md)。临时安装器沿用 0.1.5/code6；最终安装、清理和后台验收以 [交接记录](../docs/HANDOFF.md) 为准。各目录先核对 SHA256SUMS，升级须保留原包名/签名，不要求 APK 与 RPK 版本号一致。
+手机 APK 当前为 [0.7.1](../releases/cloud-0.7.1/README.md)，Ultra/Meridian 见 [0.1.19](../releases/0.1.19/README.md)、Signal 见 [0.1.20](../releases/0.1.20/README.md)，新增基准线的 RPK 为 [watch-0.1.12](../releases/watch-0.1.12/README.md)。临时安装器沿用 0.1.5/code6；最终安装、清理和后台验收以 [交接记录](../docs/HANDOFF.md) 为准。各目录先核对 SHA256SUMS，升级须保留原包名/签名，不要求 APK 与 RPK 版本号一致。
 
 先完成 [安装文档](../docs/install.md) 的工具链与签名配置，然后可打开开发入口：
 

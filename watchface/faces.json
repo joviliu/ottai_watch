@@ -108,6 +108,32 @@
       28
     ],
     "highColor": "#DFCD98",
-    "alertColor": "#DCA2A2"
+    "alertColor": "#DCA2A2",
+    "batteryIcon": [
+      60,
+      466,
+      34,
+      24
+    ],
+    "batteryBox": [
+      100,
+      459,
+      96,
+      40,
+      28
+    ],
+    "heartIcon": [
+      230,
+      464,
+      30,
+      28
+    ],
+    "heartBox": [
+      265,
+      459,
+      106,
+      40,
+      28
+    ]
   }
 }

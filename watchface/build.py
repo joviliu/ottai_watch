@@ -16,15 +16,20 @@ VALUE_COLORS = {
     'high': {'fresh': '#ffd60a', 'old': '#99864b'},
     'alert': {'fresh': '#ff453a', 'old': '#9b625e'},
 }
-CLOCK_PALETTES = json.loads((ROOT/'palettes.json').read_text())
+def load_palettes(variant='signal'):
+    filename = {'signal':'palettes.json', 'ultra':'palettes-ultra.json', 'meridian':'palettes-meridian.json'}[variant]
+    return json.loads((ROOT/filename).read_text())
+
+
+CLOCK_PALETTES = load_palettes('signal')
 DATE_COLOR = '#B9C2C8'
 
 
 
-def clock_palette_source():
+def clock_palette_source(palettes=None):
     return 'return {' + ','.join(
         '{name=' + json.dumps(p['name']) + ',hour=0x' + p['hour'][1:] + ',minute=0x' + p['minute'][1:] + '}'
-        for p in CLOCK_PALETTES) + '}\n'
+        for p in (CLOCK_PALETTES if palettes is None else palettes)) + '}\n'
 
 
 def contrast_on_black(color):
@@ -79,6 +84,32 @@ def glyph(char, width=96, height=160, color=WHITE, blood=False, clock_rows=10):
     return dots.resize((width,height),Image.Resampling.LANCZOS)
 
 
+def led_cells(rows,color):
+    pitch=8;radius=3;scale=4
+    width,height=len(rows[0])*pitch,len(rows)*pitch
+    image=Image.new('RGBA',(width*scale,height*scale));draw=ImageDraw.Draw(image)
+    for row,pattern in enumerate(rows):
+        assert len(pattern)==len(rows[0])
+        for col,cell in enumerate(pattern):
+            if cell!='#':continue
+            x,y=col*pitch+pitch/2,row*pitch+pitch/2
+            draw.ellipse(((x-radius)*scale,(y-radius)*scale,(x+radius)*scale,(y+radius)*scale),fill=color)
+    return colored_alpha(image.resize((width,height),Image.Resampling.LANCZOS),color)
+
+
+def dot_arrow(kind,color):
+    up=['...#...','..###..','.#.#.#.','#..#..#','...#...','...#...','...#...']
+    fast=['...#...','..#.#..','.#...#.','...#...','..###..','.#.#.#.','...#...']
+    diagonal=['..#####','.....##','....#.#','...#..#','..#...#','.#.....','#......']
+    rows={
+        'unknown':['..###..','.#...#.','.....#.','....#..','...#...','.......','...#...'],
+        'up':up,'up_fast':fast,'down':up[::-1],'down_fast':fast[::-1],
+        'up_right':diagonal,'down_right':diagonal[::-1],
+        'flat':[''.join(row) for row in zip(*up[::-1])],
+    }
+    return led_cells(rows[kind],color)
+
+
 def arrow(kind,color=GLUCOSE_COLOR,filled=False):
     image=Image.new('RGBA',(54,54)); draw=ImageDraw.Draw(image)
     if kind=='unknown':
@@ -101,6 +132,9 @@ def arrow(kind,color=GLUCOSE_COLOR,filled=False):
 
 def load_layout(variant='ultra'):
     layout=json.loads((ROOT/'layout.json').read_text())
+    if variant!='ultra':
+        # Keep the frozen faces' inherited layout keys and serialization order.
+        for key in ['valueGap','sourceOldBox','normalColor','trendSize']:layout.pop(key,None)
     layout.update(json.loads((ROOT/'faces.json').read_text())[variant])
     return layout
 
@@ -152,7 +186,9 @@ def background(layout):
     import math
     image=Image.new('RGBA',(432,514),'black');d=ImageDraw.Draw(image)
     font=lambda size:ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-SemiBold.ttf'),size)
-    if layout['style']=='solid':
+    if layout['style']=='dots':
+        image.alpha_composite(led_cells(['#'*53]*14,'#1B1E24'),(4,328))
+    elif layout['style']=='solid':
         box=poiret_mask('8',layout['clockW'],layout['clockH']).getbbox()
         center=layout['clockY']+(box[1]+box[3])/8
         offset=(box[3]-box[1])/4*.18
@@ -160,7 +196,7 @@ def background(layout):
         d.line((28,381,404,381),fill='#29343C',width=1)
         d.rounded_rectangle((22,392,410,440),radius=14,fill='#101C24',outline='#26363F',width=1)
         d.text((40,404),'GLUCOSE',font=font(18),fill=DATE_COLOR)
-        d.text((30,464),'LAST UPDATE',font=font(21),fill=DATE_COLOR)
+        d.text((38,464),'LAST UPDATE',font=font(21),fill=DATE_COLOR)
     elif layout['style']=='analog':
         x,y,size,_=layout['dialBox'];cx,cy=x+size/2,y+size/2
         radius=size/2-3
@@ -182,7 +218,7 @@ def preview(layout,assets,text='6.8',band='normal',state='fresh',palette=None,pl
         x,y,w,h,size=box
         for offset,line in enumerate(text.split('\n')):d.text((x+w/2,y+offset*size),line,anchor='mt',font=font(size),fill=color)
     label('THU 29 OCT',layout['dateBox'],DATE_COLOR)
-    colors=palette or CLOCK_PALETTES[0]
+    colors=palette or load_palettes({'dots':'ultra','solid':'signal','analog':'meridian'}[layout['style']])[0]
     if layout['style']=='analog':
         x,y,size,_=layout['dialBox']
         image.alpha_composite(hand_image(10*60+9,720,112,10,colors['hour'],size),(x,y))
@@ -198,12 +234,17 @@ def preview(layout,assets,text='6.8',band='normal',state='fresh',palette=None,pl
         label(text,layout['valueBox'],'#87939C' if state=='old' else '#C4D0D8')
     else:
         widths=[layout['valueDotW'] if c=='.' else layout['valueW'] for c in text]
-        x=int(layout['valueCenter']-(sum(widths)+4*(len(widths)-1))/2)
+        gap=layout.get('valueGap',4)
+        x=int(layout['valueCenter']-(sum(widths)+gap*(len(widths)-1))/2)
         for char,width in zip(text,widths):
             name='dot' if char=='.' else 'dash' if char=='-' else char
-            image.alpha_composite(Image.open(assets/f'value-{band}-{state}-{name}.png'),(x,layout['valueY']));x+=width+4
+            image.alpha_composite(Image.open(assets/f'value-{band}-{state}-{name}.png'),(x,layout['valueY']));x+=width+gap
     image.alpha_composite(Image.open(assets/f'trend-{band}-{state}-{"unknown" if placeholders else "up_right"}.png'),(layout['trendX'],layout['trendY']))
-    if not layout.get('hideSource'):label('--:--' if placeholders else '10:04'+('\nOLD' if state=='old' else ''),layout['sourceBox'],DATE_COLOR)
+    if not layout.get('hideSource'):
+        if layout['style']=='dots':
+            label('--:--' if placeholders else '10:04',layout['sourceBox'],DATE_COLOR)
+            if state=='old' and not placeholders:label('OLD',layout['sourceOldBox'],DATE_COLOR)
+        else:label('--:--' if placeholders else '10:04'+('\nOLD' if state=='old' and layout['style']!='solid' else ''),layout['sourceBox'],DATE_COLOR)
     for key,name,text in [('battery','battery','--%' if placeholders else '82%'),('heart','heart','--' if placeholders else '72')]:
         if key=='heart' and layout.get('hideHeart'):continue
         x,y,w,h=layout[key+'Icon'];image.alpha_composite(Image.open(assets/f'{name}.png'),(x,y))
@@ -216,8 +257,9 @@ def build_face(variant='ultra'):
     dest=ROOT/'build' if variant=='ultra' else ROOT/'build'/variant
     if dest.exists():shutil.rmtree(dest)
     assets=dest/'app/lua';assets.mkdir(parents=True)
-    assert len(CLOCK_PALETTES)>=2 and len({p['name'] for p in CLOCK_PALETTES})==len(CLOCK_PALETTES)
-    colors=CLOCK_PALETTES
+    colors=load_palettes(variant)
+    assert len(colors)==32 and len({p['name'] for p in colors})==len(colors)
+    assert all(contrast_on_black(p[part])>=4.5 for p in colors for part in ('hour','minute'))
     if layout['style']!='analog':
         for palette in colors:
             for part in ['hour','minute']:
@@ -226,7 +268,7 @@ def build_face(variant='ultra'):
                     img=glyph(char,layout['clockW'],layout['clockH'],palette[part],clock_rows=layout['clockRows']) if layout['style']=='dots' else poiret_glyph(char,layout['clockW'],layout['clockH'],palette[part])
                     img.save(assets/f'clock-{palette["name"]}-{part}-{char}.png')
         assert len(list(assets.glob('clock-*.png')))==20*len(colors)
-    (assets/'clock-palettes.lua').write_text(clock_palette_source())
+    (assets/'clock-palettes.lua').write_text(clock_palette_source(colors))
     for band,states in VALUE_COLORS.items():
         for state,color in states.items():
             if state=='fresh':color=layout.get(band+'Color',color)
@@ -238,7 +280,7 @@ def build_face(variant='ultra'):
                 img.save(assets/f'value-{band}-{state}-{char}.png')
             size=layout.get('trendSize',54)
             for kind in ['unknown','up','up_right','flat','down_right','down','up_fast','down_fast']:
-                img=arrow(kind,color,layout.get('cartoonTrend',False)).resize((size,size),Image.Resampling.LANCZOS)
+                img=dot_arrow(kind,color) if layout['style']=='dots' else arrow(kind,color,layout.get('cartoonTrend',False)).resize((size,size),Image.Resampling.LANCZOS)
                 if layout['style']!='dots':img=colored_alpha(img,color)
                 img.save(assets/f'trend-{band}-{state}-{kind}.png')
     battery=Image.new('RGBA',(34,24));d=ImageDraw.Draw(battery)
@@ -246,7 +288,7 @@ def build_face(variant='ultra'):
     heart=Image.new('RGBA',(30,28));d=ImageDraw.Draw(heart)
     d.ellipse((2,3,15,16),fill='#f07d9a');d.ellipse((14,3,27,16),fill='#f07d9a');d.polygon([(2,11),(27,11),(15,26)],fill='#f07d9a')
     if not layout.get('hideHeart'):heart.save(assets/'heart.png')
-    if layout['style']!='dots':background(layout).save(assets/'background.png')
+    background(layout).save(assets/'background.png')
     for file in (ROOT/'src').glob('*.lua'):shutil.copy2(file,assets/file.name)
     def lua_value(value):
         if isinstance(value,list):return '{'+','.join(map(str,value))+'}'
@@ -257,14 +299,13 @@ def build_face(variant='ultra'):
     for i,(text,band,state) in enumerate([('6.8','normal','fresh'),('9.0','high','fresh'),('13.0','alert','fresh'),('6.8','normal','old')]):
         colors_preview.paste(preview(layout,assets,text,band,state),(i*432,0))
     colors_preview.save(dest/'preview-colors.png')
-    if layout['style']=='dots':
-        palettes_preview=Image.new('RGB',(432*4,576*((len(CLOCK_PALETTES)+3)//4)),'black')
-        for i,palette in enumerate(CLOCK_PALETTES):
-            x,y=(i%4)*432,(i//4)*576;palettes_preview.paste(preview(layout,assets,palette=palette),(x,y))
-            d=ImageDraw.Draw(palettes_preview);font=ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-Light.ttf'),22)
-            d.text((x+216,y+518),palette['name'].replace('_',' ').title(),anchor='mt',font=font,fill=WHITE)
-            d.text((x+216,y+546),palette['hour']+' / '+palette['minute'],anchor='mt',font=font,fill=DATE_COLOR)
-        palettes_preview.save(dest/'preview-clock-palettes.png')
+    palettes_preview=Image.new('RGB',(432*4,576*((len(colors)+3)//4)),'black')
+    for i,palette in enumerate(colors):
+        x,y=(i%4)*432,(i//4)*576;palettes_preview.paste(preview(layout,assets,palette=palette),(x,y))
+        d=ImageDraw.Draw(palettes_preview);font=ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-Light.ttf'),22)
+        d.text((x+216,y+518),palette['name'].replace('_',' ').title(),anchor='mt',font=font,fill=WHITE)
+        d.text((x+216,y+546),palette['hour']+' / '+palette['minute'],anchor='mt',font=font,fill=DATE_COLOR)
+    palettes_preview.save(dest/'preview-clock-palettes.png')
     install_preview=preview(layout,assets,placeholders=True)
     files=[('lua/'+p.name,p.read_bytes()) for p in sorted(assets.iterdir())]
     main_index=next(i for i,(name,_) in enumerate(files) if name=='lua/main.lua')

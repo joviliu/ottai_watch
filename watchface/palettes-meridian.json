@@ -1,0 +1,482 @@
+[
+  {
+    "name": "burnished_gold",
+    "label": "鎏金明暗",
+    "hour": "#EADCA6",
+    "minute": "#C49F45",
+    "source": "https://colorhunt.co/palettes/brown-beige-grey",
+    "style": "metallic",
+    "sourceColors": [
+      "#C36A2D",
+      "#E2C275",
+      "#EADCA6",
+      "#F4F4F4"
+    ],
+    "rationale": "以原组金色为轴，保留浅金并调出较暗金，形成同色金属的高光与底色。"
+  },
+  {
+    "name": "champagne_gold",
+    "label": "香槟金",
+    "hour": "#F0E1BC",
+    "minute": "#BFA66A",
+    "source": "https://colorhunt.co/palettes/pastel-beige-brown",
+    "style": "metallic",
+    "sourceColors": [
+      "#FFE6BC",
+      "#E4CDA7",
+      "#C3B091",
+      "#8E806A"
+    ],
+    "rationale": "由暖米金组收窄为香槟金的两档亮度，压低橙感。"
+  },
+  {
+    "name": "white_gold",
+    "label": "白金浅影",
+    "hour": "#E8E3D1",
+    "minute": "#B6AC8B",
+    "source": "https://colorhunt.co/palettes/pastel-beige-brown",
+    "style": "metallic",
+    "sourceColors": [
+      "#ECEBDE",
+      "#D7D3BF",
+      "#C1BAA1",
+      "#A59D84"
+    ],
+    "rationale": "沿原组灰金关系调整为白金与浅烟金，保持低饱和冷暖呼应。"
+  },
+  {
+    "name": "antique_brass",
+    "label": "古铜黄铜",
+    "hour": "#D6C486",
+    "minute": "#A99C57",
+    "source": "https://colorhunt.co/palettes/pastel-beige-brown",
+    "style": "metallic",
+    "sourceColors": [
+      "#F4DFBA",
+      "#EEC373",
+      "#CA965C",
+      "#876445"
+    ],
+    "rationale": "从原组蜜金提炼偏黄黄铜，降低橙色并提亮暗档以适配黑底。"
+  },
+  {
+    "name": "copper_sheen",
+    "label": "赤铜微光",
+    "hour": "#E3AA83",
+    "minute": "#B87C4C",
+    "source": "https://colorhunt.co/palettes/pastel-beige-brown",
+    "style": "metallic",
+    "sourceColors": [
+      "#F7F1DE",
+      "#C4A484",
+      "#B87C4C",
+      "#A8BBA3"
+    ],
+    "rationale": "保留原组铜棕色，亮档提亮并增加红铜暖感；用同色明暗建立铜面联想。"
+  },
+  {
+    "name": "bronze_satin",
+    "label": "缎面青铜",
+    "hour": "#D2AF80",
+    "minute": "#9D825A",
+    "source": "https://colorhunt.co/palettes/pastel-beige-brown",
+    "style": "metallic",
+    "sourceColors": [
+      "#FFE6BC",
+      "#E4CDA7",
+      "#C3B091",
+      "#8E806A"
+    ],
+    "rationale": "以暖棕金组降低亮度并稍偏黄绿，形成缎面青铜的两档色。"
+  },
+  {
+    "name": "rose_gold",
+    "label": "玫瑰金属",
+    "hour": "#E4BFA8",
+    "minute": "#B98575",
+    "source": "https://colorhunt.co/palettes/pastel-beige-brown",
+    "style": "metallic",
+    "sourceColors": [
+      "#D29F80",
+      "#97866A",
+      "#735557",
+      "#604652"
+    ],
+    "rationale": "从桃铜与灰褐组提亮、减灰，组成偏铜的玫瑰金；避免粉彩塑料感。"
+  },
+  {
+    "name": "platinum_edge",
+    "label": "铂金冷辉",
+    "hour": "#D8DDDE",
+    "minute": "#909CA3",
+    "source": "https://colorhunt.co/palettes/pastel-grey-blue",
+    "style": "metallic",
+    "sourceColors": [
+      "#6C737E",
+      "#7393A7",
+      "#B5CFD8",
+      "#E8ECF1"
+    ],
+    "rationale": "沿原组冷灰蓝提亮深档并去蓝，得到铂金高光和冷银阴影。"
+  },
+  {
+    "name": "brushed_silver",
+    "label": "拉丝亮银",
+    "hour": "#E6E9E9",
+    "minute": "#A6ADAF",
+    "source": "https://colorhunt.co/palettes/dark-grey",
+    "style": "metallic",
+    "sourceColors": [
+      "#222831",
+      "#31363F",
+      "#76ABAE",
+      "#EEEEEE"
+    ],
+    "rationale": "从灰白与冷青组去色，保留冷银亮度差；金属感来自色调联想，不增加材质纹理。"
+  },
+  {
+    "name": "titanium_matte",
+    "label": "钛灰哑光",
+    "hour": "#C3C8CD",
+    "minute": "#858D96",
+    "source": "https://colorhunt.co/palettes/pastel-grey-blue",
+    "style": "metallic",
+    "sourceColors": [
+      "#6C737E",
+      "#7393A7",
+      "#B5CFD8",
+      "#E8ECF1"
+    ],
+    "rationale": "压低原组蓝色、收窄到钛灰，并将深档提升到黑底可读亮度。"
+  },
+  {
+    "name": "gunmetal_silver",
+    "label": "枪灰银边",
+    "hour": "#B3BEC8",
+    "minute": "#778793",
+    "source": "https://colorhunt.co/palettes/dark-grey",
+    "style": "metallic",
+    "sourceColors": [
+      "#27374D",
+      "#526D82",
+      "#9DB2BF",
+      "#DDE6ED"
+    ],
+    "rationale": "沿海军蓝灰组做明度提升，得到枪灰和银边的冷色层次。"
+  },
+  {
+    "name": "steel_blue",
+    "label": "钢蓝冷光",
+    "hour": "#C7D9E5",
+    "minute": "#7194B0",
+    "source": "https://colorhunt.co/palettes/pastel-grey-blue",
+    "style": "metallic",
+    "sourceColors": [
+      "#6C737E",
+      "#7393A7",
+      "#B5CFD8",
+      "#E8ECF1"
+    ],
+    "rationale": "保留原组钢蓝方向，亮档偏银、暗档偏蓝，形成有色金属的冷光联想。"
+  },
+  {
+    "name": "teal_titanium",
+    "label": "青钛合金",
+    "hour": "#B9D6D2",
+    "minute": "#5D9D98",
+    "source": "https://colorhunt.co/palettes/vintage-dark",
+    "style": "metallic",
+    "sourceColors": [
+      "#E0D9D9",
+      "#5A9690",
+      "#2F5755",
+      "#432323"
+    ],
+    "rationale": "从原组青铜绿提亮并减饱和，以青钛与浅银青组成同色双档。"
+  },
+  {
+    "name": "patina_gold",
+    "label": "绿铜淡金",
+    "hour": "#CBBF8D",
+    "minute": "#739F89",
+    "source": "https://colorhunt.co/palettes/vintage-dark",
+    "style": "metallic",
+    "sourceColors": [
+      "#2C3639",
+      "#3F4E4F",
+      "#A27B5C",
+      "#DCD7C9"
+    ],
+    "rationale": "由原组铜棕和灰青衍生淡金与铜绿，保持氧化铜主题并提亮黑底暗色。"
+  },
+  {
+    "name": "cobalt_alloy",
+    "label": "钴蓝合金",
+    "hour": "#A6C0D8",
+    "minute": "#638CBD",
+    "source": "https://colorhunt.co/palettes/pastel-grey-blue",
+    "style": "metallic",
+    "sourceColors": [
+      "#CDD5E0",
+      "#89A4C7",
+      "#4E709D",
+      "#F5B17B"
+    ],
+    "rationale": "从原组两档冷蓝减饱和、提升深蓝，形成蓝色阳极金属的明暗配对。"
+  },
+  {
+    "name": "violet_titanium",
+    "label": "紫钛微辉",
+    "hour": "#C8BFDC",
+    "minute": "#9485B5",
+    "source": "https://colorhunt.co/palettes/vintage-dark",
+    "style": "metallic",
+    "sourceColors": [
+      "#1B2430",
+      "#51557E",
+      "#816797",
+      "#D6D5A8"
+    ],
+    "rationale": "保留原组蓝紫方向，降低饱和并提高暗紫亮度，形成紫钛的浅影与亮面。"
+  },
+  {
+    "name": "pool_tangerine",
+    "label": "泳池橘",
+    "hour": "#00D1FF",
+    "minute": "#FF9B32",
+    "source": "https://colorhunt.co/palettes/neon-white",
+    "style": "plastic",
+    "sourceColors": [
+      "#3D6CB9",
+      "#00D1FF",
+      "#00FFF0",
+      "#FAFAF6"
+    ],
+    "rationale": "以原组高饱和泳池蓝为主色，衍生互补橘；两色保持鲜明硬质塑料感。"
+  },
+  {
+    "name": "citrus_shell",
+    "label": "柑橘外壳",
+    "hour": "#FF8400",
+    "minute": "#FFD93D",
+    "source": "https://colorhunt.co/palettes/neon-white",
+    "style": "plastic",
+    "sourceColors": [
+      "#4F200D",
+      "#FF8400",
+      "#FFD93D",
+      "#F6F1E9"
+    ],
+    "rationale": "直接取同一原组的橘与黄，相邻暖色形成统一的柑橘主题。"
+  },
+  {
+    "name": "aqua_shell",
+    "label": "水蓝外壳",
+    "hour": "#00D1FF",
+    "minute": "#00FFF0",
+    "source": "https://colorhunt.co/palettes/neon-white",
+    "style": "plastic",
+    "sourceColors": [
+      "#3D6CB9",
+      "#00D1FF",
+      "#00FFF0",
+      "#FAFAF6"
+    ],
+    "rationale": "直接取同一原组的蓝青与水青，保留清透鲜明的邻近色关系。"
+  },
+  {
+    "name": "violet_lemon",
+    "label": "紫柠拼色",
+    "hour": "#A58BFF",
+    "minute": "#FFF46E",
+    "source": "https://colorhunt.co/palettes/neon-white",
+    "style": "plastic",
+    "sourceColors": [
+      "#A58BFF",
+      "#F6F6F6",
+      "#FFF46E",
+      "#FF6F6F"
+    ],
+    "rationale": "直接取原组紫与柠檬黄，保持鲜明的冷暖互补关系。"
+  },
+  {
+    "name": "coral_aqua",
+    "label": "珊瑚水青",
+    "hour": "#FF5F5F",
+    "minute": "#83FFE6",
+    "source": "https://colorhunt.co/palettes/neon-white",
+    "style": "plastic",
+    "sourceColors": [
+      "#2C2C2C",
+      "#FF5F5F",
+      "#83FFE6",
+      "#FCFCFC"
+    ],
+    "rationale": "直接取同一原组珊瑚红与水青，以明亮冷暖对比形成玩具拼壳主题。"
+  },
+  {
+    "name": "flame_orange",
+    "label": "烈焰橙红",
+    "hour": "#F93827",
+    "minute": "#FF9D23",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "plastic",
+    "sourceColors": [
+      "#F93827",
+      "#FF9D23",
+      "#FFD65A",
+      "#16C47F"
+    ],
+    "rationale": "直接取同一原组红橘与亮橘，以相邻暖色组成活力塑料配对。"
+  },
+  {
+    "name": "lemon_jade",
+    "label": "柠檬翡翠",
+    "hour": "#FFCC29",
+    "minute": "#00AF91",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "plastic",
+    "sourceColors": [
+      "#FFCC29",
+      "#F58634",
+      "#007965",
+      "#00AF91"
+    ],
+    "rationale": "直接取原组亮黄与翡翠绿，以共享的黄绿方向协调冷暖。"
+  },
+  {
+    "name": "orange_jade",
+    "label": "橘色翡翠",
+    "hour": "#F58634",
+    "minute": "#00AF91",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "plastic",
+    "sourceColors": [
+      "#FFCC29",
+      "#F58634",
+      "#007965",
+      "#00AF91"
+    ],
+    "rationale": "直接取同一原组亮橘和翡翠绿，形成均衡的运动器材拼色。"
+  },
+  {
+    "name": "azure_lime",
+    "label": "天蓝青柠",
+    "hour": "#2192FF",
+    "minute": "#9CFF2E",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "plastic",
+    "sourceColors": [
+      "#FDFF00",
+      "#9CFF2E",
+      "#38E54D",
+      "#2192FF"
+    ],
+    "rationale": "直接取同一原组鲜蓝和青柠，强调蓝绿两端的饱和色。"
+  },
+  {
+    "name": "green_lemon",
+    "label": "亮绿柠黄",
+    "hour": "#38E54D",
+    "minute": "#FDFF00",
+    "source": "https://colorhunt.co/palettes/neon-light",
+    "style": "plastic",
+    "sourceColors": [
+      "#FDFF00",
+      "#9CFF2E",
+      "#38E54D",
+      "#2192FF"
+    ],
+    "rationale": "直接取同一原组绿与黄，以邻近色组成明亮荧光外壳主题。"
+  },
+  {
+    "name": "lagoon_azure",
+    "label": "泻湖亮蓝",
+    "hour": "#00FFDD",
+    "minute": "#2FA4FF",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "plastic",
+    "sourceColors": [
+      "#E8FFC2",
+      "#00FFDD",
+      "#2FA4FF",
+      "#0E185F"
+    ],
+    "rationale": "直接取同一原组水青与天蓝，保留鲜亮的蓝绿同族关系。"
+  },
+  {
+    "name": "grape_voltage",
+    "label": "葡萄电黄",
+    "hour": "#A149FA",
+    "minute": "#F7EC09",
+    "source": "https://colorhunt.co/palettes/neon-green",
+    "style": "plastic",
+    "sourceColors": [
+      "#A149FA",
+      "#3B44F6",
+      "#3EC70B",
+      "#F7EC09"
+    ],
+    "rationale": "直接取原组葡萄紫与电黄，保留强烈但有主题的互补配色。"
+  },
+  {
+    "name": "tangerine_mint",
+    "label": "蜜橘薄荷",
+    "hour": "#FF9137",
+    "minute": "#70FFD2",
+    "source": "https://colorhunt.co/palettes/neon-light",
+    "style": "plastic",
+    "sourceColors": [
+      "#FF9137",
+      "#FFCC4D",
+      "#FFFC8C",
+      "#70FFD2"
+    ],
+    "rationale": "直接取同一原组蜜橘和薄荷绿，形成清爽的暖冷拼色。"
+  },
+  {
+    "name": "apricot_turquoise",
+    "label": "杏橘湖青",
+    "hour": "#FFB76C",
+    "minute": "#26CCC2",
+    "source": "https://colorhunt.co/palettes/neon-light",
+    "style": "plastic",
+    "sourceColors": [
+      "#FFB76C",
+      "#FFF57E",
+      "#26CCC2",
+      "#6AECE1"
+    ],
+    "rationale": "直接取同一原组杏橘与湖青，用清晰的色相差形成鲜明配对。"
+  },
+  {
+    "name": "red_orange_shell",
+    "label": "橙红拼壳",
+    "hour": "#FF5656",
+    "minute": "#FFA239",
+    "source": "https://colorhunt.co/palettes/neon-light",
+    "style": "plastic",
+    "sourceColors": [
+      "#FF5656",
+      "#FFA239",
+      "#FEEE91",
+      "#8CE4FF"
+    ],
+    "rationale": "直接取同一原组红与橙，以相邻暖色统一为明亮塑料外壳主题。"
+  },
+  {
+    "name": "sky_mint_shell",
+    "label": "天青薄荷",
+    "hour": "#63C8FF",
+    "minute": "#4DFFBE",
+    "source": "https://colorhunt.co/palettes/neon-light",
+    "style": "plastic",
+    "sourceColors": [
+      "#63C8FF",
+      "#4DFFBE",
+      "#FDFFB8",
+      "#FF2DD1"
+    ],
+    "rationale": "直接取同一原组亮天蓝与亮绿，避免粉紫，保留清爽鲜亮感。"
+  }
+]

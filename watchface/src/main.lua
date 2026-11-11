@@ -36,7 +36,7 @@ end
 local muted=0xb9c2c8
 local function at(text,box,color) return label(text,box[1],box[2],box[3],box[4],box[5],color) end
 local function icon(name,box) return image(name,box[1],box[2],box[3],box[4]) end
-if layout.style~='dots' then image('background',0,0,432,514) end
+image('background',0,0,432,514)
 local date=at('',layout.dateBox,muted)
 local digits={}
 local hourHand,minuteHand,hub
@@ -82,7 +82,8 @@ local function showValue(text,stale,band)
     end
     local width=0
     for i=1,#text do width=width+(text:sub(i,i)=='.' and layout.valueDotW or layout.valueW) end
-    local x=math.floor(layout.valueCenter-(width+4*(#text-1))/2)
+    local gap=layout.valueGap or 4
+    local x=math.floor(layout.valueCenter-(width+gap*(#text-1))/2)
     for i,obj in ipairs(glucose) do
         if i<=#text then
             local char=text:sub(i,i)
@@ -90,7 +91,7 @@ local function showValue(text,stale,band)
             local w=char=='.' and layout.valueDotW or layout.valueW
             obj:clear_flag(lvgl.FLAG.HIDDEN)
             obj:set{src=SCRIPT_PATH..'/value-'..band..'-'..(stale and 'old-' or 'fresh-')..name..'.png',x=x,w=w}
-            x=x+w+4
+            x=x+w+gap
         else obj:add_flag(lvgl.FLAG.HIDDEN) end
     end
 end
@@ -98,6 +99,11 @@ showValue('--',layout.invalidColor~=nil,'normal')
 local trendSize=layout.trendSize or 54
 local trend=image('trend-normal-'..(layout.invalidColor and 'old-' or 'fresh-')..'unknown',layout.trendX,layout.trendY,trendSize,trendSize)
 local source=not layout.hideSource and at('--:--',layout.sourceBox,muted) or nil
+local sourceOld=source and layout.style=='dots' and at('',layout.sourceOldBox,muted) or nil
+local function showSource(text,stale)
+    source:set{text=text..(stale and not sourceOld and layout.style~='solid' and '\nOLD' or ''),text_color=muted}
+    if sourceOld then sourceOld:set{text=stale and 'OLD' or ''} end
+end
 icon('battery',layout.batteryIcon)
 local battery=at('--%',layout.batteryBox,0xc4d0d8)
 local heart
@@ -145,10 +151,11 @@ local function render()
         if valueKey~=lastValue then showValue(value,stale,band);lastValue=valueKey end
         local trendKey=band..'-'..(stale and 'old-' or 'fresh-')..current.trend
         if trendKey~=lastTrend then trend:set{src=SCRIPT_PATH..'/trend-'..trendKey..'.png'};lastTrend=trendKey end
-        local stamp=os.date('%H:%M',math.floor(current.sourceAt/1000))..(stale and '\nOLD' or '')
-        if source and stamp~=lastSource then
-            source:set{text=stamp,text_color=muted}
-            lastSource=stamp
+        local stamp=os.date('%H:%M',math.floor(current.sourceAt/1000))
+        local sourceKey=stamp..tostring(stale)
+        if source and sourceKey~=lastSource then
+            showSource(stamp,stale)
+            lastSource=sourceKey
         end
     end
 end
