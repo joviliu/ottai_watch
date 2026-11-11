@@ -8,6 +8,19 @@ final class EventPolicy {
         long rounded=Math.round((end-86400000L+f*86400000L)/60000.0)*60000L;
         return Math.max(end-86400000L,Math.min(end,rounded));
     }
+    /** A cursor may name a nearby observed value, never a value interpolated across a gap. */
+    static Reading nearestReading(Iterable<Reading> readings,long at) {
+        if(readings==null||at<=0)return null;
+        Reading nearest=null;long closest=300001L;
+        for(Reading row:readings) {
+            if(row==null||row.sourceAt<=0||!Reading.validValue(row.mmol))continue;
+            long distance=Math.abs(row.sourceAt-at);
+            if(distance<=300000L&&(distance<closest||(distance==closest&&row.sourceAt<nearest.sourceAt))) {
+                nearest=row;closest=distance;
+            }
+        }
+        return nearest;
+    }
     static boolean horizontal(float dx,float dy,float slop) { return Math.abs(dx)>slop&&Math.abs(dx)>Math.abs(dy); }
     static boolean vertical(float dx,float dy,float slop) { return Math.abs(dy)>slop&&Math.abs(dy)>Math.abs(dx); }
     static boolean validTime(long at,long now) { return at>=now-365L*86400000L&&at<=now+300000L; }

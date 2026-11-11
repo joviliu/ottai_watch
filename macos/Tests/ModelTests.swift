@@ -13,6 +13,16 @@ struct ModelTests {
         assert(!fresh.isStale(at: now))
         assert(fresh.isStale(at: now.addingTimeInterval(301)))
         assert(Reading(sourceAt: now.addingTimeInterval(121).timeIntervalSince1970 * 1000, value: 6, trend: "→").isStale(at: now))
+        let earlier = Reading(sourceAt: fresh.sourceAt - 300000, value: 5.8, trend: "→")
+        let midpoint = fresh.date.addingTimeInterval(-150)
+        assert(ChartSelection.reading(at: fresh.date, from: [earlier, fresh])?.value == 6.4)
+        assert(ChartSelection.reading(at: midpoint, from: [fresh, earlier])?.value == 5.8,
+            "equidistant samples choose the earlier real value, never an interpolated value")
+        assert(ChartSelection.reading(at: fresh.date.addingTimeInterval(300), from: [fresh]) != nil)
+        assert(ChartSelection.reading(at: fresh.date.addingTimeInterval(301), from: [fresh]) == nil)
+        assert(ChartSelection.reading(at: now.addingTimeInterval(-3600), from: [fresh]) == nil)
+        assert(ChartSelection.reading(at: now, from: []) == nil)
+        assert(ChartSelection.reading(at: now, from: [Reading(sourceAt: fresh.sourceAt, value: 99, trend: "→")]) == nil)
         let series = [fresh, Reading(sourceAt: fresh.sourceAt - 900_000, value: 6.1, trend: "→"),
                       Reading(sourceAt: fresh.sourceAt - 300_000, value: 6.3, trend: "↗")]
         let points = observedPoints(series)

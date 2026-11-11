@@ -200,11 +200,8 @@ struct GlucoseChart: View {
                                         path.move(to: CGPoint(x: frame.minX + position, y: frame.minY))
                                         path.addLine(to: CGPoint(x: frame.minX + position, y: frame.maxY))
                                     }.stroke(MirrorPalette.ink.opacity(0.42), style: StrokeStyle(lineWidth: 0.8, dash: [3, 3]))
-                                    Text(DisplayTime.time(cursorDate))
-                                        .font(.system(size: 10, weight: .semibold)).monospacedDigit()
-                                        .foregroundStyle(MirrorPalette.blue).padding(.horizontal, 7).padding(.vertical, 4)
-                                        .background(.white, in: Capsule()).shadow(color: .black.opacity(0.08), radius: 3, y: 1)
-                                        .position(x: min(max(frame.minX + position, 28), geometry.size.width - 28), y: frame.minY + 10)
+                                    cursorLabel(at: cursorDate)
+                                        .position(x: min(max(frame.minX + position, 80), geometry.size.width - 80), y: frame.minY + 13)
                                         .allowsHitTesting(false)
                                 }
                                 Rectangle().fill(.clear).contentShape(Rectangle())
@@ -253,6 +250,20 @@ struct GlucoseChart: View {
             }.frame(height: 21)
           }
         }
+    }
+
+    private func cursorLabel(at date: Date) -> some View {
+        let reading = ChartSelection.reading(at: date, from: dashboard.readings)
+        return HStack(spacing: 6) {
+            if let reading {
+                Text(DisplayTime.time(reading.date)).foregroundStyle(MirrorPalette.muted)
+                Text("\(reading.display) mmol/L").foregroundStyle(MirrorPalette.blue)
+            } else {
+                Text("无读数").foregroundStyle(MirrorPalette.blue)
+            }
+        }.font(.system(size: 11, weight: .semibold)).monospacedDigit()
+            .padding(.horizontal, 9).padding(.vertical, 5).frame(minWidth: reading == nil ? 56 : 130)
+            .background(.white, in: RoundedRectangle(cornerRadius: 9)).shadow(color: .black.opacity(0.10), radius: 3, y: 1)
     }
 
     private func chartDate(at location: CGPoint, proxy: ChartProxy, frame: CGRect) -> Date? {

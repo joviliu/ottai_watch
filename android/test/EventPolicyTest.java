@@ -14,7 +14,18 @@ public final class EventPolicyTest {
         check(EventPolicy.validTime(end,end)&&!EventPolicy.validTime(end+300001,end)&&!EventPolicy.validTime(end-366L*86400000L,end));
         check(EventPolicy.validRange("","")&&EventPolicy.validRange("200","450"));
         check(!EventPolicy.validRange("450","200")&&!EventPolicy.validRange("NaN","400")&&!EventPolicy.validRange("100","")&&!EventPolicy.validRange("-1","10"));
-        System.out.println("Event policy: time cursor, scrolling separation and calorie ranges passed");
+        Reading early=new Reading(5.9,end-300000L,"→"),late=new Reading(6.4,end,"→");
+        java.util.List<Reading> reversed=java.util.Arrays.asList(late,early);
+        check(EventPolicy.nearestReading(reversed,end)==late);
+        check(EventPolicy.nearestReading(reversed,end-150000L)==early); // Equal distance chooses earlier sample, independent of input order.
+        check(EventPolicy.nearestReading(java.util.Arrays.asList(late),end+300000L)==late);
+        check(EventPolicy.nearestReading(java.util.Arrays.asList(late),end+300001L)==null);
+        check(EventPolicy.nearestReading(java.util.Arrays.asList(early,new Reading(7.0,end+900000L,"→")),end+300000L)==null);
+        check(EventPolicy.nearestReading(java.util.Collections.<Reading>emptyList(),end)==null);
+        check(EventPolicy.nearestReading(null,end)==null);
+        check(EventPolicy.nearestReading(java.util.Arrays.asList(late),0)==null);
+        check(EventPolicy.nearestReading(java.util.Arrays.asList(null,new Reading(Double.NaN,end,"?"),new Reading(0,end,"?"),new Reading(61,end,"?"),new Reading(5.0,0,"?")),end)==null);
+        System.out.println("Event policy: time cursor/nearest observed value, scrolling separation and calorie ranges passed");
     }
     private static void check(boolean ok) { if(!ok)throw new AssertionError(); }
 }

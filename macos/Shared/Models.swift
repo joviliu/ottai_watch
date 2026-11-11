@@ -325,6 +325,20 @@ struct ChartEventSelection: Identifiable {
 }
 
 enum ChartSelection {
+    static func reading(at date: Date, from readings: [Reading]) -> Reading? {
+        let target = date.timeIntervalSince1970 * 1000
+        guard target.isFinite else { return nil }
+        var selected: Reading?
+        var distance = 300000.0
+        for reading in readings where reading.sourceAt.isFinite && reading.sourceAt > 0 && reading.value.isFinite && (0.1...60).contains(reading.value) {
+            let difference = abs(reading.sourceAt - target)
+            if difference < distance || difference == distance && (selected == nil || reading.sourceAt < selected!.sourceAt) {
+                selected = reading
+                distance = difference
+            }
+        }
+        return selected
+    }
     static func minuteDate(_ date: Date) -> Date { Date(timeIntervalSince1970: floor(date.timeIntervalSince1970 / 60) * 60) }
     static func date(at x: Double, width: Double, start: Date, end: Date) -> Date? {
         guard x.isFinite, width.isFinite, width > 0, end > start, x >= 0, x <= width else { return nil }

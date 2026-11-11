@@ -146,8 +146,7 @@ final class CloudGraph extends View {
     }
     private void drawGlucose(Canvas c,float left,float right,float top,float bottom,float d) {
         text(c,"血糖 mmol/L",0,12*d,11*d,BLUE,Paint.Align.LEFT);
-        double high=12;for(Reading p:points)high=Math.max(high,p.mmol+1);for(Reading p:reference)high=Math.max(high,p.mmol+1);
-        final double max=high;java.util.function.DoubleFunction<Float> y=v->(float)(bottom-v/max*(bottom-top));
+        final double max=glucoseHigh();java.util.function.DoubleFunction<Float> y=v->(float)(bottom-v/max*(bottom-top));
         paint.setStyle(Paint.Style.FILL);paint.setColor(0xfff2f6ff);c.drawRect(left,y.apply(7.8),right,y.apply(3.9),paint);
         drawSessionBackground(c,sleep,SLEEP,left,right,top,bottom);
         drawSessionBackground(c,exercise,EXERCISE,left,right,top,bottom);
@@ -162,6 +161,9 @@ final class CloudGraph extends View {
         drawLine(c,points,left,right,y,BLUE,2.5f*d,600000L);
         Reading last=points.get(points.size()-1);paint.setStyle(Paint.Style.FILL);paint.setColor(System.currentTimeMillis()-last.sourceAt>=600000?0xff9aa6b5:BLUE);
         c.drawCircle(x(last.sourceAt,left,right),y.apply(last.mmol),3.5f*d,paint);c.restoreToCount(clip);
+    }
+    private double glucoseHigh() {
+        double high=12;for(Reading p:points)high=Math.max(high,p.mmol+1);for(Reading p:reference)high=Math.max(high,p.mmol+1);return high;
     }
     private void drawSessionBackground(Canvas c,List<long[]> rows,int color,float left,float right,float top,float bottom) {
         paint.setStyle(Paint.Style.FILL);paint.setColor(color);paint.setAlpha(18);
@@ -221,12 +223,25 @@ final class CloudGraph extends View {
         c.restoreToCount(saved);
     }
     private void drawCursor(Canvas c,float left,float right,float d) {
+        Reading sample=EventPolicy.nearestReading(points,cursor);
+        java.text.SimpleDateFormat clock=new java.text.SimpleDateFormat("HH:mm",Locale.CHINA);
+        String title=sample==null?"无读数":clock.format(new Date(sample.sourceAt))+" · "+String.format(Locale.CHINA,"%.1f mmol/L",sample.mmol);
+        float pillTop=36*d,pillBottom=54*d;
         float xx=x(cursor,left,right);paint.setColor(0xff8292ad);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(.8f*d);paint.setPathEffect(new DashPathEffect(new float[]{3*d,3*d},0));
-        c.drawLine(xx,54*d,xx,hasActivity?178*d:getHeight()-30*d,paint);
+        c.drawLine(xx,pillBottom,xx,hasActivity?178*d:getHeight()-30*d,paint);
         if(hasActivity) { c.drawLine(xx,216*d,xx,257*d,paint);c.drawLine(xx,289*d,xx,306*d,paint);c.drawLine(xx,319*d,xx,336*d,paint); }paint.setPathEffect(null);
-        String time=new java.text.SimpleDateFormat("HH:mm",Locale.CHINA).format(new Date(cursor));float pillWidth=48*d;
-        float a=Math.max(left,Math.min(right-pillWidth,xx-pillWidth/2));paint.setStyle(Paint.Style.FILL);paint.setColor(0xffe9effa);c.drawRoundRect(a,36*d,a+pillWidth,54*d,8*d,8*d,paint);
-        text(c,time,a+pillWidth/2,49*d,10*d,MobileStyle.INK,Paint.Align.CENTER);
+        if(sample!=null) {
+            float bottom=hasActivity?178*d:getHeight()-34*d,yy=(float)(bottom-sample.mmol/glucoseHigh()*(bottom-22*d));
+            int selected=c.save();c.clipRect(left,22*d,right,bottom+4*d);
+            paint.setStyle(Paint.Style.FILL);paint.setColor(0xffffffff);c.drawCircle(x(sample.sourceAt,left,right),yy,4*d,paint);
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.5f*d);paint.setColor(BLUE);c.drawCircle(x(sample.sourceAt,left,right),yy,4*d,paint);c.restoreToCount(selected);
+        }
+        paint.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));paint.setTextSize(10*d);
+        float pillWidth=Math.min(right-left,Math.max(64*d,paint.measureText(title)+20*d));
+        float a=Math.max(left,Math.min(right-pillWidth,xx-pillWidth/2));paint.setStyle(Paint.Style.FILL);paint.setColor(0xffe9effa);
+        int bubble=c.save();c.clipRect(left,pillTop,right,pillBottom);c.drawRoundRect(a,pillTop,a+pillWidth,pillBottom,8*d,8*d,paint);
+        text(c,title,a+pillWidth/2,49*d,10*d,MobileStyle.INK,Paint.Align.CENTER);
+        c.restoreToCount(bubble);
     }
     @Override public boolean onTouchEvent(MotionEvent event) {
         if(timeSelection==null)return super.onTouchEvent(event);
