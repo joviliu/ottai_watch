@@ -22,6 +22,6 @@ Signal 色库 SHA-256 仍为 `1b31ec7073a0f4b724e6ddb38fdbd7354bbf43233b3d2e9112
 
 本地检查已通过：帧协议；上海/纽约时区 Lua UI；三款各 1,152 个公历案例在桌面、float32 Lua 5.2 与 int32 Lua 5.3 中一致；全部 32 组可达、色库/像素色、全天资源/对象几何及三份 BIN 打包核对。Signal 除共享 main.lua 外所有资源与 0.1.18 相同；Meridian 除 main.lua 与配色表外所有资源与 0.1.18 相同，包含原指标坐标。
 
-真机 Meridian 与 Ultra 均已完成 100% 上传、INSTALL_OK 和断开，并获用户确认符合预期。Signal 已于 23:27:37 完成 INSTALL_OK 与 DISCONNECTED，但用户随后指出底部 OLD 部分超出圆角、LAST UPDATE 左端字母被裁切，故本版 Signal 未获验收；后续仅以 [0.1.20](../0.1.20/README.md) 修补 Signal。Ultra/Meridian 的本目录制品保持冻结。随后已还原官方与 HC，并确认一条锁屏 Dozing 的自然新测量导出；USB 仍连接，不作非充电或两周期验收。Signal 0.1.20 圆角屏显待用户确认，详见[修补版记录](../0.1.20/README.md)。
+真机 Meridian 与 Ultra 均已完成 100% 上传、INSTALL_OK 和断开，并获用户确认符合预期。Signal 已于 23:27:37 完成 INSTALL_OK 与 DISCONNECTED，但用户随后指出底部 OLD 部分超出圆角、LAST UPDATE 左端字母被裁切，故本版 Signal 未获验收；后续仅以 [0.1.20](../0.1.20/README.md) 修补 Signal。Ultra/Meridian 的本目录制品保持冻结。随后已还原官方与 HC，并确认一条锁屏 Dozing 的自然新测量导出；USB 仍连接，不作非充电或两周期验收。Signal 0.1.20 的修补屏显已获用户确认正常，详见[修补版记录](../0.1.20/README.md)。
 
 官方 3.59.2 环境本轮认证成功，但 replace/上传出现 Broken pipe；按用户要求临时换修改版 3.33.6i 完成侧载对照，不能由此断言官方禁止安装。用户已自行重装并登录官方 3.59.2，原通知/后台授权与镜像绑定已恢复核对，HC 五项写入和镜像 48h 同步已恢复，既有活动资料仍在；修改版与临时安装器均已移除。完整恢复证据与边界见[交接](../../docs/HANDOFF.md)。冻结制品未重打包。

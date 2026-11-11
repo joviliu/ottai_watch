@@ -14,7 +14,7 @@ BIN 为 **2,651,852 字节、767 个资源**，SHA-256 `a8c050b5d76b75cf603afea1
 
 本地验证通过：帧协议、上海/纽约双时区 Lua UI，以及三款当前资源/打包检查；Signal 标签实际像素恰好右移 8px、无 OLD、灰色原始时间和过期数值/箭头变暗均已覆盖。三款精度回归此前各 1,152 个案例在桌面/float32/int32 Lua 中一致，本补丁未改选色器。发布 BIN/ZIP、manifest、layout 与色库已核对；相对 Signal 0.1.19 仅 main.lua 和 background.png 改变，冻结的 Ultra/Meridian 0.1.19 制品保持。
 
-Signal 0.1.20 已于 23:35:05 完成 100% 上传、INSTALL_OK 与 DISCONNECTED，临时安装器随后成功卸载。仍待用户抬腕确认圆角显示；上传与本地测试不等于实机目视已验收。
+Signal 0.1.20 已于 23:35:05 完成 100% 上传、INSTALL_OK 与 DISCONNECTED，临时安装器随后成功卸载。用户随后回复“Signal UI正常”，底部 OLD 移除与 LAST UPDATE 圆角修补已完成屏显验收。
 
 用户已自行安装并登录官方 `com.mi.health` 3.59.2/code359002，包默认启用；镜像已实际绑定官方 WearableXmsService，两端 FGS、原通知访问与实际监听绑定已核对。官方 POST_NOTIFICATIONS 恢复为此前允许状态，蓝牙/位置授权未改；厂商“无限制”已在 UI 核对，双方 Android idle 豁免保持。
 

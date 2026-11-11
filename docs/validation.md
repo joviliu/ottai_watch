@@ -2,7 +2,7 @@
 
 ## 2026-11-11：表盘更新与官方/HC 恢复
 
-Ultra/Meridian 0.1.19 已获用户确认；Signal 0.1.19 的圆角裁切另以 0.1.20 去掉 OLD、将 LAST UPDATE 右移 8px，保留灰色原始测量时间与过期变暗。Signal 0.1.20 已上传并断开，圆角显示仍待用户目视；三份冻结发布制品未改写。
+Ultra/Meridian 0.1.19 已获用户确认；Signal 0.1.19 的圆角裁切另以 0.1.20 去掉 OLD、将 LAST UPDATE 右移 8px，保留灰色原始测量时间与过期变暗。Signal 0.1.20 已上传并断开，用户随后确认 UI 正常，底部修补的屏显验收完成；三份冻结发布制品未改写。
 
 最终源码 `765c3bafad7ad86d84a995c78defc65c66dd5e75` 的 [CI 43051875173](https://github.com/joviliu/ottai_watch/actions/runs/43051875173) 在 Linux/macOS 均通过。跨平台 PNG 回归比较解码后的像素，构建固定 Pillow BASIC 字体布局；已确认的 Mac 构建表盘素材像素与冻结发布制品保持，不以 PNG 编码字节差异判定视觉变化。
 
