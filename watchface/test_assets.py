@@ -14,6 +14,13 @@ from ui_harness import create_ui
 from vendor import facebin
 
 root=Path(__file__).resolve().parent
+def same_frozen_resource(name,current,original):
+    if not name.endswith('.png'):return current==original
+    with Image.open(io.BytesIO(current)) as actual,Image.open(io.BytesIO(original)) as expected:
+        assert actual.mode==expected.mode=='RGBA',(name,'PNG mode changed',actual.mode,expected.mode)
+        assert actual.size==expected.size,(name,'PNG dimensions changed',actual.size,expected.size)
+        return actual.tobytes()==expected.tobytes()
+
 def assert_led_mask(image,file,color):
     assert image.width%8==0 and image.height%8==0,file
     alpha=image.getchannel('A');cells=set()
@@ -72,7 +79,7 @@ for variant in ['ultra','signal','meridian']:
         baseline_files=dict(facebin.unpack_face(baseline)['files']);current_files=dict(decoded['files'])
         assert current_files.keys()==baseline_files.keys(),(variant,'LED changes must not add/remove resources')
         allowed={'lua/main.lua','lua/background.png'} if variant=='signal' else {'lua/main.lua','lua/clock-palettes.lua'}
-        changed=[name for name,data in current_files.items() if name not in allowed and data!=baseline_files[name]]
+        changed=[name for name,data in current_files.items() if name not in allowed and not same_frozen_resource(name,data,baseline_files[name])]
         assert not changed,(variant,'unrelated resources changed',changed)
     lua=create_ui(layout)
     # Exercise every clock image reference, including midnight and every analog hand position.
