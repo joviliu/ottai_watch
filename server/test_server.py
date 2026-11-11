@@ -312,7 +312,7 @@ class ManualAnalysisTests(unittest.TestCase):
         self.assertFalse(manual_status(self.store, self.now)['eligible'])
 
     @patch.dict(os.environ, {'ANALYSIS_ENABLED': 'true'})
-    def test_quality_rejects_short_sparse_gap_and_stale_windows(self):
+    def test_quality_keeps_span_freshness_and_reports_long_gaps(self):
         from server.excursions import day_quality
         short = [reading(self.now-23*60*MINUTE+i*5*MINUTE) for i in range(277)]
         self.assertFalse(day_quality(short, self.now)['ready'])
@@ -320,8 +320,52 @@ class ManualAnalysisTests(unittest.TestCase):
         self.assertTrue(day_quality(full, self.now)['ready'])
         missing = [r for i,r in enumerate(full) if i not in range(80,85)]
         self.assertGreater(day_quality(missing, self.now)['coveragePercent'], 95)
-        self.assertFalse(day_quality(missing, self.now)['ready'], 'long gap cannot hide behind high coverage')
+        self.assertTrue(day_quality(missing, self.now)['ready'])
+        self.assertEqual(day_quality(missing, self.now)['maxGapMinutes'], 25)
+        self.assertTrue(day_quality(missing, self.now)['hasLongGap'])
+        self.assertIn('25分钟', day_quality(missing, self.now)['gapNotice'])
         self.assertFalse(day_quality(full[:-4], self.now)['ready'])
+
+    @patch.dict(os.environ, {'ANALYSIS_ENABLED': 'true'})
+    def test_manual_accepts_75_percent_without_filling_long_gaps(self):
+        from server.excursions import day_quality
+        from server.analysis import manual_status, request_manual
+        full = [reading(self.now-DAY+i*5*MINUTE) for i in range(289)]
+        exactly75 = [r for i,r in enumerate(full) if i not in range(80,152)]
+        quality = day_quality(exactly75, self.now)
+        self.assertEqual(quality['coveragePercent'], 75)
+        self.assertEqual(quality['maxGapMinutes'], 360)
+        self.assertEqual(quality['coverageRequiredPercent'], 75)
+        self.assertTrue(quality['ready'])
+        self.assertIn('360分钟', quality['reason'])
+        self.assertEqual(metrics(exactly75, self.now-DAY, self.now)['observedMinutes'], 1080)
+        below75 = [r for i,r in enumerate(full) if i not in range(80,153)]
+        self.assertFalse(day_quality(below75, self.now)['ready'])
+        self.assertIn('至少75%', day_quality(below75, self.now)['reason'])
+        self.store.ingest(exactly75, self.now)
+        self.assertTrue(manual_status(self.store, self.now)['eligible'])
+        jobs = []
+        self.assertEqual(request_manual(self.store, self.now, launch=jobs.append)[0], 202)
+        self.assertEqual(len(jobs), 1)
+
+    def test_long_gap_above_75_is_context_not_a_readiness_veto(self):
+        from server.excursions import day_quality
+        full = [reading(self.now-DAY+i*5*MINUTE) for i in range(289)]
+        gaps = set(range(80,106)) | {140,200}
+        result = day_quality([r for i,r in enumerate(full) if i not in gaps], self.now)
+        self.assertAlmostEqual(result['coveragePercent'], 90.28)
+        self.assertEqual(result['maxGapMinutes'], 130)
+        self.assertTrue(result['ready'])
+        self.assertTrue(result['hasLongGap'])
+
+    def test_lower_manual_gate_does_not_relax_complete_day_comparisons(self):
+        rows = [reading(self.now-9*DAY+i*5*MINUTE) for i in range(9*288+1)]
+        partial_current = (self.now-DAY+80*5*MINUTE, self.now-DAY+152*5*MINUTE)
+        partial_prior = (self.now-2*DAY+80*5*MINUTE, self.now-2*DAY+108*5*MINUTE)
+        rows = [r for r in rows if not any(a <= r['sourceAt'] < b for a,b in (partial_current,partial_prior))]
+        reference = analysis_input(rows, self.now)['personalBaselines'][0]
+        self.assertEqual(reference['eligibleDays'], 6)
+        self.assertFalse(reference['comparable'], '75% permits a report, not a complete-day comparison')
 
     @patch.dict(os.environ, {'ANALYSIS_ENABLED': 'true'})
     def test_concurrent_requests_launch_once_and_failures_are_not_retried(self):

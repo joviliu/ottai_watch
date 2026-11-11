@@ -9,12 +9,13 @@ def day_quality(readings, now):
     start = now-DAY
     ordered = sorted((r for r in readings if r['sourceAt'] <= now), key=lambda r: r['sourceAt'])
     summary = metrics(ordered, start, now)
-    cursor, longest = start, 0
+    cursor, longest, observed = start, 0, 0
     for i, row in enumerate(ordered):
         following = ordered[i+1]['sourceAt'] if i+1 < len(ordered) else now
         left, right = max(start, row['sourceAt']), min(now, following, row['sourceAt']+NOMINAL_INTERVAL)
         if right <= left:
             continue
+        observed += right-left
         longest = max(longest, left-cursor)
         cursor = max(cursor, right)
     longest = max(longest, now-cursor)
@@ -23,16 +24,16 @@ def day_quality(readings, now):
     reasons = []
     if span < DAY:
         reasons.append('尚未积累满24小时（目前约%.1f小时）。' % (span/3600000))
-    if summary['coveragePercent'] < 95:
-        reasons.append('最近24小时覆盖率需至少95%%（目前%.1f%%）。' % summary['coveragePercent'])
-    if longest > 15*MINUTE:
-        reasons.append('最近24小时存在超过15分钟的缺测。')
+    if observed*100 < 75*DAY:
+        reasons.append('最近24小时覆盖率需至少75%%（目前%.1f%%）。' % summary['coveragePercent'])
     if not fresh:
         reasons.append('请先恢复最新读数同步。')
-    return {'ready': not reasons, 'reason': ' '.join(reasons) or '最近24小时数据已就绪。',
+    gap_notice = ('最长连续缺测约%g分钟；解读将保留该缺口。' % round_value(longest/MINUTE)) if longest > 15*MINUTE else ''
+    return {'ready': not reasons, 'reason': ' '.join(reasons) or '最近24小时数据已就绪。'+gap_notice,
             'coveragePercent': summary['coveragePercent'], 'maxGapMinutes': round_value(longest/MINUTE),
+            'coverageRequiredPercent': 75, 'hasLongGap': longest > 15*MINUTE, 'gapNotice': gap_notice,
             'spanHours': round_value(span/3600000), 'latestFresh': fresh,
-            'policy': '产品数据完整性门槛：跨度24h、覆盖95%、最长缺口15min、最新读数10min内；不是医学验证标准'}
+            'policy': '手动分析准入：跨度24h、覆盖75%、最新读数10min内；缺口原样保留并在分析中说明'}
 
 
 def candidate_excursions(readings, start, end):
