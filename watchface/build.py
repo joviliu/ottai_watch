@@ -185,7 +185,8 @@ def hand_image(index,count,length,width,color,size):
 def background(layout):
     import math
     image=Image.new('RGBA',(432,514),'black');d=ImageDraw.Draw(image)
-    font=lambda size:ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-SemiBold.ttf'),size)
+    # Pin label spacing so optional RAQM support cannot change baked resources.
+    font=lambda size:ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-SemiBold.ttf'),size,layout_engine=ImageFont.Layout.BASIC)
     if layout['style']=='dots':
         image.alpha_composite(led_cells(['#'*53]*14,'#1B1E24'),(4,328))
     elif layout['style']=='solid':
@@ -213,7 +214,7 @@ def background(layout):
 def preview(layout,assets,text='6.8',band='normal',state='fresh',palette=None,placeholders=False):
     if placeholders and layout.get('invalidColor'):state='old'
     image=background(layout);d=ImageDraw.Draw(image)
-    font=lambda size:ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-Light.ttf'),size)
+    font=lambda size:ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-Light.ttf'),size,layout_engine=ImageFont.Layout.BASIC)
     def label(text,box,color):
         x,y,w,h,size=box
         for offset,line in enumerate(text.split('\n')):d.text((x+w/2,y+offset*size),line,anchor='mt',font=font(size),fill=color)
@@ -302,7 +303,7 @@ def build_face(variant='ultra'):
     palettes_preview=Image.new('RGB',(432*4,576*((len(colors)+3)//4)),'black')
     for i,palette in enumerate(colors):
         x,y=(i%4)*432,(i//4)*576;palettes_preview.paste(preview(layout,assets,palette=palette),(x,y))
-        d=ImageDraw.Draw(palettes_preview);font=ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-Light.ttf'),22)
+        d=ImageDraw.Draw(palettes_preview);font=ImageFont.truetype(str(ROOT/'fonts/BarlowCondensed-Light.ttf'),22,layout_engine=ImageFont.Layout.BASIC)
         d.text((x+216,y+518),palette['name'].replace('_',' ').title(),anchor='mt',font=font,fill=WHITE)
         d.text((x+216,y+546),palette['hour']+' / '+palette['minute'],anchor='mt',font=font,fill=DATE_COLOR)
     palettes_preview.save(dest/'preview-clock-palettes.png')
