@@ -10,7 +10,8 @@ from urllib.parse import urlsplit, parse_qs
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
-from .analysis import generate_daily, report_view, manual_status, request_manual, manual_report_view
+from .analysis import (generate_daily, report_view, manual_status, request_manual, manual_report_view,
+                       MAX_MANUAL_BODY, validate_manual_request)
 from .statistics import DAY, NOMINAL_INTERVAL, historical_profile, metrics
 from .storage import Store, now_ms, validate_batch
 from .activity import MAX_ACTIVITY_BODY, ActivityValidationError, dashboard_activity, validate_activity
@@ -111,10 +112,30 @@ def make_handler(store, ingest_token, read_token, analysis_token=""):
                 allowed = [ingest_token] + ([analysis_token] if analysis_token else [])
                 if not any(hmac.compare_digest(candidate.encode(), ('Bearer '+token).encode()) for token in allowed):
                     return self.send_json(401, {'error': 'unauthorized'})
-                if self.headers.get('Transfer-Encoding') or self.headers.get('Content-Length', '0') != '0':
-                    return self.send_json(400, {'error': 'empty_body_required'})
+                if self.headers.get('Transfer-Encoding'):
+                    return self.send_json(400, {'error':'unsupported_transfer_encoding'})
+                length = self.headers.get('Content-Length', '0')
+                if not re.fullmatch(r'[0-9]{1,7}', length):
+                    return self.send_json(411, {'error':'content_length_required'})
+                length = int(length)
+                if length > MAX_MANUAL_BODY:
+                    return self.send_json(413, {'error':'body_limit'})
+                user_context = ''
+                if length:
+                    if self.headers.get_content_type() != 'application/json':
+                        return self.send_json(415, {'error':'json_required'})
+                    try:
+                        self.connection.settimeout(15)
+                        raw = self.rfile.read(length)
+                        if len(raw) != length:
+                            raise ValueError('incomplete_body')
+                        user_context = validate_manual_request(json.loads(raw.decode('utf-8')))
+                    except (ValueError, UnicodeError, RecursionError):
+                        return self.send_json(400, {'error':'invalid_user_context','reason':'补充信息需为文本，最多1000字。'})
+                    except OSError:
+                        return self.send_json(408, {'error':'incomplete_request'})
                 try:
-                    status, result = request_manual(store)
+                    status, result = request_manual(store, user_context=user_context) if user_context else request_manual(store)
                     return self.send_json(status, result)
                 except Exception:
                     return self.send_json(503, {'error': 'temporarily_unavailable'})

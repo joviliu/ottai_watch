@@ -1,7 +1,7 @@
 """Build with a local JDK, Android platform jar, aidl, aapt2, D8 and apksig.
 Paths are explicit environment variables; no credentials or signing keys are embedded.
 """
-import os, pathlib, subprocess, zipfile, shutil, xml.etree.ElementTree as ET
+import os, pathlib, subprocess, sys, zipfile, shutil, xml.etree.ElementTree as ET
 root = pathlib.Path(__file__).resolve().parents[1]
 build = root / 'android/build'
 if build.exists(): shutil.rmtree(build)
@@ -21,6 +21,7 @@ run(javac,'-d',build/'test',*[sources/f'com/example/glucosewatch6/{name}.java' f
     *[root/f'android/test/{name}Test.java' for name in ('Reading','FaceSyncPolicy','CloudPolicy','HealthPolicy','ActivitySyncPolicy','PhoneStepsPolicy','EventPolicy','DetailPolicy')])
 for name in ('Reading','FaceSyncPolicy','CloudPolicy','HealthPolicy','ActivitySyncPolicy','PhoneStepsPolicy','EventPolicy','DetailPolicy'):
     run(java,'-cp',build/'test',f'com.example.glucosewatch6.{name}Test')
+run(sys.executable,root/'tools/test_cloud_actions.py')
 sdk = root/'android/vendor/sdk/main'
 framework = build/'framework.aidl'
 framework.write_text('parcelable android.os.Bundle;\n')

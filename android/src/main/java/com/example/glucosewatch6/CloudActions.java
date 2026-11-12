@@ -28,12 +28,17 @@ final class CloudActions {
     static { CLOCK.setRemoveOnCancelPolicy(true); }
     static Call request(Context c,String method,String path,JSONObject body,Callback callback) {
         Context app=c.getApplicationContext();Call call=new Call();
+        final CloudConfig.Connection credentials;final byte[] data;
+        try {
+            credentials=CloudConfig.connection(app);data=body==null?null:body.toString().getBytes(StandardCharsets.UTF_8);
+            if(credentials.endpoint.isEmpty()||credentials.token.isEmpty()||(data!=null&&data.length>1_500_000))throw new IOException();
+        }catch(Exception failure) { MAIN.post(()->callback.done(null,0,"连接暂未确认，请先刷新状态"));return call; }
         try { call.future=WORKER.submit(()-> {
             if(call.cancelled)return;
             JSONObject result=null;int code=0;String error=null;
             try {
-                CloudConfig.Connection credentials=CloudConfig.connection(app);
-                if(credentials.endpoint.isEmpty()||credentials.token.isEmpty())throw new IOException();
+                CloudConfig.Connection before=CloudConfig.connection(app);
+                if(!credentials.endpoint.equals(before.endpoint)||!credentials.token.equals(before.token))throw new IOException();
                 boolean detail=path.startsWith("/api/v1/analysis/detail");
                 javax.net.ssl.HttpsURLConnection connection=(javax.net.ssl.HttpsURLConnection)new URL(credentials.endpoint+path).openConnection();call.connection=connection;
                 call.deadline=CLOCK.schedule(()-> { javax.net.ssl.HttpsURLConnection current=call.connection;if(current!=null)current.disconnect(); },detail?60000:45000,TimeUnit.MILLISECONDS);
@@ -41,13 +46,11 @@ final class CloudActions {
                     connection.setConnectTimeout(10000);connection.setReadTimeout(detail?45000:20000);connection.setInstanceFollowRedirects(false);
                     connection.setRequestMethod(method);connection.setRequestProperty("Authorization","Bearer "+credentials.token);
                     connection.setRequestProperty("Accept","application/json");
-                    if(body!=null) {
-                        byte[] data=body.toString().getBytes(StandardCharsets.UTF_8);
-                        if(data.length>1_500_000)throw new IOException();
+                    if(data!=null) {
                         connection.setRequestProperty("Content-Type","application/json");connection.setDoOutput(true);connection.setFixedLengthStreamingMode(data.length);
                         try(OutputStream output=connection.getOutputStream()) { output.write(data); }
                     } else if("POST".equals(method)) {
-                        // The analysis endpoint requires no body, including through the HTTPS proxy.
+                        // Blank analysis submissions keep the original zero-byte POST through HTTPS proxies.
                         connection.setDoOutput(true);connection.setFixedLengthStreamingMode(0);
                         connection.getOutputStream().close();
                     }

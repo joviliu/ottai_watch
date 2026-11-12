@@ -36,6 +36,7 @@ final class AppModel: ObservableObject {
     @Published var fetching = false
     @Published var analyzing = false
     @Published var analysisMessage = ""
+    @Published private(set) var analysisContext = ""
     @Published var eventSaving = false
     @Published var now = Date()
     @Published var baseURL = ""
@@ -47,12 +48,26 @@ final class AppModel: ObservableObject {
     private let snapshotURL: URL
     private let reloadWidgets: () -> Void
     private weak var detailController: DetailAnalysisModel?
+    private var knownConnection: ConnectionConfiguration?
+    private var connectionRevision = 0
 
-    var canAnalyze: Bool { connectionStore.current?.analysisToken != nil && snapshot?.dashboard.manualAnalysis?.eligible == true && !analyzing }
+    var normalizedAnalysisContext: String { analysisContext.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n").trimmingCharacters(in: .whitespacesAndNewlines) }
+    var analysisContextValid: Bool {
+        analysisContext.unicodeScalars.count <= 1000
+            && analysisContext.unicodeScalars.allSatisfy { $0.properties.generalCategory != .control || [9, 10, 13].contains($0.value) }
+    }
+    var canAnalyze: Bool {
+        guard knownConnection == connectionStore.current, connectionStore.current?.analysisToken != nil,
+              analysisContextValid, let manual = snapshot?.dashboard.manualAnalysis else { return false }
+        return (normalizedAnalysisContext.isEmpty ? manual.eligible : (manual.eligibleWithContext ?? manual.eligible)) && !analyzing
+    }
     var canEditEvents: Bool { connectionStore.current?.analysisToken != nil }
     var analysisReason: String {
+        if knownConnection != connectionStore.current { return "连接已更改，请刷新新连接。" }
         if connectionStore.current?.analysisToken == nil { return "请在设置中导入手动分析权限。" }
-        return snapshot?.dashboard.manualAnalysis?.reason ?? "请先刷新数据。"
+        if !analysisContextValid { return "补充信息最多1000字，请删减或移除特殊控制字符。" }
+        let manual = snapshot?.dashboard.manualAnalysis
+        return (!normalizedAnalysisContext.isEmpty ? (manual?.reasonWithContext ?? manual?.reason) : manual?.reason) ?? "请先刷新数据。"
     }
     var latest: Reading? { snapshot?.dashboard.latest }
     var stale: Bool { latest?.isStale(at: now) ?? true }
@@ -62,6 +77,7 @@ final class AppModel: ObservableObject {
          session: URLSession? = nil, automaticallyRefresh: Bool = true,
          reloadWidgets: @escaping () -> Void = { WidgetCenter.shared.reloadTimelines(ofKind: SnapshotStore.kind) }) {
         self.connectionStore = connectionStore
+        self.knownConnection = connectionStore.current
         self.snapshotURL = snapshotURL
         self.session = session ?? URLSession(configuration: .ephemeral, delegate: NoRedirects(), delegateQueue: nil)
         self.reloadWidgets = reloadWidgets
@@ -84,10 +100,9 @@ final class AppModel: ObservableObject {
 
     func configure(url: String, token: String?, analysisToken: String? = nil) async {
         do {
-            let previous = connectionStore.current
             let configuration = ConnectionConfiguration(baseURL: url, readToken: token?.trimmingCharacters(in: .whitespacesAndNewlines) ?? connectionStore.current?.readToken ?? "", analysisToken: analysisToken ?? (url.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == connectionStore.current?.baseURL ? connectionStore.current?.analysisToken : nil))
             try connectionStore.save(configuration)
-            if previous != connectionStore.current { detailController?.invalidateConnection() }
+            synchronizeConnection()
             baseURL = connectionStore.current!.baseURL
             await refresh()
         } catch { message = "配置未保存：\(error.localizedDescription)" }
@@ -99,20 +114,47 @@ final class AppModel: ObservableObject {
         return controller
     }
 
+    func updateAnalysisContext(_ value: String) {
+        synchronizeConnection()
+        analysisContext = value
+        if !analyzing { analysisMessage = "" }
+    }
+
+    private func synchronizeConnection() {
+        guard knownConnection != connectionStore.current else { return }
+        knownConnection = connectionStore.current
+        connectionRevision += 1
+        detailController?.invalidateConnection()
+        analysisContext = ""
+        analysisMessage = ""
+        snapshot = nil
+        try? FileManager.default.removeItem(at: snapshotURL)
+        fetching = false
+        analyzing = false
+        baseURL = connectionStore.current?.baseURL ?? ""
+    }
+
+    private func connectionUnchanged(_ configuration: ConnectionConfiguration, revision: Int) -> Bool {
+        synchronizeConnection()
+        return configuration == connectionStore.current && revision == connectionRevision
+    }
+
     func refresh() async {
+        synchronizeConnection()
         guard !fetching else { return }
         guard let configuration = connectionStore.current, let root = URL(string: configuration.baseURL) else {
             message = "请先在设置中连接血糖服务。"; return
         }
+        let revision = connectionRevision
         fetching = true
-        defer { fetching = false; now = Date() }
+        defer { if revision == connectionRevision { fetching = false; now = Date() } }
         do {
             var request = URLRequest(url: root.appendingPathComponent("api/v1/dashboard"))
             request.setValue("Bearer \(configuration.readToken)", forHTTPHeaderField: "Authorization")
             request.cachePolicy = .reloadIgnoringLocalCacheData
             request.timeoutInterval = 20
             let (data, response) = try await session.data(for: request)
-            guard configuration == connectionStore.current else { message = "连接已更改，请刷新新连接。"; return }
+            guard connectionUnchanged(configuration, revision: revision) else { return }
             guard let response = response as? HTTPURLResponse else { throw MirrorError.invalidResponse }
             if response.statusCode == 401 || response.statusCode == 403 { throw MirrorError.authentication }
             guard response.statusCode == 200, data.count <= 2_000_000 else { throw MirrorError.unavailable }
@@ -123,38 +165,49 @@ final class AppModel: ObservableObject {
             message = ""
             if !analyzing { analysisMessage = "" }
             reloadWidgets()
-        } catch let error as MirrorError { message = error.localizedDescription }
-        catch { message = MirrorError.unavailable.localizedDescription }
+        } catch let error as MirrorError {
+            if connectionUnchanged(configuration, revision: revision) { message = error.localizedDescription }
+        } catch {
+            if connectionUnchanged(configuration, revision: revision) { message = MirrorError.unavailable.localizedDescription }
+        }
     }
 
     func analyzeRecent() async {
+        synchronizeConnection()
         guard canAnalyze, let configuration = connectionStore.current,
               let token = configuration.analysisToken, let root = URL(string: configuration.baseURL) else { return }
+        let revision = connectionRevision
+        let context = normalizedAnalysisContext
         analyzing = true
         analysisMessage = "正在分析最近24小时…"
-        defer { analyzing = false }
+        defer { if revision == connectionRevision { analyzing = false } }
         do {
             var request = URLRequest(url: root.appendingPathComponent("api/v1/analysis"))
             request.httpMethod = "POST"
-            request.httpBody = Data()
+            request.httpBody = context.isEmpty ? Data() : try JSONSerialization.data(withJSONObject: ["userContext": context])
+            if !context.isEmpty { request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
             request.timeoutInterval = 20
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             let (data, response) = try await session.data(for: request)
+            guard connectionUnchanged(configuration, revision: revision) else { return }
             guard let response = response as? HTTPURLResponse, data.count < 65536 else { throw MirrorError.invalidResponse }
             if response.statusCode == 401 || response.statusCode == 403 { throw MirrorError.authentication }
             guard [200,202,409].contains(response.statusCode) else { throw MirrorError.unavailable }
             let result = try JSONSerialization.jsonObject(with: data) as? [String:Any]
             analysisMessage = result?["reason"] as? String ?? "已提交分析。"
             for _ in 0..<13 {
+                guard connectionUnchanged(configuration, revision: revision) else { return }
                 await refresh()
+                guard connectionUnchanged(configuration, revision: revision) else { return }
                 if snapshot?.dashboard.manualAnalysis?.status != "running" {
-                    analysisMessage = snapshot?.dashboard.manualAnalysis?.reason ?? "分析状态已更新。"
+                    analysisMessage = analysisReason
                     return
                 }
                 try await Task.sleep(for: .seconds(10))
             }
             analysisMessage = "分析仍在生成，完成后会自动更新。"
         } catch {
+            guard connectionUnchanged(configuration, revision: revision) else { return }
             analysisMessage = "分析请求暂未确认，已保留原结果；请刷新状态，避免重复提交。"
             await refresh()
         }

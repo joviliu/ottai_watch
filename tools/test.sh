@@ -15,7 +15,8 @@ for name in HealthPolicy ActivitySyncPolicy PhoneStepsPolicy EventPolicy DetailP
     "$JAVAC" -cp android/build/test -d android/build/test "android/src/main/java/com/example/glucosewatch6/$name.java" "android/test/${name}Test.java"
     "$JAVA" -cp android/build/test "com.example.glucosewatch6.${name}Test"
 done
-python3 -m unittest server.test_server server.test_activity server.test_lifestyle server.test_detail server.test_detail_context -q
+python3 tools/test_cloud_actions.py
+python3 -m unittest server.test_server server.test_activity server.test_lifestyle server.test_detail server.test_detail_context server.test_manual_context -q
 python3 deploy/relay/test_worker.py
 (cd watch && npm test)
 python3 tools/test_setup_android.py

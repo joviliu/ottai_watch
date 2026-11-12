@@ -89,6 +89,12 @@ struct AnalysisSource: Codable, Identifiable {
     let title: String
     let url: String
     var id: String { url }
+    var valid: Bool {
+        guard !title.isEmpty, title.unicodeScalars.count <= 200, url.utf8.count <= 2048,
+              let address = URL(string: url), address.scheme == "https", address.host != nil,
+              address.user == nil, address.password == nil else { return false }
+        return true
+    }
 }
 
 struct AnalysisHighlight: Codable, Identifiable {
@@ -132,10 +138,17 @@ struct Analysis: Codable {
     var highlights: [AnalysisHighlight]?
     var evidence: [AnalysisEvidence]?
     var reportId: String?
+    var userContext: String?
+    var userResponse: String?
+    var userResponseSources: [AnalysisSource]?
     var valid: Bool {
         (highlights?.count ?? 0) <= 3 && (highlights ?? []).allSatisfy(\.valid)
             && (evidence?.count ?? 0) <= 1 && (evidence ?? []).allSatisfy(\.valid)
             && (reportId.map(validReportID) ?? true)
+            && (userContext.map { validEventText($0) && !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? true)
+            && (userResponse.map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.unicodeScalars.count <= 1600 && userContext != nil } ?? true)
+            && (userResponseSources?.count ?? 0) <= 3 && (userResponseSources ?? []).allSatisfy(\.valid)
+            && (userResponseSources == nil || userResponse != nil)
     }
     var periodDescription: String? {
         guard let start = periodStart, let end = periodEnd else { return nil }
@@ -159,6 +172,8 @@ struct DetailReportSelection: Identifiable, Equatable {
     let reportId: String
     var periodStart: Double?
     var periodEnd: Double?
+    var parentReport: Analysis?
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id && lhs.periodStart == rhs.periodStart && lhs.periodEnd == rhs.periodEnd }
     var id: String { kind + ":" + reportId }
     var title: String { kind == "rolling" ? "动态24h · 详细解读" : "每日回顾 · 详细解读" }
     var valid: Bool { ["rolling", "daily"].contains(kind) && validReportID(reportId) }
@@ -360,6 +375,8 @@ struct ManualAnalysisState: Codable {
     let reason: String
     var coveragePercent: Double?
     var cooldownSeconds: Double?
+    var eligibleWithContext: Bool?
+    var reasonWithContext: String?
 }
 
 struct HeartRateBin: Codable, Identifiable {

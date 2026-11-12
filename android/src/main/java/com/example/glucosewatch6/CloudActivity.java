@@ -19,7 +19,7 @@ import java.util.*;
 import java.util.regex.*;
 
 public final class CloudActivity extends Activity {
-    private EditText endpoint,token;
+    private EditText endpoint,token,userContext;
     private TextView status,metrics,reportTime,summary,latest,latestInfo,activitySummary,graphNotes,analysisState,detailReason;
     private LinearLayout connection,sections;
     private Button analyze,markerList,detail;
@@ -30,6 +30,7 @@ public final class CloudActivity extends Activity {
     private boolean rolling=true,analyzing,fetching,analysisUnconfirmed,active;
     private long analysisStarted;
     private CloudActions.Call call;
+    private JSONObject manualState;
     private final Handler handler=new Handler(Looper.getMainLooper());
     private final Runnable refresh=()->render();
     private final Runnable analysisPoll=()->fetchDashboard(true);
@@ -37,6 +38,7 @@ public final class CloudActivity extends Activity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);rolling=CloudConfig.prefs(this).getBoolean("reportRolling",true);
+        if(saved!=null)analysisUnconfirmed=saved.getBoolean("analysisUnconfirmed")||saved.getBoolean("analyzing");
         LinearLayout box=MobileStyle.page(this);MobileStyle.text(box,"趋势与观察",26,MobileStyle.INK,true);
         MobileStyle.text(box,"过去 24 小时 · 血糖与活动",14,MobileStyle.MUTED,false);
         LinearLayout current=MobileStyle.card(box);LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);current.addView(header);
@@ -54,7 +56,15 @@ public final class CloudActivity extends Activity {
         RadioButton dynamic=new RadioButton(this);dynamic.setId(101);dynamic.setText("动态 24h");dynamic.setTextColor(MobileStyle.INK);modes.addView(dynamic,new RadioGroup.LayoutParams(0,-2,1));
         RadioButton daily=new RadioButton(this);daily.setId(102);daily.setText("每日回顾");daily.setTextColor(MobileStyle.INK);modes.addView(daily,new RadioGroup.LayoutParams(0,-2,1));modes.check(rolling?101:102);
         modes.setOnCheckedChangeListener((group,id)-> { rolling=id==101;CloudConfig.prefs(this).edit().putBoolean("reportRolling",rolling).apply();render(); });
+        userContext=new EditText(this);userContext.setHint("补充信息或想问的问题（可选）");userContext.setContentDescription("补充信息或想问的问题（可选），最多1000字");
+        userContext.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);userContext.setGravity(Gravity.TOP);userContext.setMinLines(2);userContext.setMaxLines(5);userContext.setFilters(new InputFilter[]{new InputFilter.LengthFilter(1000)});MobileStyle.field(userContext);report.addView(userContext);
+        if(saved!=null)userContext.setText(saved.getString("userContextDraft",""));
         analyze=MobileStyle.button(report,"分析过去 24 小时",this::analyzeRecent);analysisState=MobileStyle.text(report,"",12,MobileStyle.MUTED,false);
+        userContext.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s,int start,int count,int after) { }
+            @Override public void onTextChanged(CharSequence s,int start,int before,int count) { }
+            @Override public void afterTextChanged(Editable text) { renderAnalysisAction(); }
+        });
         reportTime=MobileStyle.text(report,"",12,MobileStyle.MUTED,false);summary=MobileStyle.text(report,"",17,MobileStyle.INK,true);
         summary.setMaxLines(5);summary.setEllipsize(TextUtils.TruncateAt.END);summary.setOnClickListener(v-> { summary.setMaxLines(summary.getMaxLines()==5?Integer.MAX_VALUE:5); });
         sections=MobileStyle.column(this);report.addView(sections);
@@ -85,13 +95,17 @@ public final class CloudActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("过去24小时的标记").setItems(labels,(dialog,which)-> { JSONObject event=eventRows.optJSONObject(which);if(event!=null)openEvent(event.optLong("at",0),event); }).setNegativeButton("返回",null).show();
     }
     private void analyzeRecent() {
-        if(analyzing||analysisUnconfirmed)return;
-        analyzing=true;analysisStarted=System.currentTimeMillis();render();
-        call=CloudActions.request(this,"POST","/api/v1/analysis",null,(result,code,error)-> {
-            if(isDestroyed())return;
-            if(error!=null) { analysisUnconfirmed=result==null;analyzing=false;toast(result!=null&&!result.optString("reason").isEmpty()?result.optString("reason"):error); }
-            fetchDashboard(true);
-        });
+        if(!rolling||analyzing||analysisUnconfirmed||!analyze.isEnabled())return;
+        try {
+            String submittedContext=trimmedContext();
+            JSONObject request=submittedContext.isEmpty()?null:new JSONObject().put("userContext",submittedContext);
+            analyzing=true;analysisStarted=System.currentTimeMillis();render();
+            call=CloudActions.request(this,"POST","/api/v1/analysis",request,(result,code,error)-> {
+                if(isDestroyed())return;
+                if(error!=null) { analysisUnconfirmed=result==null;analyzing=false;toast(result!=null&&!result.optString("reason").isEmpty()?result.optString("reason"):error); }
+                fetchDashboard(true);
+            });
+        }catch(Exception ignored) { analyzing=false;toast("暂时无法提交，请刷新状态后再试");render(); }
     }
     private void openDetail() {
         if(!DetailPolicy.validIdentity(detailKind,detailReportId))return;
@@ -129,21 +143,32 @@ public final class CloudActivity extends Activity {
     }
     private String at(long value) { return value<=0?"尚无":new SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date(value)); }
     private String number(JSONObject object,String key,String unit) { double n=object.optDouble(key,Double.NaN);return Double.isFinite(n)?String.format(Locale.CHINA,"%.1f%s",n,unit):"--"; }
+    private String trimmedContext() {
+        String text=userContext.getText().toString();int start=0,end=text.length();
+        while(start<end&&(Character.isWhitespace(text.charAt(start))||Character.isSpaceChar(text.charAt(start))))start++;
+        while(end>start&&(Character.isWhitespace(text.charAt(end-1))||Character.isSpaceChar(text.charAt(end-1))))end--;
+        return text.substring(start,end);
+    }
+    private void renderAnalysisAction() {
+        userContext.setVisibility(rolling?View.VISIBLE:View.GONE);analyze.setVisibility(rolling?View.VISIBLE:View.GONE);analysisState.setVisibility(rolling?View.VISIBLE:View.GONE);
+        boolean hasContext=!trimmedContext().isEmpty();boolean running=manualState!=null&&"running".equals(manualState.optString("status"));
+        boolean eligible=manualState!=null&&(hasContext?manualState.optBoolean("eligibleWithContext",manualState.optBoolean("eligible")):manualState.optBoolean("eligible"));
+        analyze.setEnabled(rolling&&eligible&&!analyzing&&!running&&!analysisUnconfirmed);analyze.setText(analyzing||running?"分析中…":"分析过去 24 小时");
+        String reason=manualState==null?"等待最近24小时资料":manualState.optString("reason","");if(hasContext&&manualState!=null)reason=manualState.optString("reasonWithContext",reason);
+        analysisState.setText(analysisUnconfirmed?"请求暂未确认，请先刷新查看状态":analyzing||running?"正在生成新的观察结果":reason);
+    }
     private void render() {
         android.content.SharedPreferences p=CloudConfig.prefs(this);status.setText(CloudSync.status(this));
         try {
             String raw=p.getString("dashboard","");
             if(raw.isEmpty()) {
-                latest.setText("--");latestInfo.setText("mmol/L · 等待读数");metrics.setText("");reportTime.setText("");sections.removeAllViews();graph.setData(null,null);graph.setActivity(null);graph.setEvents(null);eventRows=new JSONArray();markerList.setVisibility(View.GONE);graphNotes.setText(graph.legend());summary.setText("连接后显示曲线与观察结果");analyze.setEnabled(false);analysisState.setText("等待最近24小时资料");detailReportId="";detail.setEnabled(false);detailReason.setText("生成报告后可展开详细解读");detailReason.setVisibility(View.VISIBLE);return;
+                latest.setText("--");latestInfo.setText("mmol/L · 等待读数");metrics.setText("");reportTime.setText("");sections.removeAllViews();graph.setData(null,null);graph.setActivity(null);graph.setEvents(null);eventRows=new JSONArray();markerList.setVisibility(View.GONE);graphNotes.setText(graph.legend());summary.setText("连接后显示曲线与观察结果");manualState=null;renderAnalysisAction();detailReportId="";detail.setEnabled(false);detailReason.setText("生成报告后可展开详细解读");detailReason.setVisibility(View.VISIBLE);return;
             }
             JSONObject dashboard=new JSONObject(raw);graph.setData(dashboard.optJSONArray("readings"),dashboard.optJSONObject("comparison"),dashboard.optLong("serverAt",0));graph.setActivity(dashboard.optJSONObject("activity"));graph.setEvents(dashboard.optJSONArray("events"));eventRows=dashboard.optJSONArray("events");if(eventRows==null)eventRows=new JSONArray();markerList.setVisibility(eventRows.length()>0?View.VISIBLE:View.GONE);markerList.setText("查看时间标记（"+eventRows.length()+"）");graphNotes.setText(graph.legend());
             JSONObject value=dashboard.optJSONObject("latest");latest.setText(value==null?"--":number(value,"value","")+" "+value.optString("trend",""));latestInfo.setText(value==null?"mmol/L · 等待读数":"mmol/L · 更新 "+at(value.optLong("sourceAt",0)));
             JSONObject m=dashboard.optJSONObject("metrics");if(m==null)m=new JSONObject();metrics.setText("平均 "+number(m,"mean","")+"　最高 "+number(m,"max","")+"　最低 "+number(m,"min","")+"\n观察范围内 "+number(m,"inRangePercent","%")+"　覆盖 "+number(m,"coveragePercent","%"));
             renderActivity(dashboard.optJSONObject("activity"));
-            JSONObject manual=dashboard.optJSONObject("manualAnalysis");boolean running=manual!=null&&"running".equals(manual.optString("status"));
-            analyze.setEnabled(manual!=null&&manual.optBoolean("eligible")&&!analyzing&&!running&&!analysisUnconfirmed);analyze.setText(analyzing||running?"分析中…":"分析过去 24 小时");
-            String reason=analysisUnconfirmed?"请求暂未确认，请先刷新查看状态":manual==null?"等待分析状态":manual.optString("reason","");
-            analysisState.setText(analyzing||running?"正在生成新的观察结果":reason);
+            manualState=dashboard.optJSONObject("manualAnalysis");renderAnalysisAction();
             JSONObject a=dashboard.optJSONObject(rolling?"rollingAnalysis":"dailyAnalysis");
             if(a==null) { JSONObject fallback=dashboard.optJSONObject("analysis");if(fallback!=null&&((rolling&&fallback.optString("trigger").startsWith("manual"))||(!rolling&&!fallback.optString("trigger").startsWith("manual"))))a=fallback; }
             if(a==null)a=new JSONObject();
@@ -156,8 +181,9 @@ public final class CloudActivity extends Activity {
             JSONArray highlights=a.optJSONArray("highlights");
             if(highlights!=null&&highlights.length()>0)for(int i=0;i<Math.min(highlights.length(),3);i++) { JSONObject h=highlights.optJSONObject(i);if(h!=null)highlight(h); }
             else renderLegacy(a.optJSONArray("sections"));
+            if(rolling)renderUserResponse(a);
             renderEvidence(a);
-        }catch(Exception error) { summary.setText("观察缓存暂不可读，请刷新");detailReportId="";detail.setEnabled(false);detailReason.setText("请刷新报告后再查看");detailReason.setVisibility(View.VISIBLE); }
+        }catch(Exception error) { manualState=null;renderAnalysisAction();sections.removeAllViews();summary.setText("观察缓存暂不可读，请刷新");detailReportId="";detail.setEnabled(false);detailReason.setText("请刷新报告后再查看");detailReason.setVisibility(View.VISIBLE); }
     }
     private void renderActivity(JSONObject activity) {
         if(activity==null) { activitySummary.setText("暂无活动资料");return; }
@@ -176,6 +202,14 @@ public final class CloudActivity extends Activity {
         MobileStyle.button(sections,"展开报告详情",()->detail.setVisibility(detail.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE));sections.addView(detail);
         for(int i=0;i<Math.min(rows.length(),12);i++) { JSONObject row=rows.optJSONObject(i);if(row==null)continue;MobileStyle.text(detail,row.optString("title",""),16,MobileStyle.VIOLET,true);MobileStyle.text(detail,row.optString("text",""),14,MobileStyle.INK,false); }
     }
+    private void renderUserResponse(JSONObject report) {
+        String context=report.optString("userContext",""),response=report.optString("userResponse","");if(context.trim().isEmpty()||response.trim().isEmpty())return;
+        LinearLayout card=MobileStyle.column(this);int pad=MobileStyle.dp(this,12);card.setPadding(pad,pad,pad,pad);card.setBackground(MobileStyle.rounded(this,0xffeef4ff,16));LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.topMargin=MobileStyle.dp(this,10);sections.addView(card,params);
+        MobileStyle.text(card,"针对你的问题",18,MobileStyle.BLUE,true);TextView question=MobileStyle.text(card,"本次补充："+context,13,MobileStyle.MUTED,false);question.setTextIsSelectable(true);
+        TextView answer=MobileStyle.text(card,"",15,MobileStyle.INK,false);answer.setText(rich(response));answer.setTextIsSelectable(true);
+        JSONArray sources=report.optJSONArray("userResponseSources");
+        if(sources!=null)for(int i=0;i<Math.min(sources.length(),10);i++) { JSONObject source=sources.optJSONObject(i);if(source==null)continue;String url=source.optString("url","");if(!DetailPolicy.safeSource(url))continue;MobileStyle.text(card,source.optString("title","研究依据"),13,MobileStyle.BLUE,false);reference(card,url); }
+    }
     private void renderEvidence(JSONObject report) {
         JSONArray evidence=report.optJSONArray("evidence"),sources=report.optJSONArray("sources");if((evidence==null||evidence.length()==0)&&(sources==null||sources.length()==0))return;
         LinearLayout detail=MobileStyle.column(this);detail.setVisibility(View.GONE);
@@ -191,5 +225,6 @@ public final class CloudActivity extends Activity {
     private void toast(String message) { Toast.makeText(this,message,Toast.LENGTH_LONG).show(); }
     @Override public void onResume() { super.onResume();active=true;CloudConfig.prefs(this).registerOnSharedPreferenceChangeListener(changed);render();analysisStarted=System.currentTimeMillis();if(CloudConfig.configured(this))fetchDashboard(true); }
     @Override public void onPause() { active=false;CloudConfig.prefs(this).unregisterOnSharedPreferenceChangeListener(changed);handler.removeCallbacks(refresh);handler.removeCallbacks(analysisPoll);super.onPause(); }
+    @Override public void onSaveInstanceState(Bundle out) { out.putString("userContextDraft",userContext.getText().toString());out.putBoolean("analysisUnconfirmed",analysisUnconfirmed);out.putBoolean("analyzing",analyzing);super.onSaveInstanceState(out); }
     @Override public void onDestroy() { handler.removeCallbacksAndMessages(null);if(call!=null)call.cancel();super.onDestroy(); }
 }

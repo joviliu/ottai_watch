@@ -12,6 +12,8 @@ swiftc Shared/Models.swift Shared/Cache.swift Tests/CacheTests.swift -o build/ca
 build/cache-tests
 swiftc Shared/Models.swift Shared/Cache.swift App/ConnectionStore.swift App/DetailAnalysisModel.swift App/AppModel.swift Tests/AppModelTests.swift -o build/app-model-tests
 build/app-model-tests
+swiftc Shared/Models.swift Shared/Cache.swift App/ConnectionStore.swift App/DetailAnalysisModel.swift App/AppModel.swift Tests/AnalysisClientTests.swift -o build/analysis-client-tests
+build/analysis-client-tests
 swiftc Shared/Models.swift App/ConnectionStore.swift App/DetailAnalysisModel.swift Tests/DetailClientTests.swift -o build/detail-client-tests
 build/detail-client-tests
 swiftc -D REMOTE_DASHBOARD_TESTS Shared/Models.swift Widget/RemoteDashboard.swift Tests/RemoteDashboardTests.swift -o build/remote-tests

@@ -200,6 +200,34 @@ struct ModelTests {
         withEvents.rollingAnalysis!.reportId = String(repeating: "a", count: 64)
         let withID = try Dashboard.decode(JSONEncoder().encode(withEvents))
         assert(withID.rollingAnalysis?.reportId == withEvents.rollingAnalysis?.reportId)
+        var contextual = withEvents
+        let question = String(repeating: "😀", count: 1000)
+        contextual.rollingAnalysis!.userContext = question
+        contextual.rollingAnalysis!.userResponse = "**合成回答**：可结合餐食和活动时点比较。"
+        contextual.rollingAnalysis!.userResponseSources = [AnalysisSource(title: "合成来源", url: "https://pubmed.ncbi.nlm.nih.gov/26106234/")]
+        contextual.manualAnalysis = ManualAnalysisState(eligible: false, status: "ready", reason: "已有分析", eligibleWithContext: true, reasonWithContext: "可结合补充信息分析最近24小时。")
+        let contextualDecoded = try Dashboard.decode(JSONEncoder().encode(contextual))
+        assert(contextualDecoded.rollingAnalysis?.userContext == question && contextualDecoded.rollingAnalysis?.userResponseSources?.count == 1)
+        assert(contextualDecoded.manualAnalysis?.eligibleWithContext == true && contextualDecoded.manualAnalysis?.reasonWithContext?.contains("补充信息") == true)
+        for mutation in ["long-question", "long-response", "orphan-response", "unsafe-source", "credential-source", "long-source", "many-sources", "orphan-sources"] {
+            var invalid = contextual
+            switch mutation {
+            case "long-question": invalid.rollingAnalysis!.userContext = question + "😀"
+            case "long-response": invalid.rollingAnalysis!.userResponse = String(repeating: "😀", count: 1601)
+            case "orphan-response": invalid.rollingAnalysis!.userContext = nil
+            case "unsafe-source": invalid.rollingAnalysis!.userResponseSources = [AnalysisSource(title: "合成来源", url: "file:///etc/passwd")]
+            case "credential-source": invalid.rollingAnalysis!.userResponseSources = [AnalysisSource(title: "合成来源", url: "https://user:password@example.invalid/paper")]
+            case "long-source": invalid.rollingAnalysis!.userResponseSources = [AnalysisSource(title: String(repeating: "x", count: 201), url: "https://example.invalid/paper")]
+            case "many-sources": invalid.rollingAnalysis!.userResponseSources = Array(repeating: contextual.rollingAnalysis!.userResponseSources![0], count: 4)
+            default: invalid.rollingAnalysis!.userResponse = nil
+            }
+            do { _ = try Dashboard.decode(JSONEncoder().encode(invalid)); fatalError("invalid context response accepted: \(mutation)") }
+            catch MirrorError.invalidResponse {}
+        }
+        contextual.rollingAnalysis!.userResponseSources = []
+        _ = try Dashboard.decode(JSONEncoder().encode(contextual))
+        assert(dashboard.manualAnalysis?.eligibleWithContext == nil && dashboard.rollingAnalysis?.userContext == nil,
+            "old dashboards and widget caches must remain readable without question fields")
         var invalidID = withEvents
         invalidID.rollingAnalysis!.reportId = "not-a-report-id"
         do { _ = try Dashboard.decode(JSONEncoder().encode(invalidID)); fatalError("invalid parent report ID accepted") }

@@ -4,6 +4,7 @@ import json
 import os
 import secrets
 import threading
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -39,6 +40,37 @@ SOURCES = [
     {'title': 'Shah et al. CGM Profiles in Healthy Nondiabetic Participants (2019)',
      'url': 'https://pubmed.ncbi.nlm.nih.gov/31127824/'},
 ]
+
+USER_CONTEXT_SOURCES = SOURCES + [
+    {'title':'Kreisman et al. Epinephrine infusion during moderate intensity exercise increases glucose production and uptake (2000)',
+     'url':'https://pubmed.ncbi.nlm.nih.gov/10780953/',
+     'scope':'7名健康受训男性，吸收后状态40分钟中等强度骑行，后10分钟输注肾上腺素与对照比较；实验中肝糖输出的增加可超过外周摄取。仅作机制背景，不能从本人曲线推算运动强度或激素水平。'},
+    {'title':'Pequignot et al. Fasting and sympathoadrenal responses during exercise (1980)',
+     'url':'https://pubmed.ncbi.nlm.nih.gov/7353963/',
+     'scope':'隔夜约15小时禁食与进食状态对照，约80%VO2max骑行至力竭；禁食条件下儿茶酚胺反应更大。不能外推所有空腹轻跑或用CGM证明本人空腹和激素变化。'},
+]
+
+MAX_USER_CONTEXT = 1000
+MAX_MANUAL_BODY = 16384
+
+
+def normalize_user_context(text):
+    if not isinstance(text, str):
+        raise ValueError('invalid_user_context')
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    if any(unicodedata.category(c) == 'Cc' and c not in '\n\t' for c in text):
+        raise ValueError('invalid_user_context')
+    text = text.strip()
+    if len(text) > MAX_USER_CONTEXT:
+        raise ValueError('invalid_user_context')
+    text.encode('utf-8')
+    return text
+
+
+def validate_manual_request(payload):
+    if not isinstance(payload, dict) or set(payload) != {'userContext'}:
+        raise ValueError('invalid_user_context')
+    return normalize_user_context(payload['userContext'])
 
 
 class AnalysisError(Exception):
@@ -89,7 +121,7 @@ def report_view(store, now=None):
     return base
 
 
-def response_request(data, report_date, model):
+def response_request(data, report_date, model, user_context=''):
     prompt = (Path(__file__).parent / 'daily_prompt.md').read_text(encoding='utf-8')
     schema = {'type':'object','additionalProperties':False,'properties':{
         'summary':{'type':'string','maxLength':120},
@@ -106,10 +138,19 @@ def response_request(data, report_date, model):
             'required':['topic','title','text','sourceUrl']}},
         'limitations':{'type':'array','maxItems':2,'items':{'type':'string','maxLength':100}}},
         'required':['summary','highlights','evidence','limitations']}
+    packet = {'reportDate':report_date,'observations':data}
+    if user_context:
+        prompt += '\n\n' + (Path(__file__).parent / 'manual_context_prompt.md').read_text(encoding='utf-8')
+        packet['userContext'] = {'text':user_context,'source':'user_supplied_context'}
+        packet['userContextSourceCatalog'] = USER_CONTEXT_SOURCES
+        schema['properties']['userResponse'] = {'type':'string','minLength':1,'maxLength':1600}
+        schema['properties']['userResponseSources'] = {'type':'array','maxItems':3,
+                'items':{'type':'string','enum':[r['url'] for r in USER_CONTEXT_SOURCES]}}
+        schema['required'] += ['userResponse','userResponseSources']
     return {'model':model,'store':False,'stream':False,'background':False,
-            'reasoning':{'effort':'low'},'max_output_tokens':2800,
+            'reasoning':{'effort':'medium' if user_context else 'low'},'max_output_tokens':6000 if user_context else 2800,
             'input':[{'role':'system','content':[{'type':'input_text','text':prompt}]},
-                     {'role':'user','content':[{'type':'input_text','text':json.dumps({'reportDate':report_date,'observations':data},ensure_ascii=False,separators=(',',':'))}]}],
+                     {'role':'user','content':[{'type':'input_text','text':json.dumps(packet,ensure_ascii=False,separators=(',',':'))}]}],
             'text':{'format':{'type':'json_schema','name':'glucose_daily_observation','strict':True,'schema':schema}}}
 
 
@@ -148,7 +189,7 @@ def relay_post(payload, report_date, food=False):
         raise AnalysisError('relay_invalid_json') from None
 
 
-def parse_response(response):
+def parse_response(response, with_context=False):
     if not isinstance(response,dict) or response.get('status')!='completed':
         raise AnalysisError('model_incomplete')
     chunks=[]
@@ -163,9 +204,16 @@ def parse_response(response):
         raise AnalysisError('model_invalid_json') from None
     legacy={'summary','sections','limitations'}
     modern={'summary','highlights','evidence','limitations'}
-    if not isinstance(result,dict) or set(result) not in (legacy,modern):
+    contextual=modern|{'userResponse','userResponseSources'}
+    if not isinstance(result,dict) or set(result) not in ((contextual,) if with_context else (legacy,modern)):
         raise AnalysisError('model_invalid_schema')
-    is_modern=set(result)==modern
+    is_modern=set(result) in (modern,contextual)
+    if with_context:
+        answer,refs=result['userResponse'],result['userResponseSources']
+        if not isinstance(answer,str) or not answer.strip() or not 1<=len(answer)<=1600:
+            raise AnalysisError('model_invalid_user_response')
+        if not isinstance(refs,list) or len(refs)>3 or any(not isinstance(url,str) or url not in {r['url'] for r in USER_CONTEXT_SOURCES} for url in refs):
+            raise AnalysisError('model_invalid_user_sources')
     if not isinstance(result['summary'],str) or not 1<=len(result['summary'])<=(120 if is_modern else 3000):
         raise AnalysisError('model_invalid_summary')
     limitations=result['limitations']
@@ -192,7 +240,7 @@ def parse_response(response):
     return result
 
 
-def _report_body(readings, end, trigger, date, now, invoke, request_identity, activity=None, events=None, explained_topics=None):
+def _report_body(readings, end, trigger, date, now, invoke, request_identity, activity=None, events=None, explained_topics=None, user_context=''):
     data = analysis_input(readings, end)
     data['trigger'] = trigger
     data['periodMeaning'] = ('固定前一自然日00:00–24:00' if trigger == 'scheduled_daily' else '截至最新测量的滚动24小时')
@@ -207,15 +255,20 @@ def _report_body(readings, end, trigger, date, now, invoke, request_identity, ac
         data['activity'] = {
             'latest24h': analysis_context(activity, readings, end-DAY, end, now, data['candidateExcursions']),
             'previous24h': analysis_context(activity, readings, end-2*DAY, end-DAY, now, data['previous24hExcursions'])}
-    request = response_request(data, date, os.environ.get('OPENAI_MODEL', 'gpt-6.1-terra'))
+    request = response_request(data, date, os.environ.get('OPENAI_MODEL', 'gpt-6.1-terra'), user_context)
     if len(json.dumps(request,ensure_ascii=False,separators=(',',':')).encode('utf-8')) > 262144:
         raise AnalysisError('analysis_input_limit')
-    result = parse_response((invoke or relay_post)(request, request_identity))
+    result = parse_response((invoke or relay_post)(request, request_identity), with_context=bool(user_context))
     if 'evidence' in result:
         result['evidence']=[e for e in result['evidence'] if e['topic'] not in (explained_topics or [])]
     referenced={e['sourceUrl'] for e in result.get('evidence',[])}
+    if user_context:
+        answer_urls=set(result['userResponseSources'])
+        result['userContext']=user_context
+        result['userResponseSources']=[{'title':s['title'],'url':s['url']} for s in USER_CONTEXT_SOURCES if s['url'] in answer_urls]
+        referenced.update(answer_urls)
     result.update(status='ready',generatedAt=now_ms(),reportDate=date,
-                  periodStart=end-DAY,periodEnd=end,sources=[s for s in SOURCES if s['url'] in referenced],
+                  periodStart=end-DAY,periodEnd=end,sources=[{'title':s['title'],'url':s['url']} for s in (USER_CONTEXT_SOURCES if user_context else SOURCES) if s['url'] in referenced],
                   methodVersion='cgm-observation-5',trigger=trigger,activityContextIncluded=activity is not None,
                   lifestyleContextIncluded=bool(events))
     return result
@@ -250,9 +303,12 @@ def generate_daily(store, now=None, invoke=None):
         return {'status': 'error', 'reportDate': date, 'errorCode': code}
 
 
-def _snapshot_id(points, end, activity_digest=None, event_digest=None):
+def _snapshot_id(points, end, activity_digest=None, event_digest=None, user_context=''):
     observed = [[r['sourceAt'],r['value'],r['trend']] for r in points if end-2*DAY-300000 <= r['sourceAt'] <= end]
-    return hashlib.sha256(json.dumps(['manual-v5', end, observed, activity_digest, event_digest], separators=(',', ':')).encode()).hexdigest()
+    identity=['manual-v5', end, observed, activity_digest, event_digest]
+    if user_context:
+        identity += ['user-context-v1',user_context]
+    return hashlib.sha256(json.dumps(identity, separators=(',', ':')).encode()).hexdigest()
 
 
 def manual_report_view(store):
@@ -268,7 +324,7 @@ def manual_report_view(store):
     return body
 
 
-def manual_status(store, now=None, points=None, activity=None, events=None):
+def manual_status(store, now=None, points=None, activity=None, events=None, user_context=''):
     now = now if now is not None else now_ms()
     points = points if points is not None else store.readings(now-2*DAY-300000, now)
     end = points[-1]['sourceAt'] if points else now
@@ -277,57 +333,68 @@ def manual_status(store, now=None, points=None, activity=None, events=None):
         quality.update(ready=False, latestFresh=False, reason=quality['reason']+' 请先恢复最新读数同步。')
     activity_digest = activity['digest'] if activity is not None else store.activity_identity(end-2*DAY,end,now)
     event_digest = events['digest'] if events is not None else store.event_identity(end-2*DAY,end)
-    key = _snapshot_id(points, end, activity_digest, event_digest)
+    user_context=normalize_user_context(user_context)
+    key = _snapshot_id(points, end, activity_digest, event_digest, user_context)
     same = store.manual_report(key)
     last = store.manual_report()
     cooldown = max(0, (last['started_at']+30*60000-now)//1000) if last else 0
     detail_busy = store.active_detail(now)
+    recent_running=last and last['status']=='running' and now-last['started_at']<180000
+    context_eligible=enabled() and quality['ready'] and not cooldown and not detail_busy and not recent_running
+    context_reason=('模型分析尚未启用。' if not enabled() else quality['reason'] if not quality['ready'] else
+                    '上一份动态分析仍在生成，无需重复提交。' if recent_running else
+                    '距离上次手动分析不足30分钟，约%d分钟后可再次分析。' % ((cooldown+59)//60) if cooldown else
+                    '详细解读正在生成，请稍后再分析。' if detail_busy else '可结合补充信息分析最近24小时。')
     status = 'available' if quality['ready'] else 'insufficient_data'
     reason = quality['reason']
     if not enabled():
         status, reason = 'disabled', '模型分析尚未启用。'
+    elif recent_running and last['snapshot_id'] != key:
+        status, reason = 'running', '上一份动态分析仍在生成，无需重复提交。'
     elif same:
         status = same['status']
         reason = {'running':'该快照正在分析，无需重复提交。','ready':'该数据快照已有分析；有新数据且间隔满30分钟后可再次分析。',
                   'error':'该快照已尝试分析，结果不确定时不重复计费；新快照间隔满30分钟后可再试。'}.get(status, reason)
-    elif last and last['status'] == 'running' and now-last['started_at'] < 180000:
+    elif recent_running:
         status, reason = 'running', '上一份动态分析仍在生成，无需重复提交。'
     elif cooldown:
         status, reason = 'cooldown', '距离上次手动分析不足30分钟，约%d分钟后可再次分析。' % ((cooldown+59)//60)
     elif detail_busy:
         status, reason = 'busy', '详细解读正在生成，请稍后再分析。'
     return dict(quality, eligible=enabled() and quality['ready'] and not same and not cooldown and not detail_busy,
+                eligibleWithContext=context_eligible,reasonWithContext=context_reason,
                 status=status, reason=reason, cooldownSeconds=cooldown, windowEnd=end, snapshotId=key)
 
 
-def generate_manual(store, key, end, rows, now, invoke=None, activity=None, events=None):
+def generate_manual(store, key, end, rows, now, invoke=None, activity=None, events=None, user_context=''):
     date = datetime.fromtimestamp(end/1000, timezone(timedelta(hours=8))).date().isoformat()
     try:
         with store.analysis_lock():
             body = _report_body(rows, end, 'manual24h', date, now, invoke, 'manual:'+key,
                                 activity if activity is not None else store.activity_snapshot(end-2*DAY,end,now),
-                                events if events is not None else store.events(end-2*DAY,end),store.recent_evidence_topics())
+                                events if events is not None else store.events(end-2*DAY,end),store.recent_evidence_topics(),user_context)
         store.finish_manual(key, now_ms(), body=body)
     except Exception as error:
         code = str(error) if isinstance(error, AnalysisError) else 'analysis_internal_error'
         store.finish_manual(key, now_ms(), error_code=code)
 
 
-def request_manual(store, now=None, launch=None):
+def request_manual(store, now=None, launch=None, user_context=''):
     now = now if now is not None else now_ms()
+    user_context=normalize_user_context(user_context)
     rows = store.readings(now-366*DAY, now)
     end = rows[-1]['sourceAt'] if rows else now
     activity = store.activity_snapshot(end-2*DAY,end,now)
     events = store.event_snapshot(end-2*DAY,end)
-    status = manual_status(store, now, points=rows, activity=activity, events=events)
+    status = manual_status(store, now, points=rows, activity=activity, events=events, user_context=user_context)
     if not status['eligible']:
         return (200 if status['status'] in ('ready', 'running') else 409), status
     key, end = status['snapshotId'], status['windowEnd']
-    claimed = store.claim_manual(key, end, now)
+    claimed = store.claim_manual(key, end, now, user_context)
     if claimed != 'created':
-        return (200 if claimed == 'existing' else 409), manual_status(store, now)
+        return (200 if claimed == 'existing' else 409), manual_status(store, now, user_context=user_context)
     def run():
-        generate_manual(store, key, end, rows, now, activity=activity, events=events['events'])
+        generate_manual(store, key, end, rows, now, activity=activity, events=events['events'], user_context=user_context)
     try:
         if launch is None:
             threading.Thread(target=run, name='ottai-manual-analysis', daemon=True).start()

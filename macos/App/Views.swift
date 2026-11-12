@@ -96,7 +96,7 @@ struct AnalysisPanel: View {
     }
     private var detailSelection: DetailReportSelection? {
         guard let report, report.generatedAt != nil, let id = report.reportId, validReportID(id) else { return nil }
-        return DetailReportSelection(kind: selection, reportId: id, periodStart: report.periodStart, periodEnd: report.periodEnd)
+        return DetailReportSelection(kind: selection, reportId: id, periodStart: report.periodStart, periodEnd: report.periodEnd, parentReport: report)
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -110,6 +110,17 @@ struct AnalysisPanel: View {
                 Text("每日回顾").tag("daily")
             }.pickerStyle(.segmented)
             if selection == "rolling" {
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("补充信息或想问的问题（可选）", text: Binding(get: { model.analysisContext }, set: model.updateAnalysisContext), axis: .vertical)
+                        .lineLimit(2...4).textFieldStyle(.roundedBorder).font(.callout)
+                        .accessibilityHint("最多1000字，仅在点击分析后提交。")
+                    HStack {
+                        Text("留空可直接分析最近24小时。")
+                        Spacer()
+                        Text("\(model.analysisContext.unicodeScalars.count)/1000").monospacedDigit()
+                            .foregroundStyle(model.analysisContextValid ? MirrorPalette.muted : Color.red)
+                    }.font(.caption2).foregroundStyle(MirrorPalette.muted)
+                }
                 Button { Task { await model.analyzeRecent() } } label: {
                     Label(model.analyzing ? "正在分析…" : "分析过去24小时", systemImage: "sparkles")
                 }.disabled(!model.canAnalyze).buttonStyle(.borderedProminent).tint(MirrorPalette.violet).controlSize(.small)
@@ -128,6 +139,7 @@ struct AnalysisPanel: View {
                         if summary.count > 140 { Button(expandedSummary ? "收起" : "展开结论") { expandedSummary.toggle() }.font(.caption).buttonStyle(.plain).foregroundStyle(MirrorPalette.blue) }
                     }
                 }
+                if selection == "rolling" { UserQuestionResponse(report: report) }
                 if let highlights = report.highlights, !highlights.isEmpty {
                     ForEach(Array(highlights.prefix(3))) { highlight in HighlightCard(highlight: highlight) }
                 } else if !(report.sections ?? []).isEmpty {
@@ -174,6 +186,25 @@ struct AnalysisPanel: View {
                 Text("这类报告就绪后可查看详细解读。").font(.caption).foregroundStyle(MirrorPalette.muted)
             }
         }.frame(maxWidth: .infinity, alignment: .leading).mirrorCard(padding: compact ? 14 : 20)
+    }
+}
+
+struct UserQuestionResponse: View {
+    let report: Analysis
+    var body: some View {
+        if let question = report.userContext, let response = report.userResponse, !response.isEmpty {
+            VStack(alignment: .leading, spacing: 9) {
+                Label("针对你的问题", systemImage: "text.bubble").font(.subheadline.weight(.semibold)).foregroundStyle(MirrorPalette.violet)
+                Text(question).font(.caption).foregroundStyle(MirrorPalette.muted).textSelection(.enabled)
+                Text(reportInlineText(response)).font(.callout).lineSpacing(3).textSelection(.enabled)
+                ForEach(report.userResponseSources ?? []) { source in
+                    if let url = URL(string: source.url), source.valid {
+                        Link(destination: url) { Label(source.title, systemImage: "book.closed") }.font(.caption).foregroundStyle(MirrorPalette.muted)
+                    }
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                .background(MirrorPalette.violet.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
+        }
     }
 }
 

@@ -254,7 +254,7 @@ class HttpTests(unittest.TestCase):
             code, body = self.fetch('/api/v1/analysis', 'i'*32, method='POST')
             self.assertEqual((code, body['status']), (202, 'running'))
             code, body = self.fetch('/api/v1/analysis', 'i'*32, {})
-            self.assertEqual((code, body['error']), (400, 'empty_body_required'))
+            self.assertEqual((code, body['error']), (400, 'invalid_user_context'))
             submit.assert_called_once_with(self.store)
 
 

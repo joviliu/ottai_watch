@@ -32,6 +32,9 @@ struct DetailedReportView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 header
+                if detail.state != nil, detail.selection.kind == "rolling", let report = detail.selection.parentReport, report.userResponse != nil {
+                    UserQuestionResponse(report: report).mirrorCard(padding: 16)
+                }
                 if let report = detail.state?.report { DetailedReportBody(report: report) }
                 else if detail.state?.status == "available" {
                     VStack(alignment: .leading, spacing: 10) {

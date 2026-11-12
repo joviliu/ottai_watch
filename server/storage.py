@@ -87,7 +87,7 @@ class Store:
                 CREATE TABLE IF NOT EXISTS manual_reports (
                     snapshot_id TEXT PRIMARY KEY, window_end INTEGER NOT NULL,
                     status TEXT NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER,
-                    body TEXT, error_code TEXT
+                    body TEXT, error_code TEXT, user_context TEXT NOT NULL DEFAULT ''
                 );
                 CREATE TABLE IF NOT EXISTS reports (
                     report_date TEXT PRIMARY KEY, status TEXT NOT NULL,
@@ -102,9 +102,11 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS detail_parent ON detail_reports(kind,report_id,started_at);
             ''')
-            # Migrate only activity tables; glucose, revisions and reports are untouched.
+            # Additive migrations preserve glucose and all existing report bodies.
             # BEGIN rechecks under the write lock if API and timer start together.
             db.execute('BEGIN IMMEDIATE')
+            if 'user_context' not in [r[1] for r in db.execute('PRAGMA table_info(manual_reports)').fetchall()]:
+                db.execute("ALTER TABLE manual_reports ADD COLUMN user_context TEXT NOT NULL DEFAULT ''")
             columns = [r[1] for r in db.execute('PRAGMA table_info(activity_state)').fetchall()]
             if 'origin_app' not in columns:
                 db.execute('ALTER TABLE activity_state ADD COLUMN origin_app TEXT')
@@ -439,7 +441,7 @@ class Store:
             row = db.execute('SELECT * FROM manual_reports'+where+' ORDER BY started_at DESC LIMIT 1', params).fetchone()
         return dict(row) if row else None
 
-    def claim_manual(self, snapshot_id, window_end, now):
+    def claim_manual(self, snapshot_id, window_end, now, user_context=''):
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             if db.execute('SELECT 1 FROM manual_reports WHERE snapshot_id=?', (snapshot_id,)).fetchone():
@@ -449,8 +451,8 @@ class Store:
             latest = db.execute('SELECT MAX(started_at) FROM manual_reports').fetchone()[0]
             if latest is not None and now-latest < 30*60*1000:
                 return 'cooldown'
-            db.execute('INSERT INTO manual_reports(snapshot_id,window_end,status,started_at) VALUES (?,?,?,?)',
-                       (snapshot_id, window_end, 'running', now))
+            db.execute('INSERT INTO manual_reports(snapshot_id,window_end,status,started_at,user_context) VALUES (?,?,?,?,?)',
+                       (snapshot_id, window_end, 'running', now, user_context))
             return 'created'
 
     def _expire_details(self, db, now):

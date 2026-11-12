@@ -23,7 +23,9 @@ struct InteractionPreview {
             LifestyleEvent(id: "synthetic-walk", type: .exercise, at: end-4*3600000, note: "散步")]
         let report = Analysis(status: "ready", generatedAt: end, reportDate: "合成预览", summary: "整体较平稳，主要关注一次持续较长的升高。", sections: [], limitations: [], sources: [], periodStart: end-86400000, periodEnd: end, trigger: "manual", highlights: [
             AnalysisHighlight(title: "这次升高值得继续观察", text: "峰值后的回落较慢，下一餐可结合进餐标记做比较。", severity: "watch", action: "记录主食份量和大约时间。"),
-            AnalysisHighlight(title: "夜间曲线较平稳", text: "记录的睡眠时段没有明显持续升高。", severity: "positive", action: nil)])
+            AnalysisHighlight(title: "夜间曲线较平稳", text: "记录的睡眠时段没有明显持续升高。", severity: "positive", action: nil)],
+            userContext: "这餐之后散步，是否有助于回落？", userResponse: "**这段记录可作为一次比较线索。** 餐后升高与散步的先后关系值得关注，但单次曲线不能分离餐食份量和活动的作用。下次记录相近餐食与散步开始时点，再比较恢复过程。",
+            userResponseSources: [AnalysisSource(title: "示例参考：餐后活动与血糖", url: "https://pubmed.ncbi.nlm.nih.gov/27747394/")])
         let heart = (0..<12).map { index in
             let at = end - Double(12-index)*3600000
             return HeartRateBin(startAt: at, endAt: at+300000, mean: 65+Double(index%4)*4, min: 62+Double(index%4)*4, max: 69+Double(index%4)*4, sampleCount: 2, firstSampleAt: at+1000, lastSampleAt: at+250000)
@@ -35,6 +37,7 @@ struct InteractionPreview {
         let cache = folder.appendingPathComponent("dashboard.json")
         try SnapshotStore.save(CachedDashboard(fetchedAt: now, dashboard: dashboard), at: cache)
         let model = AppModel(connectionStore: store, snapshotURL: cache, automaticallyRefresh: false, reloadWidgets: {})
+        model.updateAnalysisContext("昨晚睡得较晚，想了解今天的表现。")
         let output = CommandLine.arguments.dropFirst().first ?? "macos/build/report-events-synthetic.png"
         try render(VStack(spacing: 12) {
             Text("合成资料 · 报告与时间标记布局").font(.caption).foregroundStyle(.secondary)
@@ -58,6 +61,7 @@ struct InteractionPreview {
                       DetailAction(title: "比较恢复过程而非只看峰值", text: "关注回到餐前附近的过程，并结合是否存在缺测；保留能解释差异的活动记录。")], limitations: [], sources: [source])
         try render(VStack(alignment: .leading, spacing: 18) {
             Text("合成资料 · 详细解读布局").font(.caption).foregroundStyle(MirrorPalette.muted)
+            UserQuestionResponse(report: report).mirrorCard(padding: 16)
             DetailedReportBody(report: detailed)
         }.padding(24).frame(width: 740).foregroundStyle(MirrorPalette.ink).background(MirrorPalette.background).preferredColorScheme(.light), output: detailOutput)
         print("Rendered synthetic report highlights, event markers and event editor; no real connection or network used")
