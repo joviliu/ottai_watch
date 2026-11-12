@@ -1,6 +1,7 @@
 package com.example.glucosewatch6;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -79,6 +80,8 @@ public final class HealthActivity extends Activity {
         label(source, "Health Connect 数据来源", 18, 0xff233456, true);
         label(source, "请在小米运动健康中启用 Health Connect 数据共享，并在系统中允许它写入锻炼、睡眠、心率、步数和活动热量。" +
                 "此通道只读取来源为小米运动健康的记录，手机步数通道可独立启用。", 14, 0xff66789a, false);
+        button(source, "连接小米运动健康与 HC", this::openXiaomiHealthConnect);
+        label(source, "在官方页面点“连接”，再确认写入权限。", 13, 0xff66789a, false);
         button(source, "打开小米运动健康", () -> {
             Intent launch = getPackageManager().getLaunchIntentForPackage(HealthPolicy.ORIGIN);
             if (launch == null) Toast.makeText(this, "没有找到官方小米运动健康。", Toast.LENGTH_SHORT).show();
@@ -99,6 +102,18 @@ public final class HealthActivity extends Activity {
                 "或在应用权限中撤销手机计步的“身体活动”权限，相应读取将停止；" +
                 "撤销权限不自动删除已上传的历史数据。当前只同步最近 48 小时，不申请更早历史读取。", 14, 0xff66789a, false);
         button(page, "返回", this::finish);
+    }
+
+    private void openXiaomiHealthConnect() {
+        Intent intent = new Intent().setClassName(HealthPolicy.ORIGIN,
+                "com.xiaomi.fitness.access.health_connect.HealthConnectIntroductionActivity");
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(this, "未找到官方小米运动健康的 HC 连接页面。", Toast.LENGTH_LONG).show();
+        } catch (SecurityException e) {
+            Toast.makeText(this, "当前版本的小米运动健康未开放 HC 连接页面。", Toast.LENGTH_LONG).show();
+        }
     }
 
     private LinearLayout card(LinearLayout parent) {
