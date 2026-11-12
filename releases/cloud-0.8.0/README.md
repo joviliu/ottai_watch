@@ -10,4 +10,6 @@ Android0.8.0/code24、Mac/Widget0.8.0/build22和服务端0.8.0在「分析过去
 
 根目录全量回归通过，含121项服务测试、4项relay/worker、Android8项既有策略与实际HTTP传输回归、Watch和工具链设置检查；Android原生SDK/Java8、D8、签名构建及APK的V2/V3验证通过。Mac完整`test.sh`、原生Release构建与codesign核对通过；Ali Python3.6完整121项服务测试及最终11项针对性检查通过。
 
-Android0.8.0/code24和Mac/Widget0.8.0/build22已覆盖安装，手机六项HC读取授权、Mac原私密配置保留，组件注册及单实例核对通过。服务端0.8.0已在新备份后部署，真实库隔离副本的旧记录摘要、增量迁移和幂等检查通过，正式健康检查及新增字段确认。真实提问生成、报告关联及客户端布局仍待用户验收；最新状态见[接续记录](../../docs/CLOUD_SYNC_HANDOFF.md)，依据和研究适用边界见[科学方法](../../docs/CGM_ANALYSIS_METHOD.md)。公开包不含真实问题、回答、健康资料、运行截图、令牌或签名私钥。
+Android0.8.0/code24和Mac/Widget0.8.0/build22已覆盖安装，手机六项HC读取授权、Mac原私密配置保留，组件注册及单实例核对通过。服务端0.8.0已在新备份后部署，真实库隔离副本的旧记录摘要、增量迁移和幂等检查通过，正式健康检查及新增字段确认。
+
+一次用户授权的真实提问通过API单次提交并生成，报告关联、受控引用和所引原始统计复核通过，Mac原生缓存已解码对应提问及回答。本轮不计为手机按钮POST验收，Mac独立详情窗口的输入框、原问题、答复及链接已实际核对，手机显示仍待用户确认；只需刷新或打开已有报告。功能代码[935f8b7](https://github.com/joviliu/ottai_watch/commit/935f8b7e623f20fbfeec0a688cdedb0e2605e290)及[CI43149374376](https://github.com/joviliu/ottai_watch/actions/runs/43149374376)的Linux、Mac检查均通过。最新状态见[接续记录](../../docs/CLOUD_SYNC_HANDOFF.md)，依据和研究适用边界见[科学方法](../../docs/CGM_ANALYSIS_METHOD.md)。公开包不含真实问题、回答、健康资料、运行截图、令牌或签名私钥。
